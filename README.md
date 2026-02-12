@@ -1,3 +1,6 @@
+> [!WARNING]
+> This is a custom fork of Crush for my own personal use.
+
 # Crush
 
 <p align="center">

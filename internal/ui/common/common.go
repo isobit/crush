@@ -33,7 +33,7 @@ func (c *Common) Config() *config.Config {
 
 // DefaultCommon returns the default common UI configurations.
 func DefaultCommon(app *app.App) *Common {
-	s := styles.DefaultStyles()
+	s := styles.IsobitStyles()
 	return &Common{
 		App:    app,
 		Styles: &s,

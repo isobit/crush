@@ -1,6 +1,7 @@
 package styles
 
 import (
+	"fmt"
 	"image/color"
 	"strings"
 
@@ -486,56 +487,40 @@ func (s *Styles) DialogHelpStyles() help.Styles {
 	return help.Styles(s.Dialog.Help)
 }
 
-// DefaultStyles returns the default styles for the UI.
+// DefaultStyles returns the default styles using the charmtone palette.
 func DefaultStyles() Styles {
+	return NewStyles(DefaultPalette())
+}
+
+// NewStyles builds a complete Styles from the given Palette.
+func NewStyles(p Palette) Styles {
 	var (
-		primary   = charmtone.Charple
-		secondary = charmtone.Dolly
-		tertiary  = charmtone.Bok
-		// accent    = charmtone.Zest
-
-		// Backgrounds
-		bgBase        = charmtone.Pepper
-		bgBaseLighter = charmtone.BBQ
-		bgSubtle      = charmtone.Charcoal
-		bgOverlay     = charmtone.Iron
-
-		// Foregrounds
-		fgBase      = charmtone.Ash
-		fgMuted     = charmtone.Squid
-		fgHalfMuted = charmtone.Smoke
-		fgSubtle    = charmtone.Oyster
-		// fgSelected  = charmtone.Salt
-
-		// Borders
-		border      = charmtone.Charcoal
-		borderFocus = charmtone.Charple
-
-		// Status
-		error   = charmtone.Sriracha
-		warning = charmtone.Zest
-		info    = charmtone.Malibu
-
-		// Colors
-		white = charmtone.Butter
-
-		blueLight = charmtone.Sardine
-		blue      = charmtone.Malibu
-		blueDark  = charmtone.Damson
-
-		// yellow = charmtone.Mustard
-		yellow = charmtone.Mustard
-		// citron = charmtone.Citron
-
-		greenLight = charmtone.Bok
-		green      = charmtone.Julep
-		greenDark  = charmtone.Guac
-		// greenLight = charmtone.Bok
-
-		red     = charmtone.Coral
-		redDark = charmtone.Sriracha
-		// redLight = charmtone.Salmon
-		// cherry   = charmtone.Cherry
+		primary       = p.Primary
+		secondary     = p.Secondary
+		tertiary      = p.Tertiary
+		bgBase        = p.BgBase
+		bgBaseLighter = p.BgBaseLighter
+		bgSubtle      = p.BgSubtle
+		bgOverlay     = p.BgOverlay
+		fgBase        = p.FgBase
+		fgMuted       = p.FgMuted
+		fgHalfMuted   = p.FgHalfMuted
+		fgSubtle      = p.FgSubtle
+		border        = p.Border
+		borderFocus   = p.BorderFocus
+		error         = p.Error
+		warning       = p.Warning
+		info          = p.Info
+		white         = p.White
+		blueLight     = p.BlueLight
+		blue          = p.Blue
+		blueDark      = p.BlueDark
+		yellow        = p.Yellow
+		greenLight    = p.GreenLight
+		green         = p.Green
+		greenDark     = p.GreenDark
+		red           = p.Red
+		redDark       = p.RedDark
 	)
 
 	normalBorder := lipgloss.NormalBorder()
@@ -830,8 +815,8 @@ func DefaultStyles() Styles {
 	}
 
 	// PlainMarkdown style - muted colors on subtle background for thinking content.
-	plainBg := stringPtr(bgBaseLighter.Hex())
-	plainFg := stringPtr(fgMuted.Hex())
+	plainBg := stringPtr(colorHex(bgBaseLighter))
+	plainFg := stringPtr(colorHex(fgMuted))
 	s.PlainMarkdown = ansi.StyleConfig{
 		Document: ansi.StyleBlock{
 			StylePrimitive: ansi.StylePrimitive{
@@ -1358,6 +1343,11 @@ func DefaultStyles() Styles {
 func boolPtr(b bool) *bool       { return &b }
 func stringPtr(s string) *string { return &s }
 func uintPtr(u uint) *uint       { return &u }
+
+func colorHex(c color.Color) string {
+	r, g, b, _ := c.RGBA()
+	return fmt.Sprintf("#%02x%02x%02x", r>>8, g>>8, b>>8)
+}
 func chromaStyle(style ansi.StylePrimitive) string {
 	var s strings.Builder
 

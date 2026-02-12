@@ -650,6 +650,11 @@
           ],
           "description": "Diff mode for the TUI interface"
         },
+        "vi_mode": {
+          "type": "boolean",
+          "description": "Enable vi-style keybindings in the text editor",
+          "default": false
+        },
         "completions": {
           "$ref": "#/$defs/Completions",
           "description": "Completions UI options"

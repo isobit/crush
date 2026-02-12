@@ -220,6 +220,9 @@ type UI struct {
 	todoSpinner    spinner.Model
 	todoIsSpinning bool
 
+	// Vi mode state.
+	vi viState
+
 	// mouse highlighting related state
 	lastClickTime time.Time
 
@@ -297,6 +300,14 @@ func New(com *common.Common) *UI {
 
 	// Initialize compact mode from config
 	ui.forceCompactMode = com.Config().Options.TUI.CompactMode
+
+	// Initialize vi mode from config.
+	if com.Config().Options.TUI.ViMode {
+		ui.vi.enabled = true
+		ui.vi.mode = viNormal
+		ui.vi.baseCursorShape = ui.textarea.Styles().Cursor.Shape
+		ui.viUpdateCursor()
+	}
 
 	// set onboarding state defaults
 	ui.onboarding.yesInitializeSelected = true
@@ -1561,6 +1572,23 @@ func (m *UI) handleKeyPressMsg(msg tea.KeyPressMsg) tea.Cmd {
 				return tea.Batch(cmds...)
 			}
 
+			// Vi mode: Escape in insert mode enters normal mode. In normal
+			// mode, intercept keys before the regular editor bindings.
+			if m.viEnabled() {
+				if m.vi.mode == viInsert && key.Matches(msg, m.keyMap.Editor.Escape) {
+					m.viEnterNormal()
+					return tea.Batch(cmds...)
+				}
+				if m.viIsNormal() {
+					if consumed, cmd := m.viHandleNormalKey(msg); consumed {
+						if cmd != nil {
+							cmds = append(cmds, cmd)
+						}
+						return tea.Batch(cmds...)
+					}
+				}
+			}
+
 			switch {
 			case key.Matches(msg, m.keyMap.Editor.AddImage):
 				if cmd := m.openFilesDialog(); cmd != nil {
@@ -1580,6 +1608,9 @@ func (m *UI) handleKeyPressMsg(msg tea.KeyPressMsg) tea.Cmd {
 
 				// Otherwise, send the message
 				m.textarea.Reset()
+				if m.viEnabled() {
+					m.viEnterNormal()
+				}
 
 				value = strings.TrimSpace(value)
 				if value == "exit" || value == "quit" {
@@ -1972,6 +2003,14 @@ func (m *UI) View() tea.View {
 func (m *UI) ShortHelp() []key.Binding {
 	var binds []key.Binding
 	k := &m.keyMap
+
+	if m.viEnabled() && m.focus == uiFocusEditor {
+		modeLabel := m.viModeIndicator()
+		binds = append(binds, key.NewBinding(
+			key.WithHelp("vi", modeLabel),
+		))
+	}
+
 	tab := k.Tab
 	commands := k.Commands
 	if m.focus == uiFocusEditor && m.textarea.Value() == "" {

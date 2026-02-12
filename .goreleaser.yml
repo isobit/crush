@@ -98,6 +98,7 @@ checksum:
 
 aur_sources:
   - private_key: "{{ .Env.AUR_KEY }}"
+    disable: "{{ with .Prerelease }}true{{ end }}"
     git_url: "ssh://aur@aur.archlinux.org/crush.git"
     commit_author:
       name: "Charm"
@@ -115,7 +116,7 @@ aur_sources:
       export CGO_CXXFLAGS="${CXXFLAGS}"
       export CGO_LDFLAGS="${LDFLAGS}"
       export GOFLAGS="-buildmode=pie -trimpath -mod=readonly -modcacherw"
-      go build -ldflags="-w -s -buildid='' -linkmode=external -X main.version=v${pkgver}" .
+      go build -ldflags="-w -s -buildid='' -linkmode=external -X github.com/charmbracelet/crush/internal/version.Version=v${pkgver}" .
       ./crush completion bash >./completions/crush.bash
       ./crush completion zsh >./completions/crush.zsh
       ./crush completion fish >./completions/crush.fish
@@ -141,6 +142,7 @@ aur_sources:
 
 aurs:
   - private_key: "{{ .Env.AUR_KEY }}"
+    disable: "{{ with .Prerelease }}true{{ end }}"
     git_url: "ssh://aur@aur.archlinux.org/crush-bin.git"
     commit_author:
       name: "Charm"
@@ -150,7 +152,14 @@ aurs:
     conflicts:
       - crush
     package: |-
-      cd "${srcdir}/crush_${pkgver}_Linux_${CARCH}"
+      case "$CARCH" in
+        aarch64)
+          cd "${srcdir}/crush_${pkgver}_Linux_arm64"
+          ;;
+        *)
+          cd "${srcdir}/crush_${pkgver}_Linux_${CARCH}"
+          ;;
+      esac
       # bin
       install -Dm755 "./crush" "${pkgdir}/usr/bin/crush"
       # license
@@ -170,7 +179,7 @@ aurs:
       install -Dm644 README* "${pkgdir}/usr/share/doc/crush/"
 
 furies:
-  - disable: "{{ .IsNightly }}"
+  - disable: "{{ if (or .Prerelease .IsNightly) }}true{{ end }}"
     account: "{{ with .Env.FURY_TOKEN }}charmcli{{ else }}{{ end }}"
     secret_name: FURY_TOKEN
 
@@ -179,6 +188,7 @@ brews:
       owner: charmbracelet
       name: homebrew-tap
       token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    skip_upload: "{{ with .Prerelease }}true{{ end }}"
     commit_author:
       name: "Charm"
       email: "charmcli@users.noreply.github.com"
@@ -194,6 +204,7 @@ scoops:
       owner: charmbracelet
       name: scoop-bucket
       token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    skip_upload: "{{ with .Prerelease }}true{{ end }}"
     commit_author:
       name: "Charm"
       email: "charmcli@users.noreply.github.com"
@@ -203,6 +214,7 @@ npms:
     repository: "git+https://github.com/charmbracelet/crush.git"
     bugs: https://github.com/charmbracelet/crush/issues
     access: public
+    disable: "{{ with .Prerelease }}true{{ end }}"
 
 nfpms:
   - formats:
@@ -230,11 +242,10 @@ nfpms:
 
 signs:
   - cmd: cosign
-    certificate: "${artifact}.pem"
+    signature: "${artifact}.sigstore.json"
     args:
       - sign-blob
-      - "--output-certificate=${certificate}"
-      - "--output-signature=${signature}"
+      - "--bundle=${signature}"
       - "${artifact}"
       - "--yes"
     artifacts: checksum
@@ -257,6 +268,8 @@ nix:
       name: "Charm"
       email: "charmcli@users.noreply.github.com"
     license: fsl11Mit
+    formatter: nixfmt
+    skip_upload: "{{ with .Prerelease }}true{{ end }}"
     extra_install: |-
       installManPage ./manpages/crush.1.gz
       installShellCompletion ./completions/*
@@ -267,6 +280,7 @@ winget:
     publisher_url: https://charm.land
     release_notes_url: "https://github.com/charmbracelet/crush/releases/tag/{{.Tag}}"
     license_url: https://github.com/charmbracelet/crush/blob/main/LICENSE.md
+    skip_upload: "{{ with .Prerelease }}true{{ end }}"
     commit_author:
       name: "Charm"
       email: "charmcli@users.noreply.github.com"
@@ -303,6 +317,7 @@ changelog:
       - "^docs: update$"
       - "^test:"
       - "^test\\("
+      - "^v\\d.*"
       - "merge conflict"
       - "merge conflict"
       - Merge branch

@@ -6,7 +6,8 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
-	"sync/atomic"
+
+	"github.com/charmbracelet/crush/internal/fsext"
 )
 
 const (
@@ -17,25 +18,15 @@ type ProjectInitFlag struct {
 	Initialized bool `json:"initialized"`
 }
 
-// TODO: we need to remove the global config instance keeping it now just until everything is migrated
-var instance atomic.Pointer[Config]
-
 func Init(workingDir, dataDir string, debug bool) (*Config, error) {
 	cfg, err := Load(workingDir, dataDir, debug)
 	if err != nil {
 		return nil, err
 	}
-	instance.Store(cfg)
-	return instance.Load(), nil
+	return cfg, nil
 }
 
-func Get() *Config {
-	cfg := instance.Load()
-	return cfg
-}
-
-func ProjectNeedsInitialization() (bool, error) {
-	cfg := Get()
+func ProjectNeedsInitialization(cfg *Config) (bool, error) {
 	if cfg == nil {
 		return false, fmt.Errorf("config not loaded")
 	}
@@ -56,6 +47,15 @@ func ProjectNeedsInitialization() (bool, error) {
 		return false, fmt.Errorf("failed to check for context files: %w", err)
 	}
 	if someContextFileExists {
+		return false, nil
+	}
+
+	// If the working directory has no non-ignored files, skip initialization step
+	empty, err := dirHasNoVisibleFiles(cfg.WorkingDir())
+	if err != nil {
+		return false, fmt.Errorf("failed to check if directory is empty: %w", err)
+	}
+	if empty {
 		return false, nil
 	}
 
@@ -90,8 +90,16 @@ func contextPathsExist(dir string) (bool, error) {
 	return false, nil
 }
 
-func MarkProjectInitialized() error {
-	cfg := Get()
+// dirHasNoVisibleFiles returns true if the directory has no files/dirs after applying ignore rules
+func dirHasNoVisibleFiles(dir string) (bool, error) {
+	files, _, err := fsext.ListDirectory(dir, nil, 1, 1)
+	if err != nil {
+		return false, err
+	}
+	return len(files) == 0, nil
+}
+
+func MarkProjectInitialized(cfg *Config) error {
 	if cfg == nil {
 		return fmt.Errorf("config not loaded")
 	}
@@ -106,10 +114,13 @@ func MarkProjectInitialized() error {
 	return nil
 }
 
-func HasInitialDataConfig() bool {
+func HasInitialDataConfig(cfg *Config) bool {
+	if cfg == nil {
+		return false
+	}
 	cfgPath := GlobalConfigData()
 	if _, err := os.Stat(cfgPath); err != nil {
 		return false
 	}
-	return Get().IsConfigured()
+	return cfg.IsConfigured()
 }

@@ -27,6 +27,25 @@ func NewMapFrom[K comparable, V any](m map[K]V) *Map[K, V] {
 	}
 }
 
+// NewLazyMap creates a new lazy-loaded map. The provided load function is
+// executed in a separate goroutine to populate the map.
+func NewLazyMap[K comparable, V any](load func() map[K]V) *Map[K, V] {
+	m := &Map[K, V]{}
+	m.mu.Lock()
+	go func() {
+		defer m.mu.Unlock()
+		m.inner = load()
+	}()
+	return m
+}
+
+// Reset replaces the inner map with the new one.
+func (m *Map[K, V]) Reset(input map[K]V) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.inner = input
+}
+
 // Set sets the value for the specified key in the map.
 func (m *Map[K, V]) Set(key K, value V) {
 	m.mu.Lock()
@@ -77,12 +96,16 @@ func (m *Map[K, V]) Take(key K) (V, bool) {
 	return v, ok
 }
 
+// Copy returns a copy of the inner map.
+func (m *Map[K, V]) Copy() map[K]V {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return maps.Clone(m.inner)
+}
+
 // Seq2 returns an iter.Seq2 that yields key-value pairs from the map.
 func (m *Map[K, V]) Seq2() iter.Seq2[K, V] {
-	dst := make(map[K]V)
-	m.mu.RLock()
-	maps.Copy(dst, m.inner)
-	m.mu.RUnlock()
+	dst := m.Copy()
 	return func(yield func(K, V) bool) {
 		for k, v := range dst {
 			if !yield(k, v) {

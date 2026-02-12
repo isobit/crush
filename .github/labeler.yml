@@ -3,6 +3,10 @@
 
 "area: ci":
   - "/^ci: /i"
+"area: crush run":
+  - "/crush run/i"
+  - "/headless/i"
+  - "/non-interactive/i"
 "area: diff":
   - "/diff/i"
 "area: docs":
@@ -45,6 +49,8 @@
   - "/(aws|bedrock)/i"
 "provider: azure":
   - "/azure/i"
+"provider: github copilot":
+  - "/copilot/i"
 "provider: google gemini":
   - "/gemini/i"
 "provider: google vertex":

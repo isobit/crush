@@ -1,13 +1,12 @@
 // Package shell provides cross-platform shell execution capabilities.
 //
-// This package offers two main types:
-// - Shell: A general-purpose shell executor for one-off or managed commands
-// - PersistentShell: A singleton shell that maintains state across the application
+// This package provides Shell instances for executing commands with their own
+// working directory and environment. Each shell execution is independent.
 //
 // WINDOWS COMPATIBILITY:
-// This implementation provides both POSIX shell emulation (mvdan.cc/sh/v3),
-// even on Windows. Some caution has to be taken: commands should have forward
-// slashes (/) as path separators to work, even on Windows.
+// This implementation provides POSIX shell emulation (mvdan.cc/sh/v3) even on
+// Windows. Commands should use forward slashes (/) as path separators to work
+// correctly on all platforms.
 package shell
 
 import (
@@ -15,6 +14,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"slices"
 	"strings"
@@ -100,7 +100,15 @@ func (s *Shell) Exec(ctx context.Context, command string) (string, string, error
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	return s.execPOSIX(ctx, command)
+	return s.exec(ctx, command)
+}
+
+// ExecStream executes a command in the shell with streaming output to provided writers
+func (s *Shell) ExecStream(ctx context.Context, command string, stdout, stderr io.Writer) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.execStream(ctx, command, stdout, stderr)
 }
 
 // GetWorkingDir returns the current working directory
@@ -199,8 +207,8 @@ func splitArgsFlags(parts []string) (args []string, flags []string) {
 		if strings.HasPrefix(part, "-") {
 			// Extract flag name before '=' if present
 			flag := part
-			if idx := strings.IndexByte(part, '='); idx != -1 {
-				flag = part[:idx]
+			if before, _, ok := strings.Cut(part, "="); ok {
+				flag = before
 			}
 			flags = append(flags, flag)
 		} else {
@@ -219,7 +227,7 @@ func (s *Shell) blockHandler() func(next interp.ExecHandlerFunc) interp.ExecHand
 
 			for _, blockFunc := range s.blockFuncs {
 				if blockFunc(args) {
-					return fmt.Errorf("command is not allowed for security reasons: %s", strings.Join(args, " "))
+					return fmt.Errorf("command is not allowed for security reasons: %q", args[0])
 				}
 			}
 
@@ -228,33 +236,75 @@ func (s *Shell) blockHandler() func(next interp.ExecHandlerFunc) interp.ExecHand
 	}
 }
 
-// execPOSIX executes commands using POSIX shell emulation (cross-platform)
-func (s *Shell) execPOSIX(ctx context.Context, command string) (string, string, error) {
-	line, err := syntax.NewParser().Parse(strings.NewReader(command), "")
-	if err != nil {
-		return "", "", fmt.Errorf("could not parse command: %w", err)
-	}
-
-	var stdout, stderr bytes.Buffer
-	runner, err := interp.New(
-		interp.StdIO(nil, &stdout, &stderr),
+// newInterp creates a new interpreter with the current shell state
+func (s *Shell) newInterp(stdout, stderr io.Writer) (*interp.Runner, error) {
+	return interp.New(
+		interp.StdIO(nil, stdout, stderr),
 		interp.Interactive(false),
 		interp.Env(expand.ListEnviron(s.env...)),
 		interp.Dir(s.cwd),
-		interp.ExecHandlers(s.blockHandler(), coreutils.ExecHandler),
+		interp.ExecHandlers(s.execHandlers()...),
 	)
+}
+
+// updateShellFromRunner updates the shell from the interpreter after execution.
+func (s *Shell) updateShellFromRunner(runner *interp.Runner) {
+	s.cwd = runner.Dir
+	s.env = s.env[:0]
+	for name, vr := range runner.Vars {
+		if vr.Exported {
+			s.env = append(s.env, name+"="+vr.Str)
+		}
+	}
+}
+
+// execCommon is the shared implementation for executing commands
+func (s *Shell) execCommon(ctx context.Context, command string, stdout, stderr io.Writer) (err error) {
+	var runner *interp.Runner
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("command execution panic: %v", r)
+		}
+		if runner != nil {
+			s.updateShellFromRunner(runner)
+		}
+		s.logger.InfoPersist("command finished", "command", command, "err", err)
+	}()
+
+	line, err := syntax.NewParser().Parse(strings.NewReader(command), "")
 	if err != nil {
-		return "", "", fmt.Errorf("could not run command: %w", err)
+		return fmt.Errorf("could not parse command: %w", err)
+	}
+
+	runner, err = s.newInterp(stdout, stderr)
+	if err != nil {
+		return fmt.Errorf("could not run command: %w", err)
 	}
 
 	err = runner.Run(ctx, line)
-	s.cwd = runner.Dir
-	s.env = []string{}
-	for name, vr := range runner.Vars {
-		s.env = append(s.env, fmt.Sprintf("%s=%s", name, vr.Str))
-	}
-	s.logger.InfoPersist("POSIX command finished", "command", command, "err", err)
+	return err
+}
+
+// exec executes commands using a cross-platform shell interpreter.
+func (s *Shell) exec(ctx context.Context, command string) (string, string, error) {
+	var stdout, stderr bytes.Buffer
+	err := s.execCommon(ctx, command, &stdout, &stderr)
 	return stdout.String(), stderr.String(), err
+}
+
+// execStream executes commands using POSIX shell emulation with streaming output
+func (s *Shell) execStream(ctx context.Context, command string, stdout, stderr io.Writer) error {
+	return s.execCommon(ctx, command, stdout, stderr)
+}
+
+func (s *Shell) execHandlers() []func(next interp.ExecHandlerFunc) interp.ExecHandlerFunc {
+	handlers := []func(next interp.ExecHandlerFunc) interp.ExecHandlerFunc{
+		s.blockHandler(),
+	}
+	if useGoCoreUtils {
+		handlers = append(handlers, coreutils.ExecHandler)
+	}
+	return handlers
 }
 
 // IsInterrupt checks if an error is due to interruption

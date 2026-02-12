@@ -3,23 +3,29 @@ package cmd
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 
-	tea "github.com/charmbracelet/bubbletea/v2"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/colorprofile"
 	"github.com/charmbracelet/crush/internal/app"
 	"github.com/charmbracelet/crush/internal/config"
 	"github.com/charmbracelet/crush/internal/db"
 	"github.com/charmbracelet/crush/internal/event"
-	"github.com/charmbracelet/crush/internal/tui"
+	"github.com/charmbracelet/crush/internal/projects"
+	"github.com/charmbracelet/crush/internal/ui/common"
+	ui "github.com/charmbracelet/crush/internal/ui/model"
 	"github.com/charmbracelet/crush/internal/version"
 	"github.com/charmbracelet/fang"
-	"github.com/charmbracelet/lipgloss/v2"
+	uv "github.com/charmbracelet/ultraviolet"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/charmbracelet/x/exp/charmtone"
 	"github.com/charmbracelet/x/term"
 	"github.com/spf13/cobra"
@@ -29,25 +35,25 @@ func init() {
 	rootCmd.PersistentFlags().StringP("cwd", "c", "", "Current working directory")
 	rootCmd.PersistentFlags().StringP("data-dir", "D", "", "Custom crush data directory")
 	rootCmd.PersistentFlags().BoolP("debug", "d", false, "Debug")
-
 	rootCmd.Flags().BoolP("help", "h", false, "Help")
 	rootCmd.Flags().BoolP("yolo", "y", false, "Automatically accept all permissions (dangerous mode)")
 
 	rootCmd.AddCommand(
 		runCmd,
 		dirsCmd,
+		projectsCmd,
 		updateProvidersCmd,
 		logsCmd,
 		schemaCmd,
+		loginCmd,
+		statsCmd,
 	)
 }
 
 var rootCmd = &cobra.Command{
 	Use:   "crush",
-	Short: "Terminal-based AI assistant for software development",
-	Long: `Crush is a powerful terminal-based AI assistant that helps with software development tasks.
-It provides an interactive chat interface with AI capabilities, code analysis, and LSP integration
-to assist developers in writing, debugging, and understanding code directly from the terminal.`,
+	Short: "An AI assistant for software development",
+	Long:  "An AI assistant for software development and similar tasks with direct access to the terminal",
 	Example: `
 # Run in interactive mode
 crush
@@ -71,7 +77,7 @@ crush run "Explain the use of context in Go"
 crush -y
   `,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		app, err := setupApp(cmd)
+		app, err := setupAppWithProgressBar(cmd)
 		if err != nil {
 			return err
 		}
@@ -80,25 +86,25 @@ crush -y
 		event.AppInitialized()
 
 		// Set up the TUI.
-		program := tea.NewProgram(
-			tui.New(app),
-			tea.WithAltScreen(),
-			tea.WithContext(cmd.Context()),
-			tea.WithMouseCellMotion(),            // Use cell motion instead of all motion to reduce event flooding
-			tea.WithFilter(tui.MouseEventFilter), // Filter mouse events based on focus state
-		)
+		var env uv.Environ = os.Environ()
 
+		com := common.DefaultCommon(app)
+		model := ui.New(com)
+
+		program := tea.NewProgram(
+			model,
+			tea.WithEnvironment(env),
+			tea.WithContext(cmd.Context()),
+			tea.WithFilter(ui.MouseEventFilter), // Filter mouse events based on focus state
+		)
 		go app.Subscribe(program)
 
 		if _, err := program.Run(); err != nil {
 			event.Error(err)
 			slog.Error("TUI run error", "error", err)
-			return fmt.Errorf("TUI error: %v", err)
+			return errors.New("Crush crashed. If metrics are enabled, we were notified about it. If you'd like to report it, please copy the stacktrace above and open an issue at https://github.com/charmbracelet/crush/issues/new?template=bug.yml") //nolint:staticcheck
 		}
 		return nil
-	},
-	PostRun: func(cmd *cobra.Command, args []string) {
-		event.AppExited()
 	},
 }
 
@@ -145,6 +151,34 @@ func Execute() {
 	}
 }
 
+// supportsProgressBar tries to determine whether the current terminal supports
+// progress bars by looking into environment variables.
+func supportsProgressBar() bool {
+	if !term.IsTerminal(os.Stderr.Fd()) {
+		return false
+	}
+	termProg := os.Getenv("TERM_PROGRAM")
+	_, isWindowsTerminal := os.LookupEnv("WT_SESSION")
+
+	return isWindowsTerminal || strings.Contains(strings.ToLower(termProg), "ghostty")
+}
+
+func setupAppWithProgressBar(cmd *cobra.Command) (*app.App, error) {
+	app, err := setupApp(cmd)
+	if err != nil {
+		return nil, err
+	}
+
+	// Check if progress bar is enabled in config (defaults to true if nil)
+	progressEnabled := app.Config().Options.Progress == nil || *app.Config().Options.Progress
+	if progressEnabled && supportsProgressBar() {
+		_, _ = fmt.Fprintf(os.Stderr, ansi.SetIndeterminateProgressBar)
+		defer func() { _, _ = fmt.Fprintf(os.Stderr, ansi.ResetProgressBar) }()
+	}
+
+	return app, nil
+}
+
 // setupApp handles the common setup logic for both interactive and non-interactive modes.
 // It returns the app instance, config, cleanup function, and any error.
 func setupApp(cmd *cobra.Command) (*app.App, error) {
@@ -172,6 +206,12 @@ func setupApp(cmd *cobra.Command) (*app.App, error) {
 		return nil, err
 	}
 
+	// Register this project in the centralized projects list.
+	if err := projects.Register(cwd, cfg.Options.DataDirectory); err != nil {
+		slog.Warn("Failed to register project", "error", err)
+		// Non-fatal: continue even if registration fails
+	}
+
 	// Connect to DB; this will also run migrations.
 	conn, err := db.Connect(ctx, cfg.Options.DataDirectory)
 	if err != nil {
@@ -184,21 +224,21 @@ func setupApp(cmd *cobra.Command) (*app.App, error) {
 		return nil, err
 	}
 
-	if shouldEnableMetrics() {
+	if shouldEnableMetrics(cfg) {
 		event.Init()
 	}
 
 	return appInstance, nil
 }
 
-func shouldEnableMetrics() bool {
+func shouldEnableMetrics(cfg *config.Config) bool {
 	if v, _ := strconv.ParseBool(os.Getenv("CRUSH_DISABLE_METRICS")); v {
 		return false
 	}
 	if v, _ := strconv.ParseBool(os.Getenv("DO_NOT_TRACK")); v {
 		return false
 	}
-	if config.Get().Options.DisableMetrics {
+	if cfg.Options.DisableMetrics {
 		return false
 	}
 	return true
@@ -212,7 +252,8 @@ func MaybePrependStdin(prompt string) (string, error) {
 	if err != nil {
 		return prompt, err
 	}
-	if fi.Mode()&os.ModeNamedPipe == 0 {
+	// Check if stdin is a named pipe ( | ) or regular file ( < ).
+	if fi.Mode()&os.ModeNamedPipe == 0 && !fi.Mode().IsRegular() {
 		return prompt, nil
 	}
 	bts, err := io.ReadAll(os.Stdin)

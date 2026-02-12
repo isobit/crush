@@ -1,6 +1,7 @@
 package styles
 
 import (
+	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/exp/charmtone"
 )
@@ -36,6 +37,9 @@ func IsobitStyles() Styles {
 	s.EditorPromptYoloIconBlurred = s.EditorPromptYoloIconFocused.Foreground(charmtone.Pepper).Background(charmtone.Squid)
 	s.EditorPromptYoloDotsFocused = lipgloss.NewStyle().MarginRight(1).Foreground(charmtone.Zest).SetString(":::")
 	s.EditorPromptYoloDotsBlurred = s.EditorPromptYoloDotsFocused.Foreground(charmtone.Squid)
+
+	s.TextInput.Cursor.Shape = tea.CursorBar
+	s.TextArea.Cursor.Shape = tea.CursorBar
 
 	return s
 }

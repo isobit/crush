@@ -224,9 +224,10 @@ func setupApp(cmd *cobra.Command) (*app.App, error) {
 		return nil, err
 	}
 
-	if shouldEnableMetrics(cfg) {
-		event.Init()
-	}
+	// Permanently disabled in this fork.
+	// if shouldEnableMetrics(cfg) {
+	// 	event.Init()
+	// }
 
 	return appInstance, nil
 }

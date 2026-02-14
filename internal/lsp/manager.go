@@ -266,17 +266,19 @@ func handlesFiletype(sname string, fileTypes []string, filePath string) bool {
 }
 
 func hasRootMarkers(dir string, markers []string) bool {
-	if len(markers) == 0 {
-		return true
-	}
-	for _, pattern := range markers {
-		// Use fsext.GlobWithDoubleStar to find matches
-		matches, _, err := fsext.GlobWithDoubleStar(pattern, dir, 1)
-		if err == nil && len(matches) > 0 {
-			return true
-		}
-	}
+	// TODO causing performance issues
 	return false
+	// if len(markers) == 0 {
+	// 	return true
+	// }
+	// for _, pattern := range markers {
+	// 	// Use fsext.GlobWithDoubleStar to find matches
+	// 	matches, _, err := fsext.GlobWithDoubleStar(pattern, dir, 1)
+	// 	if err == nil && len(matches) > 0 {
+	// 		return true
+	// 	}
+	// }
+	// return false
 }
 
 func handles(server *powernapconfig.ServerConfig, filePath, workDir string) bool {

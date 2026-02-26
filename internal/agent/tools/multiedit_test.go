@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/charmbracelet/crush/internal/db"
 	"github.com/charmbracelet/crush/internal/history"
 	"github.com/charmbracelet/crush/internal/permission"
 	"github.com/charmbracelet/crush/internal/pubsub"
@@ -26,6 +27,8 @@ func (m *mockPermissionService) Deny(req permission.PermissionRequest) {}
 
 func (m *mockPermissionService) GrantPersistent(req permission.PermissionRequest) {}
 
+func (m *mockPermissionService) GrantAlways(req permission.PermissionRequest) {}
+
 func (m *mockPermissionService) AutoApproveSession(sessionID string) {}
 
 func (m *mockPermissionService) SetSkipRequests(skip bool) {}
@@ -36,6 +39,14 @@ func (m *mockPermissionService) SkipRequests() bool {
 
 func (m *mockPermissionService) SubscribeNotifications(ctx context.Context) <-chan pubsub.Event[permission.PermissionNotification] {
 	return make(<-chan pubsub.Event[permission.PermissionNotification])
+}
+
+func (m *mockPermissionService) ListRules(ctx context.Context) ([]db.PermissionRule, error) {
+	return nil, nil
+}
+
+func (m *mockPermissionService) DeleteRule(ctx context.Context, id int64) error {
+	return nil
 }
 
 type mockHistoryService struct {

@@ -1366,6 +1366,8 @@ func (m *UI) handleDialogMsg(msg tea.Msg) tea.Cmd {
 			m.com.App.Permissions.Grant(msg.Permission)
 		case dialog.PermissionAllowForSession:
 			m.com.App.Permissions.GrantPersistent(msg.Permission)
+		case dialog.PermissionAllowAlways:
+			m.com.App.Permissions.GrantAlways(msg.Permission)
 		case dialog.PermissionDeny:
 			m.com.App.Permissions.Deny(msg.Permission)
 		}
@@ -2852,6 +2854,10 @@ func (m *UI) openDialog(id string) tea.Cmd {
 		if cmd := m.openQuitDialog(); cmd != nil {
 			cmds = append(cmds, cmd)
 		}
+	case dialog.PermissionRulesID:
+		if cmd := m.openPermissionRulesDialog(); cmd != nil {
+			cmds = append(cmds, cmd)
+		}
 	default:
 		// Unknown dialog
 		break
@@ -2972,6 +2978,22 @@ func (m *UI) openFilesDialog() tea.Cmd {
 	return cmd
 }
 
+// openPermissionRulesDialog opens the permission rules management dialog.
+func (m *UI) openPermissionRulesDialog() tea.Cmd {
+	if m.dialog.ContainsDialog(dialog.PermissionRulesID) {
+		m.dialog.BringToFront(dialog.PermissionRulesID)
+		return nil
+	}
+
+	rulesDialog, err := dialog.NewPermissionRules(m.com)
+	if err != nil {
+		return util.ReportError(err)
+	}
+
+	m.dialog.OpenDialog(rulesDialog)
+	return nil
+}
+
 // openPermissionsDialog opens the permissions dialog for a permission request.
 func (m *UI) openPermissionsDialog(perm permission.PermissionRequest) tea.Cmd {
 	// Close any existing permissions dialog first.
@@ -2997,7 +3019,11 @@ func (m *UI) handlePermissionNotification(notification permission.PermissionNoti
 
 	if permItem, ok := toolItem.(chat.ToolMessageItem); ok {
 		if notification.Granted {
-			permItem.SetStatus(chat.ToolStatusRunning)
+			if notification.AutoApproved {
+				permItem.SetStatus(chat.ToolStatusAutoApproved)
+			} else {
+				permItem.SetStatus(chat.ToolStatusRunning)
+			}
 		} else {
 			permItem.SetStatus(chat.ToolStatusAwaitingPermission)
 		}

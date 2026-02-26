@@ -37,6 +37,7 @@ const (
 	ToolStatusSuccess
 	ToolStatusError
 	ToolStatusCanceled
+	ToolStatusAutoApproved
 )
 
 // ToolMessageItem represents a tool call message in the chat UI.
@@ -447,6 +448,8 @@ func toolEarlyStateContent(sty *styles.Styles, opts *ToolRenderOpts, width int) 
 		msg = sty.Tool.StateCancelled.Render("Canceled.")
 	case ToolStatusAwaitingPermission:
 		msg = sty.Tool.StateWaiting.Render("Requesting permission...")
+	case ToolStatusAutoApproved:
+		msg = sty.Tool.StateWaiting.Render("Auto-approved")
 	case ToolStatusRunning:
 		msg = sty.Tool.StateWaiting.Render("Waiting for tool response...")
 	default:

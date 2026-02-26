@@ -30,6 +30,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.createMessageStmt, err = db.PrepareContext(ctx, createMessage); err != nil {
 		return nil, fmt.Errorf("error preparing query CreateMessage: %w", err)
 	}
+	if q.createPermissionRuleStmt, err = db.PrepareContext(ctx, createPermissionRule); err != nil {
+		return nil, fmt.Errorf("error preparing query CreatePermissionRule: %w", err)
+	}
 	if q.createSessionStmt, err = db.PrepareContext(ctx, createSession); err != nil {
 		return nil, fmt.Errorf("error preparing query CreateSession: %w", err)
 	}
@@ -38,6 +41,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	}
 	if q.deleteMessageStmt, err = db.PrepareContext(ctx, deleteMessage); err != nil {
 		return nil, fmt.Errorf("error preparing query DeleteMessage: %w", err)
+	}
+	if q.deletePermissionRuleStmt, err = db.PrepareContext(ctx, deletePermissionRule); err != nil {
+		return nil, fmt.Errorf("error preparing query DeletePermissionRule: %w", err)
 	}
 	if q.deleteSessionStmt, err = db.PrepareContext(ctx, deleteSession); err != nil {
 		return nil, fmt.Errorf("error preparing query DeleteSession: %w", err)
@@ -108,6 +114,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.listNewFilesStmt, err = db.PrepareContext(ctx, listNewFiles); err != nil {
 		return nil, fmt.Errorf("error preparing query ListNewFiles: %w", err)
 	}
+	if q.listPermissionRulesStmt, err = db.PrepareContext(ctx, listPermissionRules); err != nil {
+		return nil, fmt.Errorf("error preparing query ListPermissionRules: %w", err)
+	}
 	if q.listSessionReadFilesStmt, err = db.PrepareContext(ctx, listSessionReadFiles); err != nil {
 		return nil, fmt.Errorf("error preparing query ListSessionReadFiles: %w", err)
 	}
@@ -116,6 +125,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	}
 	if q.listUserMessagesBySessionStmt, err = db.PrepareContext(ctx, listUserMessagesBySession); err != nil {
 		return nil, fmt.Errorf("error preparing query ListUserMessagesBySession: %w", err)
+	}
+	if q.matchPermissionRuleStmt, err = db.PrepareContext(ctx, matchPermissionRule); err != nil {
+		return nil, fmt.Errorf("error preparing query MatchPermissionRule: %w", err)
 	}
 	if q.recordFileReadStmt, err = db.PrepareContext(ctx, recordFileRead); err != nil {
 		return nil, fmt.Errorf("error preparing query RecordFileRead: %w", err)
@@ -144,6 +156,11 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing createMessageStmt: %w", cerr)
 		}
 	}
+	if q.createPermissionRuleStmt != nil {
+		if cerr := q.createPermissionRuleStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing createPermissionRuleStmt: %w", cerr)
+		}
+	}
 	if q.createSessionStmt != nil {
 		if cerr := q.createSessionStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing createSessionStmt: %w", cerr)
@@ -157,6 +174,11 @@ func (q *Queries) Close() error {
 	if q.deleteMessageStmt != nil {
 		if cerr := q.deleteMessageStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing deleteMessageStmt: %w", cerr)
+		}
+	}
+	if q.deletePermissionRuleStmt != nil {
+		if cerr := q.deletePermissionRuleStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing deletePermissionRuleStmt: %w", cerr)
 		}
 	}
 	if q.deleteSessionStmt != nil {
@@ -274,6 +296,11 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing listNewFilesStmt: %w", cerr)
 		}
 	}
+	if q.listPermissionRulesStmt != nil {
+		if cerr := q.listPermissionRulesStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing listPermissionRulesStmt: %w", cerr)
+		}
+	}
 	if q.listSessionReadFilesStmt != nil {
 		if cerr := q.listSessionReadFilesStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing listSessionReadFilesStmt: %w", cerr)
@@ -287,6 +314,11 @@ func (q *Queries) Close() error {
 	if q.listUserMessagesBySessionStmt != nil {
 		if cerr := q.listUserMessagesBySessionStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing listUserMessagesBySessionStmt: %w", cerr)
+		}
+	}
+	if q.matchPermissionRuleStmt != nil {
+		if cerr := q.matchPermissionRuleStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing matchPermissionRuleStmt: %w", cerr)
 		}
 	}
 	if q.recordFileReadStmt != nil {
@@ -350,9 +382,11 @@ type Queries struct {
 	tx                             *sql.Tx
 	createFileStmt                 *sql.Stmt
 	createMessageStmt              *sql.Stmt
+	createPermissionRuleStmt       *sql.Stmt
 	createSessionStmt              *sql.Stmt
 	deleteFileStmt                 *sql.Stmt
 	deleteMessageStmt              *sql.Stmt
+	deletePermissionRuleStmt       *sql.Stmt
 	deleteSessionStmt              *sql.Stmt
 	deleteSessionFilesStmt         *sql.Stmt
 	deleteSessionMessagesStmt      *sql.Stmt
@@ -376,9 +410,11 @@ type Queries struct {
 	listLatestSessionFilesStmt     *sql.Stmt
 	listMessagesBySessionStmt      *sql.Stmt
 	listNewFilesStmt               *sql.Stmt
+	listPermissionRulesStmt        *sql.Stmt
 	listSessionReadFilesStmt       *sql.Stmt
 	listSessionsStmt               *sql.Stmt
 	listUserMessagesBySessionStmt  *sql.Stmt
+	matchPermissionRuleStmt        *sql.Stmt
 	recordFileReadStmt             *sql.Stmt
 	updateMessageStmt              *sql.Stmt
 	updateSessionStmt              *sql.Stmt
@@ -391,9 +427,11 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		tx:                             tx,
 		createFileStmt:                 q.createFileStmt,
 		createMessageStmt:              q.createMessageStmt,
+		createPermissionRuleStmt:       q.createPermissionRuleStmt,
 		createSessionStmt:              q.createSessionStmt,
 		deleteFileStmt:                 q.deleteFileStmt,
 		deleteMessageStmt:              q.deleteMessageStmt,
+		deletePermissionRuleStmt:       q.deletePermissionRuleStmt,
 		deleteSessionStmt:              q.deleteSessionStmt,
 		deleteSessionFilesStmt:         q.deleteSessionFilesStmt,
 		deleteSessionMessagesStmt:      q.deleteSessionMessagesStmt,
@@ -417,9 +455,11 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		listLatestSessionFilesStmt:     q.listLatestSessionFilesStmt,
 		listMessagesBySessionStmt:      q.listMessagesBySessionStmt,
 		listNewFilesStmt:               q.listNewFilesStmt,
+		listPermissionRulesStmt:        q.listPermissionRulesStmt,
 		listSessionReadFilesStmt:       q.listSessionReadFilesStmt,
 		listSessionsStmt:               q.listSessionsStmt,
 		listUserMessagesBySessionStmt:  q.listUserMessagesBySessionStmt,
+		matchPermissionRuleStmt:        q.matchPermissionRuleStmt,
 		recordFileReadStmt:             q.recordFileReadStmt,
 		updateMessageStmt:              q.updateMessageStmt,
 		updateSessionStmt:              q.updateSessionStmt,

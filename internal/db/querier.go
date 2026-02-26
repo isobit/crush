@@ -11,9 +11,11 @@ import (
 type Querier interface {
 	CreateFile(ctx context.Context, arg CreateFileParams) (File, error)
 	CreateMessage(ctx context.Context, arg CreateMessageParams) (Message, error)
+	CreatePermissionRule(ctx context.Context, arg CreatePermissionRuleParams) error
 	CreateSession(ctx context.Context, arg CreateSessionParams) (Session, error)
 	DeleteFile(ctx context.Context, id string) error
 	DeleteMessage(ctx context.Context, id string) error
+	DeletePermissionRule(ctx context.Context, id int64) error
 	DeleteSession(ctx context.Context, id string) error
 	DeleteSessionFiles(ctx context.Context, sessionID string) error
 	DeleteSessionMessages(ctx context.Context, sessionID string) error
@@ -37,9 +39,11 @@ type Querier interface {
 	ListLatestSessionFiles(ctx context.Context, sessionID string) ([]File, error)
 	ListMessagesBySession(ctx context.Context, sessionID string) ([]Message, error)
 	ListNewFiles(ctx context.Context) ([]File, error)
+	ListPermissionRules(ctx context.Context) ([]PermissionRule, error)
 	ListSessionReadFiles(ctx context.Context, sessionID string) ([]ReadFile, error)
 	ListSessions(ctx context.Context) ([]Session, error)
 	ListUserMessagesBySession(ctx context.Context, sessionID string) ([]Message, error)
+	MatchPermissionRule(ctx context.Context, arg MatchPermissionRuleParams) (int64, error)
 	RecordFileRead(ctx context.Context, arg RecordFileReadParams) error
 	UpdateMessage(ctx context.Context, arg UpdateMessageParams) error
 	UpdateSession(ctx context.Context, arg UpdateSessionParams) (Session, error)

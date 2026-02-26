@@ -85,7 +85,7 @@ func New(
 		resolver:    resolver,
 		cwd:         cwd,
 	}
-	client.serverState.Store(StateStarting)
+	client.serverState.Store(StateStopped)
 
 	if err := client.createPowernapClient(); err != nil {
 		return nil, err
@@ -277,10 +277,6 @@ func (c *Client) WaitForServerReady(ctx context.Context) error {
 	// Set initial state
 	c.SetServerState(StateStarting)
 
-	// Create a context with timeout
-	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
-	defer cancel()
-
 	// Try to ping the server with a simple request
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
@@ -324,6 +320,9 @@ type OpenFileInfo struct {
 // HandlesFile checks if this LSP client handles the given file based on its
 // extension and whether it's within the working directory.
 func (c *Client) HandlesFile(path string) bool {
+	if c == nil {
+		return false
+	}
 	if !fsext.HasPrefix(path, c.cwd) {
 		slog.Debug("File outside workspace", "name", c.name, "file", path, "workDir", c.cwd)
 		return false
@@ -364,6 +363,9 @@ func (c *Client) OpenFile(ctx context.Context, filepath string) error {
 
 // NotifyChange notifies the server about a file change.
 func (c *Client) NotifyChange(ctx context.Context, filepath string) error {
+	if c == nil {
+		return nil
+	}
 	uri := string(protocol.URIFromPath(filepath))
 
 	content, err := os.ReadFile(filepath)
@@ -420,12 +422,18 @@ func (c *Client) GetFileDiagnostics(uri protocol.DocumentURI) []protocol.Diagnos
 
 // GetDiagnostics returns all diagnostics for all files.
 func (c *Client) GetDiagnostics() map[protocol.DocumentURI][]protocol.Diagnostic {
+	if c == nil {
+		return nil
+	}
 	return c.diagnostics.Copy()
 }
 
 // GetDiagnosticCounts returns cached diagnostic counts by severity.
 // Uses the VersionedMap version to avoid recomputing on every call.
 func (c *Client) GetDiagnosticCounts() DiagnosticCounts {
+	if c == nil {
+		return DiagnosticCounts{}
+	}
 	currentVersion := c.diagnostics.Version()
 
 	c.diagCountsMu.Lock()
@@ -459,6 +467,9 @@ func (c *Client) GetDiagnosticCounts() DiagnosticCounts {
 
 // OpenFileOnDemand opens a file only if it's not already open.
 func (c *Client) OpenFileOnDemand(ctx context.Context, filepath string) error {
+	if c == nil {
+		return nil
+	}
 	// Check if the file is already open
 	if c.IsFileOpen(filepath) {
 		return nil
@@ -480,14 +491,9 @@ func (c *Client) RegisterServerRequestHandler(method string, handler transport.H
 
 // openKeyConfigFiles opens important configuration files that help initialize the server.
 func (c *Client) openKeyConfigFiles(ctx context.Context) {
-	wd, err := os.Getwd()
-	if err != nil {
-		return
-	}
-
 	// Try to open each file, ignoring errors if they don't exist
 	for _, file := range c.config.RootMarkers {
-		file = filepath.Join(wd, file)
+		file = filepath.Join(c.cwd, file)
 		if _, err := os.Stat(file); err == nil {
 			// File exists, try to open it
 			if err := c.OpenFile(ctx, file); err != nil {
@@ -501,6 +507,9 @@ func (c *Client) openKeyConfigFiles(ctx context.Context) {
 
 // WaitForDiagnostics waits until diagnostics change or the timeout is reached.
 func (c *Client) WaitForDiagnostics(ctx context.Context, d time.Duration) {
+	if c == nil {
+		return
+	}
 	ticker := time.NewTicker(200 * time.Millisecond)
 	defer ticker.Stop()
 	timeout := time.After(d)

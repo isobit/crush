@@ -56,32 +56,34 @@ func (m *UI) modelInfo(width int) string {
 
 // getDynamicHeightLimits will give us the num of items to show in each section based on the hight
 // some items are more important than others.
-func getDynamicHeightLimits(availableHeight int) (maxFiles, maxLSPs, maxMCPs int) {
+func getDynamicHeightLimits(availableHeight int) (maxFiles, maxLSPs, maxMCPs, maxPerms int) {
 	const (
 		minItemsPerSection      = 2
 		defaultMaxFilesShown    = 10
 		defaultMaxLSPsShown     = 8
 		defaultMaxMCPsShown     = 8
+		defaultMaxPermsShown    = 6
 		minAvailableHeightLimit = 10
 	)
 
 	// If we have very little space, use minimum values
 	if availableHeight < minAvailableHeightLimit {
-		return minItemsPerSection, minItemsPerSection, minItemsPerSection
+		return minItemsPerSection, minItemsPerSection, minItemsPerSection, minItemsPerSection
 	}
 
-	// Distribute available height among the three sections
-	// Give priority to files, then LSPs, then MCPs
-	totalSections := 3
+	// Distribute available height among the four sections
+	// Give priority to files, then LSPs, then MCPs, then permissions
+	totalSections := 4
 	heightPerSection := availableHeight / totalSections
 
 	// Calculate limits for each section, ensuring minimums
 	maxFiles = max(minItemsPerSection, min(defaultMaxFilesShown, heightPerSection))
 	maxLSPs = max(minItemsPerSection, min(defaultMaxLSPsShown, heightPerSection))
 	maxMCPs = max(minItemsPerSection, min(defaultMaxMCPsShown, heightPerSection))
+	maxPerms = max(minItemsPerSection, min(defaultMaxPermsShown, heightPerSection))
 
 	// If we have extra space, give it to files first
-	remainingHeight := availableHeight - (maxFiles + maxLSPs + maxMCPs)
+	remainingHeight := availableHeight - (maxFiles + maxLSPs + maxMCPs + maxPerms)
 	if remainingHeight > 0 {
 		extraForFiles := min(remainingHeight, defaultMaxFilesShown-maxFiles)
 		maxFiles += extraForFiles
@@ -93,12 +95,18 @@ func getDynamicHeightLimits(availableHeight int) (maxFiles, maxLSPs, maxMCPs int
 			remainingHeight -= extraForLSPs
 
 			if remainingHeight > 0 {
-				maxMCPs += min(remainingHeight, defaultMaxMCPsShown-maxMCPs)
+				extraForMCPs := min(remainingHeight, defaultMaxMCPsShown-maxMCPs)
+				maxMCPs += extraForMCPs
+				remainingHeight -= extraForMCPs
+
+				if remainingHeight > 0 {
+					maxPerms += min(remainingHeight, defaultMaxPermsShown-maxPerms)
+				}
 			}
 		}
 	}
 
-	return maxFiles, maxLSPs, maxMCPs
+	return maxFiles, maxLSPs, maxMCPs, maxPerms
 }
 
 // sidebar renders the chat sidebar containing session title, working
@@ -137,11 +145,24 @@ func (m *UI) drawSidebar(scr uv.Screen, area uv.Rectangle) {
 
 	_, remainingHeightArea := layout.SplitVertical(m.layout.sidebar, layout.Fixed(lipgloss.Height(sidebarHeader)))
 	remainingHeight := remainingHeightArea.Dy() - 10
-	maxFiles, maxLSPs, maxMCPs := getDynamicHeightLimits(remainingHeight)
+	maxFiles, maxLSPs, maxMCPs, maxPerms := getDynamicHeightLimits(remainingHeight)
 
 	lspSection := m.lspInfo(width, maxLSPs, true)
 	mcpSection := m.mcpInfo(width, maxMCPs, true)
 	filesSection := m.filesInfo(m.com.Config().WorkingDir(), width, maxFiles, true)
+	permsSection := m.permissionsInfo(width, maxPerms, true)
+
+	sections := []string{
+		sidebarHeader,
+		filesSection,
+		"",
+		lspSection,
+		"",
+		mcpSection,
+	}
+	if permsSection != "" {
+		sections = append(sections, "", permsSection)
+	}
 
 	uv.NewStyledString(
 		lipgloss.NewStyle().
@@ -150,12 +171,7 @@ func (m *UI) drawSidebar(scr uv.Screen, area uv.Rectangle) {
 			Render(
 				lipgloss.JoinVertical(
 					lipgloss.Left,
-					sidebarHeader,
-					filesSection,
-					"",
-					lspSection,
-					"",
-					mcpSection,
+					sections...,
 				),
 			),
 	).Draw(scr, area)

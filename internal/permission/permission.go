@@ -61,6 +61,7 @@ type Service interface {
 	SubscribeNotifications(ctx context.Context) <-chan pubsub.Event[PermissionNotification]
 	ListRules(ctx context.Context) ([]db.PermissionRule, error)
 	DeleteRule(ctx context.Context, id int64) error
+	ListSessionPermissions(sessionID string) []PermissionRequest
 }
 
 type permissionService struct {
@@ -295,6 +296,19 @@ func (s *permissionService) SetSkipRequests(skip bool) {
 
 func (s *permissionService) SkipRequests() bool {
 	return s.skip
+}
+
+func (s *permissionService) ListSessionPermissions(sessionID string) []PermissionRequest {
+	s.sessionPermissionsMu.RLock()
+	defer s.sessionPermissionsMu.RUnlock()
+
+	var result []PermissionRequest
+	for _, p := range s.sessionPermissions {
+		if p.SessionID == sessionID {
+			result = append(result, p)
+		}
+	}
+	return result
 }
 
 func (s *permissionService) ListRules(ctx context.Context) ([]db.PermissionRule, error) {

@@ -5,6 +5,8 @@ import (
 	"fmt"
 
 	"github.com/charmbracelet/crush/internal/db"
+	"github.com/charmbracelet/crush/internal/home"
+	"github.com/charmbracelet/crush/internal/permission"
 	"github.com/charmbracelet/crush/internal/ui/list"
 	"github.com/charmbracelet/crush/internal/ui/styles"
 	"github.com/sahilm/fuzzy"
@@ -96,6 +98,65 @@ func permissionRuleItems(t *styles.Styles, mode permissionRulesMode, rules ...db
 	items := make([]list.FilterableItem, len(rules))
 	for i, r := range rules {
 		items[i] = &PermissionRuleItem{PermissionRule: r, t: t, mode: mode}
+	}
+	return items
+}
+
+// SessionPermissionItem wraps a [permission.PermissionRequest] to display
+// session-scoped permissions in the permission rules dialog.
+type SessionPermissionItem struct {
+	permission.PermissionRequest
+	t       *styles.Styles
+	m       fuzzy.Match
+	cache   map[int]string
+	focused bool
+}
+
+var _ ListItem = &SessionPermissionItem{}
+
+// Filter returns the filterable value of the session permission.
+func (s *SessionPermissionItem) Filter() string {
+	return fmt.Sprintf("%s:%s %s", s.ToolName, s.Action, s.Path)
+}
+
+// ID returns the unique identifier of the session permission.
+func (s *SessionPermissionItem) ID() string {
+	return "session:" + s.PermissionRequest.ID
+}
+
+// SetMatch sets the fuzzy match for the session permission item.
+func (s *SessionPermissionItem) SetMatch(m fuzzy.Match) {
+	s.cache = nil
+	s.m = m
+}
+
+// SetFocused sets the focus state of the session permission item.
+func (s *SessionPermissionItem) SetFocused(focused bool) {
+	if s.focused != focused {
+		s.cache = nil
+	}
+	s.focused = focused
+}
+
+// Render returns the string representation of the session permission item.
+func (s *SessionPermissionItem) Render(width int) string {
+	title := fmt.Sprintf("%s:%s", s.ToolName, s.Action)
+	info := home.Short(s.Path) + " (session)"
+	sty := ListItemStyles{
+		ItemBlurred:     s.t.Dialog.NormalItem,
+		ItemFocused:     s.t.Dialog.SelectedItem,
+		InfoTextBlurred: s.t.Subtle,
+		InfoTextFocused: s.t.Base,
+	}
+	return renderItem(sty, title, info, s.focused, width, s.cache, &s.m)
+}
+
+// sessionPermissionItems converts a slice of [permission.PermissionRequest] to
+// a slice of [list.FilterableItem].
+func sessionPermissionItems(t *styles.Styles, perms ...permission.PermissionRequest) []list.FilterableItem {
+	items := make([]list.FilterableItem, len(perms))
+	for i, p := range perms {
+		items[i] = &SessionPermissionItem{PermissionRequest: p, t: t}
 	}
 	return items
 }

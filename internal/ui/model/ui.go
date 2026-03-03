@@ -130,9 +130,10 @@ type (
 
 // UI represents the main user interface model.
 type UI struct {
-	com          *common.Common
-	session      *session.Session
-	sessionFiles []SessionFile
+	com                *common.Common
+	session            *session.Session
+	sessionFiles       []SessionFile
+	sessionPermissions []permission.PermissionRequest
 
 	// keeps track of read files while we don't have a session id
 	sessionFileReads []string
@@ -415,6 +416,7 @@ func (m *UI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.setState(uiChat, m.focus)
 		m.session = msg.session
 		m.sessionFiles = msg.files
+		m.refreshSessionPermissions()
 		cmds = append(cmds, m.startLSPs(msg.lspFilePaths()))
 		msgs, err := m.com.App.Messages.List(context.Background(), m.session.ID)
 		if err != nil {
@@ -1366,6 +1368,7 @@ func (m *UI) handleDialogMsg(msg tea.Msg) tea.Cmd {
 			m.com.App.Permissions.Grant(msg.Permission)
 		case dialog.PermissionAllowForSession:
 			m.com.App.Permissions.GrantPersistent(msg.Permission)
+			m.refreshSessionPermissions()
 		case dialog.PermissionAllowAlways:
 			m.com.App.Permissions.GrantAlways(msg.Permission)
 		case dialog.PermissionDeny:
@@ -2753,6 +2756,7 @@ func (m *UI) sendMessage(content string, attachments ...message.Attachment) tea.
 		}
 		if newSession.ID != "" {
 			m.session = &newSession
+			m.refreshSessionPermissions()
 			cmds = append(cmds, m.loadSession(newSession.ID))
 		}
 		m.setState(uiChat, m.focus)
@@ -2985,7 +2989,7 @@ func (m *UI) openPermissionRulesDialog() tea.Cmd {
 		return nil
 	}
 
-	rulesDialog, err := dialog.NewPermissionRules(m.com)
+	rulesDialog, err := dialog.NewPermissionRules(m.com, m.sessionPermissions)
 	if err != nil {
 		return util.ReportError(err)
 	}

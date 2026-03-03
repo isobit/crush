@@ -9,6 +9,7 @@ import (
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/crush/internal/db"
+	"github.com/charmbracelet/crush/internal/permission"
 	"github.com/charmbracelet/crush/internal/ui/common"
 	"github.com/charmbracelet/crush/internal/ui/list"
 	"github.com/charmbracelet/crush/internal/ui/util"
@@ -27,12 +28,13 @@ const (
 
 // PermissionRules is a dialog for managing persistent permission rules.
 type PermissionRules struct {
-	com   *common.Common
-	help  help.Model
-	list  *list.FilterableList
-	input textinput.Model
-	rules []db.PermissionRule
-	mode  permissionRulesMode
+	com          *common.Common
+	help         help.Model
+	list         *list.FilterableList
+	input        textinput.Model
+	rules        []db.PermissionRule
+	sessionPerms []permission.PermissionRequest
+	mode         permissionRulesMode
 
 	keyMap struct {
 		Select        key.Binding
@@ -49,10 +51,11 @@ type PermissionRules struct {
 var _ Dialog = (*PermissionRules)(nil)
 
 // NewPermissionRules creates a new permission rules management dialog.
-func NewPermissionRules(com *common.Common) (*PermissionRules, error) {
+func NewPermissionRules(com *common.Common, sessionPerms []permission.PermissionRequest) (*PermissionRules, error) {
 	p := new(PermissionRules)
 	p.mode = permissionRulesModeNormal
 	p.com = com
+	p.sessionPerms = sessionPerms
 
 	rules, err := com.App.Permissions.ListRules(context.TODO())
 	if err != nil {
@@ -65,7 +68,7 @@ func NewPermissionRules(com *common.Common) (*PermissionRules, error) {
 	h.Styles = com.Styles.DialogHelpStyles()
 	p.help = h
 
-	p.list = list.NewFilterableList(permissionRuleItems(com.Styles, permissionRulesModeNormal, rules...)...)
+	p.list = list.NewFilterableList(p.buildItems(permissionRulesModeNormal)...)
 	p.list.Focus()
 	p.list.SetSelected(0)
 
@@ -122,15 +125,15 @@ func (p *PermissionRules) HandleMsg(msg tea.Msg) Action {
 			switch {
 			case key.Matches(msg, p.keyMap.ConfirmDelete):
 				action := p.confirmDeleteRule()
-				p.list.SetItems(permissionRuleItems(p.com.Styles, permissionRulesModeNormal, p.rules...)...)
-				if len(p.rules) > 0 {
+				p.list.SetItems(p.buildItems(permissionRulesModeNormal)...)
+				if len(p.rules) > 0 || len(p.sessionPerms) > 0 {
 					p.list.SelectFirst()
 					p.list.ScrollToSelected()
 				}
 				return action
 			case key.Matches(msg, p.keyMap.CancelDelete):
 				p.mode = permissionRulesModeNormal
-				p.list.SetItems(permissionRuleItems(p.com.Styles, permissionRulesModeNormal, p.rules...)...)
+				p.list.SetItems(p.buildItems(permissionRulesModeNormal)...)
 			}
 		default:
 			switch {
@@ -141,7 +144,7 @@ func (p *PermissionRules) HandleMsg(msg tea.Msg) Action {
 					return nil
 				}
 				p.mode = permissionRulesModeDeleting
-				p.list.SetItems(permissionRuleItems(p.com.Styles, permissionRulesModeDeleting, p.rules...)...)
+				p.list.SetItems(p.buildItems(permissionRulesModeDeleting)...)
 			case key.Matches(msg, p.keyMap.Previous):
 				p.list.Focus()
 				if p.list.IsSelectedFirst() {
@@ -225,7 +228,10 @@ func (p *PermissionRules) confirmDeleteRule() Action {
 		return nil
 	}
 
-	ruleItem := item.(*PermissionRuleItem)
+	ruleItem, ok := item.(*PermissionRuleItem)
+	if !ok {
+		return nil
+	}
 	p.removeRule(ruleItem.ID())
 	return ActionCmd{p.deleteRuleCmd(ruleItem.PermissionRule.ID)}
 }
@@ -239,6 +245,17 @@ func (p *PermissionRules) removeRule(id string) {
 		newRules = append(newRules, r)
 	}
 	p.rules = newRules
+}
+
+// buildItems combines session permission items and persistent rule items into
+// a single list. In delete mode, only persistent rules are shown.
+func (p *PermissionRules) buildItems(mode permissionRulesMode) []list.FilterableItem {
+	var items []list.FilterableItem
+	if mode != permissionRulesModeDeleting {
+		items = append(items, sessionPermissionItems(p.com.Styles, p.sessionPerms...)...)
+	}
+	items = append(items, permissionRuleItems(p.com.Styles, mode, p.rules...)...)
+	return items
 }
 
 func (p *PermissionRules) deleteRuleCmd(id int64) tea.Cmd {

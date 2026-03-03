@@ -37,6 +37,7 @@ type PromptDat struct {
 	GitStatus     string
 	ContextFiles  []ContextFile
 	AvailSkillXML string
+	HashlineEdit  bool
 }
 
 type ContextFile struct {
@@ -177,6 +178,7 @@ func (p *Prompt) promptData(ctx context.Context, provider, model string, cfg con
 	}
 
 	isGit := isGitRepo(cfg.WorkingDir())
+	hashlineEdit := cfg.Options.HashlineEdit != nil && *cfg.Options.HashlineEdit
 	data := PromptDat{
 		Provider:      provider,
 		Model:         model,
@@ -186,6 +188,7 @@ func (p *Prompt) promptData(ctx context.Context, provider, model string, cfg con
 		Platform:      platform,
 		Date:          p.now().Format("1/2/2006"),
 		AvailSkillXML: availSkillXML,
+		HashlineEdit:  hashlineEdit,
 	}
 	if isGit {
 		var err error

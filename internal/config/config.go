@@ -260,6 +260,7 @@ type Options struct {
 	InitializeAs              string       `json:"initialize_as,omitempty" jsonschema:"description=Name of the context file to create/update during project initialization,default=AGENTS.md,example=AGENTS.md,example=CRUSH.md,example=CLAUDE.md,example=docs/LLMs.md"`
 	AutoLSP                   *bool        `json:"auto_lsp,omitempty" jsonschema:"description=Automatically setup LSPs based on root markers,default=true"`
 	Progress                  *bool        `json:"progress,omitempty" jsonschema:"description=Show indeterminate progress updates during long operations,default=true"`
+	HashlineEdit              *bool        `json:"hashline_edit,omitempty" jsonschema:"description=Enable hashline-addressed editing mode. When enabled the view tool emits LINE#HASH| prefixed output and hashline_edit replaces edit/multiedit,default=false"`
 }
 
 type MCPs map[string]MCPConfig
@@ -708,6 +709,7 @@ func allToolNames() []string {
 		"download",
 		"edit",
 		"multiedit",
+		"hashline_edit",
 		"lsp_diagnostics",
 		"lsp_references",
 		"lsp_restart",
@@ -753,6 +755,12 @@ func filterSlice(data []string, mask []string, include bool) []string {
 
 func (c *Config) SetupAgents() {
 	allowedTools := resolveAllowedTools(allToolNames(), c.Options.DisabledTools)
+
+	if ptrValOr(c.Options.HashlineEdit, false) {
+		allowedTools = filterSlice(allowedTools, []string{"edit", "multiedit"}, false)
+	} else {
+		allowedTools = filterSlice(allowedTools, []string{"hashline_edit"}, false)
+	}
 
 	agents := map[string]Agent{
 		AgentCoder: {

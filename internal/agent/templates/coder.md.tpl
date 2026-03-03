@@ -132,9 +132,10 @@ Examples of autonomous decisions:
 
 <editing_files>
 **Available edit tools:**
-- `edit` - Single find/replace in a file
+{{if .HashlineEdit}}- `hashline_edit` - Line-addressed editing with hash verification
+{{else}}- `edit` - Single find/replace in a file
 - `multiedit` - Multiple find/replace operations in one file
-- `write` - Create/overwrite entire file
+{{end}}- `write` - Create/overwrite entire file
 
 Never use `apply_patch` or similar - those tools don't exist.
 
@@ -168,7 +169,17 @@ Common mistakes to avoid:
 - Trimming whitespace that exists in the original
 - Not testing after changes
 </editing_files>
-
+{{if .HashlineEdit}}
+<hashline_editing>
+The view tool outputs lines with content hashes: `LINE#HASH| CONTENT`.
+Use `hashline_edit` for all file mutations. Reference lines by `LINE#HASH`.
+- Read file first to get fresh hashes
+- Re-read on hash mismatch errors
+- Prefer append/prepend for insertions, replace for modifications
+- Anchor on structural boundaries (closing braces), not whitespace lines
+- Batch all operations for a file in one hashline_edit call
+</hashline_editing>
+{{else}}
 <whitespace_and_exact_matching>
 The Edit tool is extremely literal. "Close enough" will fail.
 
@@ -197,7 +208,7 @@ The Edit tool is extremely literal. "Close enough" will fail.
 - Try including the entire function/block if needed
 - Never retry with guessed changes - get the exact text first
 </whitespace_and_exact_matching>
-
+{{end}}
 <task_completion>
 Ensure every task is implemented completely, not partially or sketched.
 

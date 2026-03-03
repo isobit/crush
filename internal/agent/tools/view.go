@@ -15,6 +15,7 @@ import (
 	"charm.land/fantasy"
 	"github.com/charmbracelet/crush/internal/filepathext"
 	"github.com/charmbracelet/crush/internal/filetracker"
+	"github.com/charmbracelet/crush/internal/hashline"
 	"github.com/charmbracelet/crush/internal/lsp"
 	"github.com/charmbracelet/crush/internal/permission"
 	"github.com/charmbracelet/crush/internal/skills"
@@ -62,6 +63,7 @@ func NewViewTool(
 	permissions permission.Service,
 	filetracker filetracker.Service,
 	workingDir string,
+	hashlineMode bool,
 	skillsPaths ...string,
 ) fantasy.AgentTool {
 	return fantasy.NewAgentTool(
@@ -195,8 +197,13 @@ func NewViewTool(
 
 			notifyLSPs(ctx, lspManager, filePath)
 			output := "<file>\n"
-			// Format the output with line numbers
-			output += addLineNumbers(content, params.Offset+1)
+			// Format the output with line numbers or hashline format.
+			if hashlineMode {
+				contentLines := strings.Split(content, "\n")
+				output += hashline.FormatLines(contentLines, params.Offset+1)
+			} else {
+				output += addLineNumbers(content, params.Offset+1)
+			}
 
 			// Add a note if the content was truncated
 			if lineCount > params.Offset+len(strings.Split(content, "\n")) {

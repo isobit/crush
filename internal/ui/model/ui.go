@@ -2295,6 +2295,9 @@ func (m *UI) generateLayout(w, h int) uiLayout {
 	editorHeight := 5
 	// The sidebar width
 	sidebarWidth := 30
+	if w := m.com.Config().Options.TUI.SidebarWidth; w != nil && *w > 0 {
+		sidebarWidth = *w
+	}
 	// The header height
 	const landingHeaderHeight = 4
 

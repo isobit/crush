@@ -198,9 +198,10 @@ type LSPConfig struct {
 }
 
 type TUIOptions struct {
-	CompactMode bool   `json:"compact_mode,omitempty" jsonschema:"description=Enable compact mode for the TUI interface,default=false"`
-	DiffMode    string `json:"diff_mode,omitempty" jsonschema:"description=Diff mode for the TUI interface,enum=unified,enum=split"`
-	ViMode      bool   `json:"vi_mode,omitempty" jsonschema:"description=Enable vi-style keybindings in the text editor,default=false"`
+	CompactMode  bool   `json:"compact_mode,omitempty" jsonschema:"description=Enable compact mode for the TUI interface,default=false"`
+	DiffMode     string `json:"diff_mode,omitempty" jsonschema:"description=Diff mode for the TUI interface,enum=unified,enum=split"`
+	ViMode       bool   `json:"vi_mode,omitempty" jsonschema:"description=Enable vi-style keybindings in the text editor,default=false"`
+	SidebarWidth *int   `json:"sidebar_width,omitempty" jsonschema:"description=Width of the sidebar in columns,default=30,example=30,example=40,example=50"`
 
 	Completions Completions `json:"completions,omitzero" jsonschema:"description=Completions UI options"`
 	Transparent *bool       `json:"transparent,omitempty" jsonschema:"description=Enable transparent background for the TUI interface,default=false"`

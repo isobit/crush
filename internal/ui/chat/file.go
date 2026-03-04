@@ -153,6 +153,80 @@ func (w *WriteToolRenderContext) RenderTool(sty *styles.Styles, width int, opts 
 }
 
 // -----------------------------------------------------------------------------
+// HashlineEdit Tool
+// -----------------------------------------------------------------------------
+
+// HashlineEditToolMessageItem is a message item that represents a hashline_edit tool call.
+type HashlineEditToolMessageItem struct {
+	*baseToolMessageItem
+}
+
+var _ ToolMessageItem = (*HashlineEditToolMessageItem)(nil)
+
+// NewHashlineEditToolMessageItem creates a new [HashlineEditToolMessageItem].
+func NewHashlineEditToolMessageItem(
+	sty *styles.Styles,
+	toolCall message.ToolCall,
+	result *message.ToolResult,
+	canceled bool,
+) ToolMessageItem {
+	return newBaseToolMessageItem(sty, toolCall, result, &HashlineEditToolRenderContext{}, canceled)
+}
+
+// HashlineEditToolRenderContext renders hashline_edit tool messages.
+type HashlineEditToolRenderContext struct{}
+
+// RenderTool implements the [ToolRenderer] interface.
+func (h *HashlineEditToolRenderContext) RenderTool(sty *styles.Styles, width int, opts *ToolRenderOpts) string {
+	// HashlineEdit tool uses full width for diffs.
+	if opts.IsPending() {
+		return pendingTool(sty, "Hashline-Edit", opts.Anim)
+	}
+
+	var params tools.HashlineEditParams
+	if err := json.Unmarshal([]byte(opts.ToolCall.Input), &params); err != nil {
+		return toolErrorContent(sty, &message.ToolResult{Content: "Invalid parameters"}, width)
+	}
+
+	file := fsext.PrettyPath(params.Path)
+	toolParams := []string{file}
+	if len(params.Edits) > 0 {
+		toolParams = append(toolParams, "edits", fmt.Sprintf("%d", len(params.Edits)))
+	}
+	if params.Delete {
+		toolParams = append(toolParams, "delete")
+	}
+	if params.Move != "" {
+		toolParams = append(toolParams, "move", fsext.PrettyPath(params.Move))
+	}
+
+	header := toolHeader(sty, opts.Status, "Hashline-Edit", width, opts.Compact, toolParams...)
+	if opts.Compact {
+		return header
+	}
+
+	if earlyState, ok := toolEarlyStateContent(sty, opts, width); ok {
+		return joinToolParts(header, earlyState)
+	}
+
+	if !opts.HasResult() {
+		return header
+	}
+
+	// Get diff content from metadata.
+	var meta tools.EditResponseMetadata
+	if err := json.Unmarshal([]byte(opts.Result.Metadata), &meta); err != nil {
+		bodyWidth := width - toolBodyLeftPaddingTotal
+		body := sty.Tool.Body.Render(toolOutputPlainContent(sty, opts.Result.Content, bodyWidth, opts.ExpandedContent))
+		return joinToolParts(header, body)
+	}
+
+	// Render diff.
+	body := toolOutputDiffContent(sty, file, meta.OldContent, meta.NewContent, width, opts.ExpandedContent)
+	return joinToolParts(header, body)
+}
+
+// -----------------------------------------------------------------------------
 // Edit Tool
 // -----------------------------------------------------------------------------
 

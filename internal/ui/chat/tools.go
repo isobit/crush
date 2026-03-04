@@ -169,7 +169,7 @@ func newBaseToolMessageItem(
 	canceled bool,
 ) *baseToolMessageItem {
 	// we only do full width for diffs (as far as I know)
-	hasCappedWidth := toolCall.Name != tools.EditToolName && toolCall.Name != tools.MultiEditToolName
+	hasCappedWidth := toolCall.Name != tools.EditToolName && toolCall.Name != tools.MultiEditToolName && toolCall.Name != tools.HashlineEditToolName
 
 	status := ToolStatusRunning
 	if canceled {
@@ -227,6 +227,8 @@ func NewToolMessageItem(
 		item = NewEditToolMessageItem(sty, toolCall, result, canceled)
 	case tools.MultiEditToolName:
 		item = NewMultiEditToolMessageItem(sty, toolCall, result, canceled)
+	case tools.HashlineEditToolName:
+		item = NewHashlineEditToolMessageItem(sty, toolCall, result, canceled)
 	case tools.GlobToolName:
 		item = NewGlobToolMessageItem(sty, toolCall, result, canceled)
 	case tools.GrepToolName:

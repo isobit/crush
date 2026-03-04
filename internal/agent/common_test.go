@@ -190,6 +190,10 @@ func coderAgent(r *vcr.Recorder, env fakeEnv, large, small fantasy.LanguageModel
 	// would be included in prompt and break VCR cassette matching.
 	cfg.LSP = nil
 
+	// Clear HashlineEdit to ensure test reproducibility - user's config
+	// would change the prompt and break VCR cassette matching.
+	cfg.Options.HashlineEdit = nil
+
 	systemPrompt, err := prompt.Build(context.TODO(), large.Provider(), large.Model(), *cfg)
 	if err != nil {
 		return nil, err

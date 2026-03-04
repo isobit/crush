@@ -49,6 +49,10 @@ func (m *mockPermissionService) DeleteRule(ctx context.Context, id int64) error 
 	return nil
 }
 
+func (m *mockPermissionService) ListSessionPermissions(sessionID string) []permission.PermissionRequest {
+	return nil
+}
+
 type mockHistoryService struct {
 	*pubsub.Broker[history.File]
 }

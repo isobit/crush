@@ -258,6 +258,11 @@ func marshalParts(parts []ContentPart) ([]byte, error) {
 }
 
 func unmarshalParts(data []byte) ([]ContentPart, error) {
+	return UnmarshalParts(data)
+}
+
+// UnmarshalParts deserializes JSON-encoded message parts.
+func UnmarshalParts(data []byte) ([]ContentPart, error) {
 	temp := []json.RawMessage{}
 
 	if err := json.Unmarshal(data, &temp); err != nil {

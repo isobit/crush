@@ -97,6 +97,7 @@ type ToolRenderOpts struct {
 	Compact         bool
 	IsSpinning      bool
 	Status          ToolStatus
+	Elapsed         time.Duration
 }
 
 // IsPending returns true if the tool call is still pending (not finished and
@@ -144,6 +145,7 @@ type baseToolMessageItem struct {
 	result       *message.ToolResult
 	messageID    string
 	status       ToolStatus
+	startedAt    time.Time
 	// we use this so we can efficiently cache
 	// tools that have a capped width (e.x bash.. and others)
 	hasCappedWidth bool
@@ -185,6 +187,7 @@ func newBaseToolMessageItem(
 		toolCall:                 toolCall,
 		result:                   result,
 		status:                   status,
+		startedAt:                time.Now(),
 		hasCappedWidth:           hasCappedWidth,
 	}
 	t.anim = anim.New(anim.Settings{
@@ -313,6 +316,7 @@ func (t *baseToolMessageItem) RawRender(width int) string {
 			Compact:         t.isCompact,
 			IsSpinning:      t.isSpinning(),
 			Status:          t.computeStatus(),
+			Elapsed:         time.Since(t.startedAt),
 		})
 		height = lipgloss.Height(content)
 		// cache the rendered content
@@ -453,7 +457,12 @@ func toolEarlyStateContent(sty *styles.Styles, opts *ToolRenderOpts, width int) 
 	case ToolStatusAutoApproved:
 		msg = sty.Tool.StateWaiting.Render("Auto-approved")
 	case ToolStatusRunning:
-		msg = sty.Tool.StateWaiting.Render("Waiting for tool response...")
+		elapsed := opts.Elapsed.Round(time.Second)
+		if elapsed < time.Second {
+			msg = sty.Tool.StateWaiting.Render("Waiting for tool response...")
+		} else {
+			msg = sty.Tool.StateWaiting.Render(fmt.Sprintf("Waiting for tool response... %s", elapsed))
+		}
 	default:
 		return "", false
 	}

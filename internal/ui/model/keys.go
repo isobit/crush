@@ -47,6 +47,7 @@ type KeyMap struct {
 		Copy           key.Binding
 		ClearHighlight key.Binding
 		Expand         key.Binding
+		DeleteMessage  key.Binding
 	}
 
 	Initialize struct {
@@ -210,8 +211,8 @@ func DefaultKeyMap() KeyMap {
 		key.WithHelp("shift+↑↓", "scroll one item"),
 	)
 	km.Chat.HalfPageDown = key.NewBinding(
-		key.WithKeys("d"),
-		key.WithHelp("d", "half page down"),
+		key.WithKeys("pgdown"),
+		key.WithHelp("pgdn", "half page down"),
 	)
 	km.Chat.PageDown = key.NewBinding(
 		key.WithKeys("pgdown", " ", "f"),
@@ -244,6 +245,10 @@ func DefaultKeyMap() KeyMap {
 	km.Chat.Expand = key.NewBinding(
 		key.WithKeys("space"),
 		key.WithHelp("space", "expand/collapse"),
+	)
+	km.Chat.DeleteMessage = key.NewBinding(
+		key.WithKeys("d"),
+		key.WithHelp("d", "delete message"),
 	)
 	km.Initialize.Yes = key.NewBinding(
 		key.WithKeys("y", "Y"),

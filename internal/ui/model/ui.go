@@ -122,6 +122,11 @@ type (
 	// copyChatHighlightMsg is sent to copy the current chat highlight to clipboard.
 	copyChatHighlightMsg struct{}
 
+	// deleteSelectedMessageMsg is sent to delete the currently selected chat message.
+	deleteSelectedMessageMsg struct {
+		messageID string
+	}
+
 	// sessionFilesUpdatesMsg is sent when the files for this session have been updated
 	sessionFilesUpdatesMsg struct {
 		sessionFiles []SessionFile
@@ -577,6 +582,8 @@ func (m *UI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case copyChatHighlightMsg:
 		cmds = append(cmds, m.copyChatHighlight())
+	case deleteSelectedMessageMsg:
+		cmds = append(cmds, m.deleteMessage(msg.messageID))
 	case DelayedClickMsg:
 		// Handle delayed single-click action (e.g., expansion).
 		m.chat.HandleDelayedClick(msg)
@@ -1826,6 +1833,12 @@ func (m *UI) handleKeyPressMsg(msg tea.KeyPressMsg) tea.Cmd {
 					cmds = append(cmds, cmd)
 				}
 				m.chat.SelectLast()
+			case key.Matches(msg, m.keyMap.Chat.DeleteMessage):
+				if id := m.chat.SelectedMessageID(); id != "" {
+					cmds = append(cmds, func() tea.Msg {
+						return deleteSelectedMessageMsg{messageID: id}
+					})
+				}
 			default:
 				if ok, cmd := m.chat.HandleKeyMsg(msg); ok {
 					cmds = append(cmds, cmd)
@@ -3377,6 +3390,21 @@ func (m *UI) copyChatHighlight() tea.Cmd {
 			return nil
 		},
 	)
+}
+
+func (m *UI) deleteMessage(messageID string) tea.Cmd {
+	if messageID == "" {
+		return nil
+	}
+	return func() tea.Msg {
+		if err := m.com.App.Messages.Delete(context.Background(), messageID); err != nil {
+			return util.InfoMsg{
+				Type: util.InfoTypeError,
+				Msg:  err.Error(),
+			}
+		}
+		return nil
+	}
 }
 
 // renderLogo renders the Crush logo with the given styles and dimensions.

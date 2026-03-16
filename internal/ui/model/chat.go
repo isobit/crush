@@ -479,6 +479,23 @@ func (m *Chat) MessageItem(id string) chat.MessageItem {
 	return item
 }
 
+// SelectedMessageID returns the message ID of the currently selected item.
+// For tool message items, it returns the parent message ID. Returns an empty
+// string if no item is selected or the item is not a message.
+func (m *Chat) SelectedMessageID() string {
+	item := m.list.SelectedItem()
+	if item == nil {
+		return ""
+	}
+	if tool, ok := item.(chat.ToolMessageItem); ok {
+		return tool.MessageID()
+	}
+	if msg, ok := item.(chat.MessageItem); ok {
+		return msg.ID()
+	}
+	return ""
+}
+
 // ToggleExpandedSelectedItem expands the selected message item if it is expandable.
 func (m *Chat) ToggleExpandedSelectedItem() {
 	if expandable, ok := m.list.SelectedItem().(chat.Expandable); ok {

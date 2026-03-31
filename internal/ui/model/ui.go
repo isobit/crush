@@ -3686,6 +3686,7 @@ func (m *UI) disableDockerMCP() tea.Msg {
 
 	return util.NewInfoMsg("Docker MCP disabled successfully")
 }
+
 // renderLogo renders the Crush logo with the given styles and dimensions.
 func renderLogo(t *styles.Styles, compact bool, width int) string {
 	return logo.Render(t, version.Version, compact, logo.Opts{

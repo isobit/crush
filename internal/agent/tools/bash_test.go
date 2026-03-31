@@ -7,6 +7,7 @@ import (
 
 	"charm.land/fantasy"
 	"github.com/charmbracelet/crush/internal/config"
+	"github.com/charmbracelet/crush/internal/db"
 	"github.com/charmbracelet/crush/internal/permission"
 	"github.com/charmbracelet/crush/internal/pubsub"
 	"github.com/charmbracelet/crush/internal/shell"
@@ -37,6 +38,20 @@ func (m *mockBashPermissionService) SkipRequests() bool {
 
 func (m *mockBashPermissionService) SubscribeNotifications(ctx context.Context) <-chan pubsub.Event[permission.PermissionNotification] {
 	return make(<-chan pubsub.Event[permission.PermissionNotification])
+}
+
+func (m *mockBashPermissionService) DeleteRule(ctx context.Context, id int64) error {
+	return nil
+}
+
+func (m *mockBashPermissionService) GrantAlways(req permission.PermissionRequest) {}
+
+func (m *mockBashPermissionService) ListRules(ctx context.Context) ([]db.PermissionRule, error) {
+	return nil, nil
+}
+
+func (m *mockBashPermissionService) ListSessionPermissions(sessionID string) []permission.PermissionRequest {
+	return nil
 }
 
 func TestBashTool_DefaultAutoBackgroundThreshold(t *testing.T) {

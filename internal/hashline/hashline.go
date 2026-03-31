@@ -90,6 +90,9 @@ func ParseRef(ref string) (int, string, error) {
 	if err != nil {
 		return 0, "", fmt.Errorf("malformed ref %q: invalid line number: %w", ref, err)
 	}
+	if lineNum < 1 {
+		return 0, "", fmt.Errorf("malformed ref %q: line number must be positive", ref)
+	}
 	hash := parts[1]
 	if hash == "" {
 		return 0, "", fmt.Errorf("malformed ref %q: empty hash", ref)

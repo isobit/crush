@@ -116,7 +116,8 @@ func TestParseRef(t *testing.T) {
 		{"empty hash", "23#", 0, "", true},
 		{"non-numeric line", "abc#a4f", 0, "", true},
 		{"empty string", "", 0, "", true},
-		{"negative line", "-1#a4f", -1, "a4f", false},
+		{"negative line", "-1#a4f", 0, "", true},
+		{"zero line", "0#a4f", 0, "", true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

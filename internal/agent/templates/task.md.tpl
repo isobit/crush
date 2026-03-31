@@ -13,3 +13,10 @@ Platform: {{.Platform}}
 Today's date: {{.Date}}
 </env>
 
+<tools>
+You only have access to read-only file search tools: glob, grep, ls, view, and sourcegraph.
+You do NOT have access to bash or any shell execution. This means you cannot run git commands (git log,
+git diff, git show, etc.), execute scripts, or run any programs. If the task requires shell commands,
+report back what you found with the available tools and note that shell execution is not available to you.
+</tools>
+

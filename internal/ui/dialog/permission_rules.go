@@ -57,7 +57,7 @@ func NewPermissionRules(com *common.Common, sessionPerms []permission.Permission
 	p.com = com
 	p.sessionPerms = sessionPerms
 
-	rules, err := com.App.Permissions.ListRules(context.TODO())
+	rules, err := com.Workspace.PermissionListRules(context.TODO())
 	if err != nil {
 		return nil, err
 	}
@@ -260,7 +260,7 @@ func (p *PermissionRules) buildItems(mode permissionRulesMode) []list.Filterable
 
 func (p *PermissionRules) deleteRuleCmd(id int64) tea.Cmd {
 	return func() tea.Msg {
-		err := p.com.App.Permissions.DeleteRule(context.TODO(), id)
+		err := p.com.Workspace.PermissionDeleteRule(context.TODO(), id)
 		if err != nil {
 			return util.NewErrorMsg(err)
 		}

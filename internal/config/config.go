@@ -213,8 +213,7 @@ func (c Completions) Limits() (depth, items int) {
 }
 
 type Permissions struct {
-	AllowedTools []string `json:"allowed_tools,omitempty" jsonschema:"description=List of tools that don't require permission prompts,example=bash,example=view"` // Tools that don't require permission prompts
-	SkipRequests bool     `json:"-"`                                                                                                                              // Automatically accept all permissions (YOLO mode)
+	AllowedTools []string `json:"allowed_tools,omitempty" jsonschema:"description=List of tools that don't require permission prompts,example=bash,example=view"`
 }
 
 type TrailerStyle string
@@ -258,6 +257,7 @@ type Options struct {
 	Progress                  *bool        `json:"progress,omitempty" jsonschema:"description=Show indeterminate progress updates during long operations,default=true"`
 	HashlineEdit              *bool        `json:"hashline_edit,omitempty" jsonschema:"description=Enable hashline-addressed editing mode. When enabled the view tool emits LINE#HASH| prefixed output and hashline_edit replaces edit/multiedit,default=false"`
 	DisableNotifications      bool         `json:"disable_notifications,omitempty" jsonschema:"description=Disable desktop notifications,default=false"`
+	DisabledSkills            []string     `json:"disabled_skills,omitempty" jsonschema:"description=List of skill names to disable and hide from the agent,example=crush-config"`
 }
 
 type MCPs map[string]MCPConfig
@@ -463,6 +463,8 @@ func allToolNames() []string {
 	return []string{
 		"agent",
 		"bash",
+		"crush_info",
+		"crush_logs",
 		"job_output",
 		"job_kill",
 		"download",

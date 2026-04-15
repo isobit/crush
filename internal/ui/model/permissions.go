@@ -17,7 +17,7 @@ func (m *UI) refreshSessionPermissions() {
 	if m.session == nil {
 		return
 	}
-	m.sessionPermissions = m.com.App.Permissions.ListSessionPermissions(m.session.ID)
+	m.sessionPermissions = m.com.Workspace.PermissionListSessionPermissions(m.session.ID)
 }
 
 // permissionsInfo renders the session permissions section showing permissions

@@ -2,6 +2,7 @@ package model
 
 import (
 	"image"
+	"path/filepath"
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/crush/internal/ui/common"
@@ -24,10 +25,17 @@ func (m *UI) selectedLargeModel() *workspace.AgentModel {
 func (m *UI) landingView() string {
 	t := m.com.Styles
 	width := m.layout.main.Dx()
-	cwd := common.PrettyPath(t, m.com.Workspace.WorkingDir(), width)
+	cwd := common.LabeledPath(t, "cwd", m.com.Workspace.WorkingDir(), width)
 
 	parts := []string{
 		cwd,
+	}
+
+	if cfg := m.com.Config(); cfg != nil {
+		defaultDataDir := filepath.Join(m.com.Workspace.WorkingDir(), ".crush")
+		if cfg.Options.DataDirectory != defaultDataDir {
+			parts = append(parts, common.LabeledPath(t, "data", cfg.Options.DataDirectory, width))
+		}
 	}
 
 	parts = append(parts, "", m.modelInfo(width))

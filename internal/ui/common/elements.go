@@ -21,6 +21,15 @@ func PrettyPath(t *styles.Styles, path string, width int) string {
 	return t.Muted.Width(width).Render(formatted)
 }
 
+// LabeledPath formats a label and file path on one line. The label is
+// rendered in subtle style, the path in muted style.
+func LabeledPath(t *styles.Styles, label, path string, width int) string {
+	formatted := home.Short(path)
+	lbl := t.Subtle.Render(label)
+	p := t.Muted.Render(formatted)
+	return lipgloss.NewStyle().Width(width).Render(lbl + " " + p)
+}
+
 // FormatReasoningEffort formats a reasoning effort level for display.
 func FormatReasoningEffort(effort string) string {
 	if effort == "xhigh" {

@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"fmt"
 	"image"
+	"path/filepath"
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/crush/internal/ui/common"
@@ -125,7 +126,15 @@ func (m *UI) drawSidebar(scr uv.Screen, area uv.Rectangle) {
 	height := area.Dy()
 
 	title := t.Muted.Width(width).MaxHeight(2).Render(m.session.Title)
-	cwd := common.PrettyPath(t, m.com.Workspace.WorkingDir(), width)
+	cwd := common.LabeledPath(t, "cwd", m.com.Workspace.WorkingDir(), width)
+
+	var dataDir string
+	if cfg := m.com.Config(); cfg != nil {
+		defaultDataDir := filepath.Join(m.com.Workspace.WorkingDir(), ".crush")
+		if cfg.Options.DataDirectory != defaultDataDir {
+			dataDir = common.LabeledPath(t, "data", cfg.Options.DataDirectory, width)
+		}
+	}
 	sidebarLogo := m.sidebarLogo
 	if height < logoHeightBreakpoint {
 		sidebarLogo = logo.SmallRender(m.com.Styles, width)
@@ -135,10 +144,15 @@ func (m *UI) drawSidebar(scr uv.Screen, area uv.Rectangle) {
 		title,
 		"",
 		cwd,
+	}
+	if dataDir != "" {
+		blocks = append(blocks, dataDir)
+	}
+	blocks = append(blocks,
 		"",
 		m.modelInfo(width),
 		"",
-	}
+	)
 
 	sidebarHeader := lipgloss.JoinVertical(
 		lipgloss.Left,

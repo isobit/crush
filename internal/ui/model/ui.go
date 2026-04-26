@@ -2081,6 +2081,19 @@ func (m *UI) Draw(scr uv.Screen, area uv.Rectangle) *tea.Cursor {
 		if layout.pills.Dy() > 0 && m.pillsView != "" {
 			uv.NewStyledString(m.pillsView).Draw(scr, layout.pills)
 		}
+		// Draw scroll indicator in the 1-line gap below chat when not following.
+		// TODO: differentiate "at bottom but not following" (show "following
+		// paused") vs "scrolled up" (show "more"). Currently AtBottom() is
+		// unreliable because render callbacks (e.g. FocusedRenderCallback)
+		// change item heights between scroll clamping and the AtBottom check.
+		if !m.chat.Follow() {
+			indicator := m.com.Styles.Muted.Render("\u2193 more")
+			indicatorWidth := lipgloss.Width(indicator)
+			gapY := layout.main.Max.Y
+			gapRight := layout.main.Max.X
+			indicatorRect := image.Rect(gapRight-indicatorWidth, gapY, gapRight, gapY+1)
+			uv.NewStyledString(indicator).Draw(scr, indicatorRect)
+		}
 
 		editorWidth := scr.Bounds().Dx()
 		if !m.isCompact {

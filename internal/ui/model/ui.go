@@ -2567,6 +2567,11 @@ func (m *UI) generateLayout(w, h int) uiLayout {
 	editorHeight := m.textarea.Height() + editorHeightMargin
 	// The sidebar width
 	sidebarWidth := 30
+	if cfg := m.com.Config(); cfg != nil {
+		if w := cfg.Options.TUI.SidebarWidth; w != nil && *w > 0 {
+			sidebarWidth = *w
+		}
+	}
 	// The header height
 	const landingHeaderHeight = 4
 

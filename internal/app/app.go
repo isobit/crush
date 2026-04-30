@@ -619,6 +619,9 @@ func (app *App) Shutdown() {
 
 // checkForUpdates checks for available updates.
 func (app *App) checkForUpdates(ctx context.Context) {
+	// isobit-main: suppress update nag since git-describe versions always
+	// look like pre-releases to the update checker.
+	return
 	checkCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 

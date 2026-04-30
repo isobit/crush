@@ -3211,6 +3211,10 @@ func (m *UI) openDialog(id string) tea.Cmd {
 		if cmd := m.openQuitDialog(); cmd != nil {
 			cmds = append(cmds, cmd)
 		}
+	case dialog.PermissionRulesID:
+		if cmd := m.openPermissionRulesDialog(); cmd != nil {
+			cmds = append(cmds, cmd)
+		}
 	default:
 		// Unknown dialog
 		break
@@ -3331,6 +3335,22 @@ func (m *UI) openFilesDialog() tea.Cmd {
 	return cmd
 }
 
+
+// openPermissionRulesDialog opens the permission rules management dialog.
+func (m *UI) openPermissionRulesDialog() tea.Cmd {
+	if m.dialog.ContainsDialog(dialog.PermissionRulesID) {
+		m.dialog.BringToFront(dialog.PermissionRulesID)
+		return nil
+	}
+
+	rulesDialog, err := dialog.NewPermissionRules(m.com, m.sessionPermissions)
+	if err != nil {
+		return util.ReportError(err)
+	}
+
+	m.dialog.OpenDialog(rulesDialog)
+	return nil
+}
 // openPermissionsDialog opens the permissions dialog for a permission request.
 func (m *UI) openPermissionsDialog(perm permission.PermissionRequest) tea.Cmd {
 	// Close any existing permissions dialog first.

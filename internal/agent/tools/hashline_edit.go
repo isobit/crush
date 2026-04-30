@@ -120,7 +120,7 @@ func hashlineDeleteFile(
 		return fantasy.ToolResponse{}, err
 	}
 	if !granted {
-		return fantasy.ToolResponse{}, permission.ErrorPermissionDenied
+		return NewPermissionDeniedResponse(), nil
 	}
 
 	oldContent, err := os.ReadFile(filePath)
@@ -173,7 +173,7 @@ func hashlineMoveFile(
 		return fantasy.ToolResponse{}, err
 	}
 	if !granted {
-		return fantasy.ToolResponse{}, permission.ErrorPermissionDenied
+		return NewPermissionDeniedResponse(), nil
 	}
 
 	dir := filepath.Dir(newPath)
@@ -249,7 +249,7 @@ func hashlineCreateFile(
 		return fantasy.ToolResponse{}, err
 	}
 	if !granted {
-		return fantasy.ToolResponse{}, permission.ErrorPermissionDenied
+		return NewPermissionDeniedResponse(), nil
 	}
 
 	dir := filepath.Dir(filePath)
@@ -508,7 +508,7 @@ func hashlineEditFile(
 		return fantasy.ToolResponse{}, err
 	}
 	if !granted {
-		return fantasy.ToolResponse{}, permission.ErrorPermissionDenied
+		return NewPermissionDeniedResponse(), nil
 	}
 
 	writeContent := newContent

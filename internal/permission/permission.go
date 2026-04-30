@@ -22,9 +22,6 @@ import (
 // approval can't be reused across calls that happen to share a context.
 type hookApprovalKey struct{}
 
-// ErrorPermissionDenied is returned when a tool call is denied by the
-// permission system.
-var ErrorPermissionDenied = errors.New("permission denied")
 
 // WithHookApproval returns a context that marks the given tool call ID as
 // pre-approved by a hook. When the permission service sees a matching

@@ -140,7 +140,7 @@ func (p *PermissionRules) HandleMsg(msg tea.Msg) Action {
 			case key.Matches(msg, p.keyMap.Close):
 				return ActionClose{}
 			case key.Matches(msg, p.keyMap.Delete):
-				if len(p.rules) == 0 {
+				if len(p.rules) == 0 && len(p.sessionPerms) == 0 {
 					return nil
 				}
 				p.mode = permissionRulesModeDeleting
@@ -228,12 +228,16 @@ func (p *PermissionRules) confirmDeleteRule() Action {
 		return nil
 	}
 
-	ruleItem, ok := item.(*PermissionRuleItem)
-	if !ok {
+	switch v := item.(type) {
+	case *PermissionRuleItem:
+		p.removeRule(v.ID())
+		return ActionCmd{p.deleteRuleCmd(v.PermissionRule.ID)}
+	case *SessionPermissionItem:
+		p.removeSessionPerm(v.PermissionRequest.ID)
+		return ActionCmd{p.deleteSessionPermCmd(v.PermissionRequest.SessionID, v.PermissionRequest.ID)}
+	default:
 		return nil
 	}
-	p.removeRule(ruleItem.ID())
-	return ActionCmd{p.deleteRuleCmd(ruleItem.PermissionRule.ID)}
 }
 
 func (p *PermissionRules) removeRule(id string) {
@@ -248,12 +252,10 @@ func (p *PermissionRules) removeRule(id string) {
 }
 
 // buildItems combines session permission items and persistent rule items into
-// a single list. In delete mode, only persistent rules are shown.
+// a single list.
 func (p *PermissionRules) buildItems(mode permissionRulesMode) []list.FilterableItem {
 	var items []list.FilterableItem
-	if mode != permissionRulesModeDeleting {
-		items = append(items, sessionPermissionItems(p.com.Styles, p.sessionPerms...)...)
-	}
+	items = append(items, sessionPermissionItems(p.com.Styles, mode, p.sessionPerms...)...)
 	items = append(items, permissionRuleItems(p.com.Styles, mode, p.rules...)...)
 	return items
 }
@@ -264,6 +266,24 @@ func (p *PermissionRules) deleteRuleCmd(id int64) tea.Cmd {
 		if err != nil {
 			return util.NewErrorMsg(err)
 		}
+		return nil
+	}
+}
+
+func (p *PermissionRules) removeSessionPerm(permissionID string) {
+	var filtered []permission.PermissionRequest
+	for _, sp := range p.sessionPerms {
+		if sp.ID == permissionID {
+			continue
+		}
+		filtered = append(filtered, sp)
+	}
+	p.sessionPerms = filtered
+}
+
+func (p *PermissionRules) deleteSessionPermCmd(sessionID, permissionID string) tea.Cmd {
+	return func() tea.Msg {
+		p.com.Workspace.PermissionDeleteSessionPermission(sessionID, permissionID)
 		return nil
 	}
 }

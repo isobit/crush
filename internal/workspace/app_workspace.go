@@ -208,6 +208,10 @@ func (w *AppWorkspace) PermissionDeleteRule(ctx context.Context, id int64) error
 	return w.app.Permissions.DeleteRule(ctx, id)
 }
 
+func (w *AppWorkspace) PermissionDeleteSessionPermission(sessionID string, permissionID string) {
+	w.app.Permissions.DeleteSessionPermission(sessionID, permissionID)
+}
+
 // -- FileTracker --
 
 func (w *AppWorkspace) FileTrackerRecordRead(ctx context.Context, sessionID, path string) {

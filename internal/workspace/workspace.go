@@ -100,6 +100,7 @@ type Workspace interface {
 	PermissionListSessionPermissions(sessionID string) []permission.PermissionRequest
 	PermissionListRules(ctx context.Context) ([]db.PermissionRule, error)
 	PermissionDeleteRule(ctx context.Context, id int64) error
+	PermissionDeleteSessionPermission(sessionID string, permissionID string)
 
 	// FileTracker
 	FileTrackerRecordRead(ctx context.Context, sessionID, path string)

@@ -107,6 +107,7 @@ func permissionRuleItems(t *styles.Styles, mode permissionRulesMode, rules ...db
 type SessionPermissionItem struct {
 	permission.PermissionRequest
 	t       *styles.Styles
+	mode    permissionRulesMode
 	m       fuzzy.Match
 	cache   map[int]string
 	focused bool
@@ -148,15 +149,20 @@ func (s *SessionPermissionItem) Render(width int) string {
 		InfoTextBlurred: s.t.Resource.StatusText,
 		InfoTextFocused: s.t.Resource.Name,
 	}
+
+	if s.mode == permissionRulesModeDeleting {
+		sty.ItemBlurred = s.t.Dialog.Sessions.DeletingItemBlurred
+		sty.ItemFocused = s.t.Dialog.Sessions.DeletingItemFocused
+	}
 	return renderItem(sty, title, info, s.focused, width, s.cache, &s.m)
 }
 
 // sessionPermissionItems converts a slice of [permission.PermissionRequest] to
 // a slice of [list.FilterableItem].
-func sessionPermissionItems(t *styles.Styles, perms ...permission.PermissionRequest) []list.FilterableItem {
+func sessionPermissionItems(t *styles.Styles, mode permissionRulesMode, perms ...permission.PermissionRequest) []list.FilterableItem {
 	items := make([]list.FilterableItem, len(perms))
 	for i, p := range perms {
-		items[i] = &SessionPermissionItem{PermissionRequest: p, t: t}
+		items[i] = &SessionPermissionItem{PermissionRequest: p, t: t, mode: mode}
 	}
 	return items
 }

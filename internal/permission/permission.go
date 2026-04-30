@@ -83,8 +83,8 @@ type Service interface {
 	ListRules(ctx context.Context) ([]db.PermissionRule, error)
 	DeleteRule(ctx context.Context, id int64) error
 	ListSessionPermissions(sessionID string) []PermissionRequest
+	DeleteSessionPermission(sessionID string, permissionID string)
 }
-
 type permissionService struct {
 	*pubsub.Broker[PermissionRequest]
 
@@ -342,6 +342,20 @@ func (s *permissionService) ListSessionPermissions(sessionID string) []Permissio
 		}
 	}
 	return result
+}
+
+func (s *permissionService) DeleteSessionPermission(sessionID string, permissionID string) {
+	s.sessionPermissionsMu.Lock()
+	defer s.sessionPermissionsMu.Unlock()
+
+	var filtered []PermissionRequest
+	for _, p := range s.sessionPermissions {
+		if p.SessionID == sessionID && p.ID == permissionID {
+			continue
+		}
+		filtered = append(filtered, p)
+	}
+	s.sessionPermissions = filtered
 }
 
 func (s *permissionService) ListRules(ctx context.Context) ([]db.PermissionRule, error) {

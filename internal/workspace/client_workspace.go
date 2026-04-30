@@ -333,6 +333,7 @@ func (w *ClientWorkspace) PermissionListRules(_ context.Context) ([]db.Permissio
 func (w *ClientWorkspace) PermissionDeleteRule(_ context.Context, _ int64) error {
 	return errors.New("not implemented")
 }
+func (w *ClientWorkspace) PermissionDeleteSessionPermission(_ string, _ string) {}
 
 func (w *ClientWorkspace) MessageDelete(_ context.Context, _ string) error {
 	return errors.New("not implemented")

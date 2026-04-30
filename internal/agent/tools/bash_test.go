@@ -53,6 +53,7 @@ func (m *mockBashPermissionService) ListRules(ctx context.Context) ([]db.Permiss
 func (m *mockBashPermissionService) ListSessionPermissions(sessionID string) []permission.PermissionRequest {
 	return nil
 }
+func (m *mockBashPermissionService) DeleteSessionPermission(sessionID string, permissionID string) {}
 
 func TestBashTool_DefaultAutoBackgroundThreshold(t *testing.T) {
 	workingDir := t.TempDir()

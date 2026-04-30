@@ -106,6 +106,9 @@ func Render(base lipgloss.Style, version string, compact bool, o Opts) string {
 
 	// Narrow version. If this is Hypercrush, this is also a stacked version.
 	if compact {
+		// isobit-main: smaller compact logo (no diag fields)
+		return strings.Join([]string{crush, ""}, "\n")
+
 		field := fg(o.FieldColor, strings.Repeat(diag, crushWidth))
 		return strings.Join([]string{field, field, crush, field, ""}, "\n")
 	}
@@ -153,7 +156,7 @@ func SmallRender(t *styles.Styles, width int) string {
 	title = fmt.Sprintf("%s %s", title, styles.ApplyBoldForegroundGrad(t.Logo.GradCanvas, "Crush", t.Logo.SmallGradFromColor, t.Logo.SmallGradToColor))
 	remainingWidth := width - lipgloss.Width(title) - 1 // 1 for the space after "Crush"
 	if remainingWidth > 0 {
-		lines := strings.Repeat("╱", remainingWidth)
+		lines := strings.Repeat(diag, remainingWidth)
 		title = fmt.Sprintf("%s %s", title, t.Logo.SmallDiagonals.Render(lines))
 	}
 	return title

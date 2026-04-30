@@ -59,8 +59,8 @@ func (p *PermissionRuleItem) Render(width int) string {
 	sty := ListItemStyles{
 		ItemBlurred:     p.t.Dialog.NormalItem,
 		ItemFocused:     p.t.Dialog.SelectedItem,
-		InfoTextBlurred: p.t.Subtle,
-		InfoTextFocused: p.t.Base,
+		InfoTextBlurred: p.t.Resource.StatusText,
+		InfoTextFocused: p.t.Resource.Name,
 	}
 
 	if p.mode == permissionRulesModeDeleting {
@@ -145,8 +145,8 @@ func (s *SessionPermissionItem) Render(width int) string {
 	sty := ListItemStyles{
 		ItemBlurred:     s.t.Dialog.NormalItem,
 		ItemFocused:     s.t.Dialog.SelectedItem,
-		InfoTextBlurred: s.t.Subtle,
-		InfoTextFocused: s.t.Base,
+		InfoTextBlurred: s.t.Resource.StatusText,
+		InfoTextFocused: s.t.Resource.Name,
 	}
 	return renderItem(sty, title, info, s.focused, width, s.cache, &s.m)
 }

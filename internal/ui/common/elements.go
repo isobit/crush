@@ -18,15 +18,15 @@ import (
 // muted styling.
 func PrettyPath(t *styles.Styles, path string, width int) string {
 	formatted := home.Short(path)
-	return t.Muted.Width(width).Render(formatted)
+	return t.Sidebar.WorkingDir.Width(width).Render(formatted)
 }
 
 // LabeledPath formats a label and file path on one line. The label is
 // rendered in subtle style, the path in muted style.
 func LabeledPath(t *styles.Styles, label, path string, width int) string {
 	formatted := home.Short(path)
-	lbl := t.Subtle.Render(label)
-	p := t.Muted.Render(formatted)
+	lbl := t.Sidebar.WorkingDir.Render(label)
+	p := t.Sidebar.WorkingDir.Render(formatted)
 	return lipgloss.NewStyle().Width(width).Render(lbl + " " + p)
 }
 
@@ -48,13 +48,13 @@ type ModelContextInfo struct {
 // ModelInfo renders model information including name, provider, reasoning
 // settings, and optional context usage/cost.
 func ModelInfo(t *styles.Styles, modelName, providerName, reasoningInfo string, context *ModelContextInfo, width int) string {
-	modelIcon := t.Subtle.Render(styles.ModelIcon)
-	modelName = t.Base.Render(modelName)
+	modelIcon := t.ModelInfo.Icon.Render(styles.ModelIcon)
+	modelName = t.ModelInfo.Name.Render(modelName)
 
 	// Build first line with model name and optionally provider on the same line
 	var firstLine string
 	if providerName != "" {
-		providerInfo := t.Muted.Render(fmt.Sprintf("via %s", providerName))
+		providerInfo := t.ModelInfo.Provider.Render(fmt.Sprintf("via %s", providerName))
 		modelWithProvider := fmt.Sprintf("%s %s %s", modelIcon, modelName, providerInfo)
 
 		// Check if it fits on one line
@@ -73,11 +73,11 @@ func ModelInfo(t *styles.Styles, modelName, providerName, reasoningInfo string, 
 	// If provider didn't fit on first line, add it as second line
 	if providerName != "" && !strings.Contains(firstLine, "via") {
 		providerInfo := fmt.Sprintf("via %s", providerName)
-		parts = append(parts, t.Muted.PaddingLeft(2).Render(providerInfo))
+		parts = append(parts, t.ModelInfo.ProviderFallback.Render(providerInfo))
 	}
 
 	if reasoningInfo != "" {
-		parts = append(parts, t.Subtle.PaddingLeft(2).Render(reasoningInfo))
+		parts = append(parts, t.ModelInfo.Reasoning.Render(reasoningInfo))
 	}
 
 	if context != nil {
@@ -112,10 +112,10 @@ func formatTokensAndCost(t *styles.Styles, tokens, contextWindow int64, cost flo
 
 	percentage := (float64(tokens) / float64(contextWindow)) * 100
 
-	formattedCost := t.Muted.Render(fmt.Sprintf("$%.2f", cost))
+	formattedCost := t.ModelInfo.Cost.Render(fmt.Sprintf("$%.2f", cost))
 
-	formattedTokens = t.Subtle.Render(fmt.Sprintf("(%s)", formattedTokens))
-	formattedPercentage := t.Muted.Render(fmt.Sprintf("%d%%", int(percentage)))
+	formattedTokens = t.ModelInfo.TokenCount.Render(fmt.Sprintf("(%s)", formattedTokens))
+	formattedPercentage := t.ModelInfo.TokenPercentage.Render(fmt.Sprintf("%d%%", int(percentage)))
 	formattedTokens = fmt.Sprintf("%s %s", formattedPercentage, formattedTokens)
 	if percentage > 80 {
 		formattedTokens = fmt.Sprintf("%s %s", styles.LSPWarningIcon, formattedTokens)
@@ -142,10 +142,10 @@ func Status(t *styles.Styles, opts StatusOpts, width int) string {
 	title := opts.Title
 	description := opts.Description
 
-	titleColor := cmp.Or(opts.TitleColor, t.Muted.GetForeground())
-	descriptionColor := cmp.Or(opts.DescriptionColor, t.Subtle.GetForeground())
+	titleColor := cmp.Or(opts.TitleColor, t.Resource.DefaultTitleFg)
+	descriptionColor := cmp.Or(opts.DescriptionColor, t.Resource.DefaultDescFg)
 
-	title = t.Base.Foreground(titleColor).Render(title)
+	title = t.Resource.RowTitleBase.Foreground(titleColor).Render(title)
 
 	if description != "" {
 		extraContentWidth := lipgloss.Width(opts.ExtraContent)
@@ -153,7 +153,7 @@ func Status(t *styles.Styles, opts StatusOpts, width int) string {
 			extraContentWidth += 1
 		}
 		description = ansi.Truncate(description, width-lipgloss.Width(icon)-lipgloss.Width(title)-2-extraContentWidth, "…")
-		description = t.Base.Foreground(descriptionColor).Render(description)
+		description = t.Resource.RowDescBase.Foreground(descriptionColor).Render(description)
 	}
 
 	var content []string
@@ -202,7 +202,7 @@ func DialogTitle(t *styles.Styles, title string, width int, fromColor, toColor c
 	remainingWidth := width - length
 	if remainingWidth > 0 {
 		lines := strings.Repeat(char, remainingWidth)
-		lines = styles.ApplyForegroundGrad(t, lines, fromColor, toColor)
+		lines = styles.ApplyForegroundGrad(t.Dialog.TitleLineBase, lines, fromColor, toColor)
 		title = title + " " + lines
 	}
 	return title

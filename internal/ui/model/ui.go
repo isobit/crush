@@ -38,6 +38,7 @@ import (
 	"github.com/charmbracelet/crush/internal/permission"
 	"github.com/charmbracelet/crush/internal/pubsub"
 	"github.com/charmbracelet/crush/internal/session"
+	"github.com/charmbracelet/crush/internal/skills"
 	"github.com/charmbracelet/crush/internal/ui/anim"
 	"github.com/charmbracelet/crush/internal/ui/attachments"
 	"github.com/charmbracelet/crush/internal/ui/chat"
@@ -55,6 +56,7 @@ import (
 	"github.com/charmbracelet/ultraviolet/layout"
 	"github.com/charmbracelet/ultraviolet/screen"
 	"github.com/charmbracelet/x/editor"
+	xstrings "github.com/charmbracelet/x/exp/strings"
 )
 
 // MouseScrollThreshold defines how many lines to scroll the chat when a mouse
@@ -135,13 +137,15 @@ type (
 	// closeDialogMsg is sent to close the current dialog.
 	closeDialogMsg struct{}
 
+	// hyperRefreshDoneMsg is sent after a silent Hyper OAuth refresh
+	// finishes. It carries the original model-selection action so the
+	// selection can be resumed.
+	hyperRefreshDoneMsg struct {
+		action dialog.ActionSelectModel
+	}
+
 	// copyChatHighlightMsg is sent to copy the current chat highlight to clipboard.
 	copyChatHighlightMsg struct{}
-
-	// deleteSelectedMessageMsg is sent to delete the currently selected chat message.
-	deleteSelectedMessageMsg struct {
-		messageID string
-	}
 
 	// sessionFilesUpdatesMsg is sent when the files for this session have been updated
 	sessionFilesUpdatesMsg struct {
@@ -151,10 +155,9 @@ type (
 
 // UI represents the main user interface model.
 type UI struct {
-	com                *common.Common
-	session            *session.Session
-	sessionFiles       []SessionFile
-	sessionPermissions []permission.PermissionRequest
+	com          *common.Common
+	session      *session.Session
+	sessionFiles []SessionFile
 
 	// keeps track of read files while we don't have a session id
 	sessionFileReads []string
@@ -225,6 +228,15 @@ type UI struct {
 	// mcp
 	mcpStates map[string]mcp.ClientInfo
 
+	// skills
+	skillStates []*skills.SkillState
+
+	// permissions
+	sessionPermissions []permission.PermissionRequest
+
+	// vi mode
+	vi viState
+
 	// sidebarLogo keeps a cached version of the sidebar sidebarLogo.
 	sidebarLogo string
 
@@ -255,9 +267,6 @@ type UI struct {
 	todoSpinner    spinner.Model
 	todoIsSpinning bool
 
-	// Vi mode state.
-	vi viState
-
 	// mouse highlighting related state
 	lastClickTime time.Time
 
@@ -273,7 +282,7 @@ type UI struct {
 func New(com *common.Common, initialSessionID string, continueLast bool) *UI {
 	// Editor components
 	ta := textarea.New()
-	ta.SetStyles(com.Styles.TextArea)
+	ta.SetStyles(com.Styles.Editor.Textarea)
 	ta.ShowLineNumbers = false
 	ta.CharLimit = -1
 	ta.SetVirtualCursor(false)
@@ -342,14 +351,6 @@ func New(com *common.Common, initialSessionID string, continueLast bool) *UI {
 
 	// Initialize compact mode from config
 	ui.forceCompactMode = com.Config().Options.TUI.CompactMode
-
-	// Initialize vi mode from config.
-	if com.Config().Options.TUI.ViMode {
-		ui.vi.enabled = true
-		ui.vi.mode = viNormal
-		ui.vi.baseCursorShape = ui.textarea.Styles().Cursor.Shape
-		ui.viUpdateCursor()
-	}
 
 	// set onboarding state defaults
 	ui.onboarding.yesInitializeSelected = true
@@ -515,7 +516,6 @@ func (m *UI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.setState(uiChat, m.focus)
 		m.session = msg.session
 		m.sessionFiles = msg.files
-		m.refreshSessionPermissions()
 		cmds = append(cmds, m.startLSPs(msg.lspFilePaths()))
 		msgs, err := m.com.Workspace.ListMessages(context.Background(), m.session.ID)
 		if err != nil {
@@ -636,6 +636,8 @@ func (m *UI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, m.handleFileEvent(msg.Payload))
 	case pubsub.Event[app.LSPEvent]:
 		m.lspStates = app.GetLSPStates()
+	case pubsub.Event[skills.Event]:
+		m.skillStates = msg.Payload.States
 	case pubsub.Event[mcp.Event]:
 		switch msg.Payload.Type {
 		case mcp.EventStateChanged:
@@ -668,7 +670,7 @@ func (m *UI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		termVersion := strings.ToLower(msg.Name)
 		// Only enable progress bar for the following terminals.
 		if !m.sendProgressBar {
-			m.sendProgressBar = strings.Contains(termVersion, "ghostty")
+			m.sendProgressBar = xstrings.ContainsAnyOf(termVersion, "ghostty", "iterm2", "rio")
 		}
 		return m, nil
 	case tea.WindowSizeMsg:
@@ -687,8 +689,6 @@ func (m *UI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case copyChatHighlightMsg:
 		cmds = append(cmds, m.copyChatHighlight())
-	case deleteSelectedMessageMsg:
-		cmds = append(cmds, m.deleteMessage(msg.messageID))
 	case DelayedClickMsg:
 		// Handle delayed single-click action (e.g., expansion).
 		m.chat.HandleDelayedClick(msg)
@@ -856,6 +856,10 @@ func (m *UI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.textarea.SetValue(msg.Text)
 		m.textarea.MoveToEnd()
 		cmds = append(cmds, m.updateTextareaWithPrevHeight(msg, prevHeight))
+	case hyperRefreshDoneMsg:
+		if cmd := m.handleSelectModel(msg.action); cmd != nil {
+			cmds = append(cmds, cmd)
+		}
 	case util.InfoMsg:
 		if msg.Type == util.InfoTypeError {
 			slog.Error("Error reported", "error", msg.Msg)
@@ -865,6 +869,18 @@ func (m *UI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if ttl <= 0 {
 			ttl = DefaultStatusTTL
 		}
+		cmds = append(cmds, clearInfoMsgCmd(ttl))
+	case app.UpdateAvailableMsg:
+		text := fmt.Sprintf("Crush update available: v%s → v%s.", msg.CurrentVersion, msg.LatestVersion)
+		if msg.IsDevelopment {
+			text = fmt.Sprintf("This is a development version of Crush. The latest version is v%s.", msg.LatestVersion)
+		}
+		ttl := 10 * time.Second
+		m.status.SetInfoMsg(util.InfoMsg{
+			Type: util.InfoTypeUpdate,
+			Msg:  text,
+			TTL:  ttl,
+		})
 		cmds = append(cmds, clearInfoMsgCmd(ttl))
 	case util.ClearStatusMsg:
 		m.status.ClearInfoMsg()
@@ -1105,9 +1121,10 @@ func (m *UI) handleClickFocus(msg tea.MouseClickMsg) (cmd tea.Cmd) {
 	return cmd
 }
 
-// updateSessionMessage updates an existing message in the current session in the chat
-// when an assistant message is updated it may include updated tool calls as well
-// that is why we need to handle creating/updating each tool call message too
+// updateSessionMessage updates an existing message in the current session in
+// the chat when an assistant message is updated it may include updated tool
+// calls as well that is why we need to handle creating/updating each tool call
+// message too.
 func (m *UI) updateSessionMessage(msg message.Message) tea.Cmd {
 	var cmds []tea.Cmd
 	existingItem := m.chat.MessageItem(msg.ID)
@@ -1119,15 +1136,21 @@ func (m *UI) updateSessionMessage(msg message.Message) tea.Cmd {
 	}
 
 	shouldRenderAssistant := chat.ShouldRenderAssistantMessage(&msg)
-	// if the message of the assistant does not have any  response just tool calls we need to remove it
+	isEndTurn := msg.FinishPart() != nil && msg.FinishPart().Reason == message.FinishReasonEndTurn
+	// If the message of the assistant does not have any response just tool
+	// calls we need to remove it, but keep the info item for end-of-turn
+	// renders so the footer (model/provider/duration) remains visible when,
+	// for example, a hook halts the turn.
 	if !shouldRenderAssistant && len(msg.ToolCalls()) > 0 && existingItem != nil {
 		m.chat.RemoveMessage(msg.ID)
-		if infoItem := m.chat.MessageItem(chat.AssistantInfoID(msg.ID)); infoItem != nil {
-			m.chat.RemoveMessage(chat.AssistantInfoID(msg.ID))
+		if !isEndTurn {
+			if infoItem := m.chat.MessageItem(chat.AssistantInfoID(msg.ID)); infoItem != nil {
+				m.chat.RemoveMessage(chat.AssistantInfoID(msg.ID))
+			}
 		}
 	}
 
-	if shouldRenderAssistant && msg.FinishPart() != nil && msg.FinishPart().Reason == message.FinishReasonEndTurn {
+	if isEndTurn {
 		if infoItem := m.chat.MessageItem(chat.AssistantInfoID(msg.ID)); infoItem == nil {
 			newInfoItem := chat.NewAssistantInfoItem(m.com.Styles, &msg, m.com.Config(), time.Unix(m.lastUserMessageTime, 0))
 			m.chat.AppendMessages(newInfoItem)
@@ -1435,66 +1458,8 @@ func (m *UI) handleDialogMsg(msg tea.Msg) tea.Cmd {
 		m.dialog.CloseDialog(dialog.CommandsID)
 
 	case dialog.ActionSelectModel:
-		if m.isAgentBusy() {
-			cmds = append(cmds, util.ReportWarn("Agent is busy, please wait..."))
-			break
-		}
-
-		cfg := m.com.Config()
-		if cfg == nil {
-			cmds = append(cmds, util.ReportError(errors.New("configuration not found")))
-			break
-		}
-
-		var (
-			providerID   = msg.Model.Provider
-			isCopilot    = providerID == string(catwalk.InferenceProviderCopilot)
-			isConfigured = func() bool { _, ok := cfg.Providers.Get(providerID); return ok }
-		)
-
-		// Attempt to import GitHub Copilot tokens from VSCode if available.
-		if isCopilot && !isConfigured() && !msg.ReAuthenticate {
-			m.com.Workspace.ImportCopilot()
-		}
-
-		if !isConfigured() || msg.ReAuthenticate {
-			m.dialog.CloseDialog(dialog.ModelsID)
-			if cmd := m.openAuthenticationDialog(msg.Provider, msg.Model, msg.ModelType); cmd != nil {
-				cmds = append(cmds, cmd)
-			}
-			break
-		}
-
-		if err := m.com.Workspace.UpdatePreferredModel(config.ScopeGlobal, msg.ModelType, msg.Model); err != nil {
-			cmds = append(cmds, util.ReportError(err))
-		} else if _, ok := cfg.Models[config.SelectedModelTypeSmall]; !ok {
-			// Ensure small model is set is unset.
-			smallModel := m.com.Workspace.GetDefaultSmallModel(providerID)
-			if err := m.com.Workspace.UpdatePreferredModel(config.ScopeGlobal, config.SelectedModelTypeSmall, smallModel); err != nil {
-				cmds = append(cmds, util.ReportError(err))
-			}
-		}
-
-		cmds = append(cmds, func() tea.Msg {
-			if err := m.com.Workspace.UpdateAgentModel(context.TODO()); err != nil {
-				return util.ReportError(err)
-			}
-
-			modelMsg := fmt.Sprintf("%s model changed to %s", msg.ModelType, msg.Model.Model)
-
-			return util.NewInfoMsg(modelMsg)
-		})
-
-		m.dialog.CloseDialog(dialog.APIKeyInputID)
-		m.dialog.CloseDialog(dialog.OAuthID)
-		m.dialog.CloseDialog(dialog.ModelsID)
-
-		if isOnboarding {
-			m.setState(uiLanding, uiFocusEditor)
-			m.com.Config().SetupAgents()
-			if err := m.com.Workspace.InitCoderAgent(context.TODO()); err != nil {
-				cmds = append(cmds, util.ReportError(err))
-			}
+		if cmd := m.handleSelectModel(msg); cmd != nil {
+			cmds = append(cmds, cmd)
 		}
 	case dialog.ActionSelectReasoningEffort:
 		if m.isAgentBusy() {
@@ -1533,9 +1498,6 @@ func (m *UI) handleDialogMsg(msg tea.Msg) tea.Cmd {
 			m.com.Workspace.PermissionGrant(msg.Permission)
 		case dialog.PermissionAllowForSession:
 			m.com.Workspace.PermissionGrantPersistent(msg.Permission)
-			m.refreshSessionPermissions()
-		case dialog.PermissionAllowAlways:
-			m.com.Workspace.PermissionGrantAlways(msg.Permission)
 		case dialog.PermissionDeny:
 			m.com.Workspace.PermissionDeny(msg.Permission)
 		}
@@ -1601,6 +1563,108 @@ func substituteArgs(content string, args map[string]string) string {
 		content = strings.ReplaceAll(content, placeholder, value)
 	}
 	return content
+}
+
+// refreshHyperAndRetrySelect returns a command that silently refreshes
+// the Hyper OAuth token and then re-runs the model selection. If the
+// refresh fails, the selection resumes with ReAuthenticate set so the
+// OAuth dialog opens.
+func (m *UI) refreshHyperAndRetrySelect(msg dialog.ActionSelectModel) tea.Cmd {
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+		if err := m.com.Workspace.RefreshOAuthToken(ctx, config.ScopeGlobal, "hyper"); err != nil {
+			slog.Warn("Hyper OAuth refresh failed, requesting re-auth", "error", err)
+			msg.ReAuthenticate = true
+		}
+		return hyperRefreshDoneMsg{action: msg}
+	}
+}
+
+// handleSelectModel performs the model selection after any provider
+// pre-checks (such as a silent Hyper OAuth refresh) have completed.
+func (m *UI) handleSelectModel(msg dialog.ActionSelectModel) tea.Cmd {
+	var cmds []tea.Cmd
+
+	if m.isAgentBusy() {
+		return util.ReportWarn("Agent is busy, please wait...")
+	}
+
+	cfg := m.com.Config()
+	if cfg == nil {
+		return util.ReportError(errors.New("configuration not found"))
+	}
+
+	var (
+		providerID   = msg.Model.Provider
+		isCopilot    = providerID == string(catwalk.InferenceProviderCopilot)
+		isConfigured = func() bool { _, ok := cfg.Providers.Get(providerID); return ok }
+		isOnboarding = m.state == uiOnboarding
+	)
+
+	// For Hyper, if the stored OAuth token is expired, try a silent
+	// refresh before deciding whether the provider is configured. Keeps
+	// users from hitting a 401 on their first message after the
+	// short-lived access token ages out.
+	if !msg.ReAuthenticate && providerID == "hyper" {
+		if pc, ok := cfg.Providers.Get(providerID); ok && pc.OAuthToken != nil && pc.OAuthToken.IsExpired() {
+			return m.refreshHyperAndRetrySelect(msg)
+		}
+	}
+
+	// Attempt to import GitHub Copilot tokens from VSCode if available.
+	if isCopilot && !isConfigured() && !msg.ReAuthenticate {
+		m.com.Workspace.ImportCopilot()
+	}
+
+	if !isConfigured() || msg.ReAuthenticate {
+		m.dialog.CloseDialog(dialog.ModelsID)
+		if cmd := m.openAuthenticationDialog(msg.Provider, msg.Model, msg.ModelType); cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+		return tea.Batch(cmds...)
+	}
+
+	if err := m.com.Workspace.UpdatePreferredModel(config.ScopeGlobal, msg.ModelType, msg.Model); err != nil {
+		cmds = append(cmds, util.ReportError(err))
+	} else {
+		if msg.ModelType == config.SelectedModelTypeLarge {
+			// Swap the theme live based on the newly selected large
+			// model's provider.
+			m.applyTheme(styles.ThemeForProvider(providerID))
+		}
+		if _, ok := cfg.Models[config.SelectedModelTypeSmall]; !ok {
+			// Ensure small model is set is unset.
+			smallModel := m.com.Workspace.GetDefaultSmallModel(providerID)
+			if err := m.com.Workspace.UpdatePreferredModel(config.ScopeGlobal, config.SelectedModelTypeSmall, smallModel); err != nil {
+				cmds = append(cmds, util.ReportError(err))
+			}
+		}
+	}
+
+	cmds = append(cmds, func() tea.Msg {
+		if err := m.com.Workspace.UpdateAgentModel(context.TODO()); err != nil {
+			return util.ReportError(err)
+		}
+
+		modelMsg := fmt.Sprintf("%s model changed to %s", msg.ModelType, msg.Model.Model)
+
+		return util.NewInfoMsg(modelMsg)
+	})
+
+	m.dialog.CloseDialog(dialog.APIKeyInputID)
+	m.dialog.CloseDialog(dialog.OAuthID)
+	m.dialog.CloseDialog(dialog.ModelsID)
+
+	if isOnboarding {
+		m.setState(uiLanding, uiFocusEditor)
+		m.com.Config().SetupAgents()
+		if err := m.com.Workspace.InitCoderAgent(context.TODO()); err != nil {
+			cmds = append(cmds, util.ReportError(err))
+		}
+	}
+
+	return tea.Batch(cmds...)
 }
 
 func (m *UI) openAuthenticationDialog(provider catwalk.Provider, model config.SelectedModel, modelType config.SelectedModelType) tea.Cmd {
@@ -1747,23 +1811,6 @@ func (m *UI) handleKeyPressMsg(msg tea.KeyPressMsg) tea.Cmd {
 				return tea.Batch(cmds...)
 			}
 
-			// Vi mode: Escape in insert mode enters normal mode. In normal
-			// mode, intercept keys before the regular editor bindings.
-			if m.viEnabled() {
-				if m.vi.mode == viInsert && key.Matches(msg, m.keyMap.Editor.Escape) {
-					m.viEnterNormal()
-					return tea.Batch(cmds...)
-				}
-				if m.viIsNormal() {
-					if consumed, cmd := m.viHandleNormalKey(msg); consumed {
-						if cmd != nil {
-							cmds = append(cmds, cmd)
-						}
-						return tea.Batch(cmds...)
-					}
-				}
-			}
-
 			switch {
 			case key.Matches(msg, m.keyMap.Editor.AddImage):
 				if !m.currentModelSupportsImages() {
@@ -1793,9 +1840,6 @@ func (m *UI) handleKeyPressMsg(msg tea.KeyPressMsg) tea.Cmd {
 
 				// Otherwise, send the message
 				m.textarea.Reset()
-				if m.viEnabled() {
-					m.viEnterNormal()
-				}
 				if cmd := m.handleTextareaHeightChange(prevHeight); cmd != nil {
 					cmds = append(cmds, cmd)
 				}
@@ -2002,12 +2046,6 @@ func (m *UI) handleKeyPressMsg(msg tea.KeyPressMsg) tea.Cmd {
 					cmds = append(cmds, cmd)
 				}
 				m.chat.SelectLast()
-			case key.Matches(msg, m.keyMap.Chat.DeleteMessage):
-				if id := m.chat.SelectedMessageID(); id != "" {
-					cmds = append(cmds, func() tea.Msg {
-						return deleteSelectedMessageMsg{messageID: id}
-					})
-				}
 			default:
 				if ok, cmd := m.chat.HandleKeyMsg(msg); ok {
 					cmds = append(cmds, cmd)
@@ -2081,13 +2119,10 @@ func (m *UI) Draw(scr uv.Screen, area uv.Rectangle) *tea.Cursor {
 		if layout.pills.Dy() > 0 && m.pillsView != "" {
 			uv.NewStyledString(m.pillsView).Draw(scr, layout.pills)
 		}
-		// Draw scroll indicator in the 1-line gap below chat when not following.
-		// TODO: differentiate "at bottom but not following" (show "following
-		// paused") vs "scrolled up" (show "more"). Currently AtBottom() is
-		// unreliable because render callbacks (e.g. FocusedRenderCallback)
-		// change item heights between scroll clamping and the AtBottom check.
+
+		// Draw scroll indicator when not auto-following.
 		if !m.chat.Follow() {
-			indicator := m.com.Styles.Muted.Render("\u2193 more")
+			indicator := m.com.Styles.Sidebar.WorkingDir.Render("↓ more")
 			indicatorWidth := lipgloss.Width(indicator)
 			gapY := layout.main.Max.Y
 			gapRight := layout.main.Max.X
@@ -2209,14 +2244,6 @@ func (m *UI) View() tea.View {
 func (m *UI) ShortHelp() []key.Binding {
 	var binds []key.Binding
 	k := &m.keyMap
-
-	if m.viEnabled() && m.focus == uiFocusEditor {
-		modeLabel := m.viModeIndicator()
-		binds = append(binds, key.NewBinding(
-			key.WithHelp("vi", modeLabel),
-		))
-	}
-
 	tab := k.Tab
 	commands := k.Commands
 	if m.focus == uiFocusEditor && m.textarea.Value() == "" {
@@ -2540,11 +2567,6 @@ func (m *UI) generateLayout(w, h int) uiLayout {
 	editorHeight := m.textarea.Height() + editorHeightMargin
 	// The sidebar width
 	sidebarWidth := 30
-	if cfg := m.com.Config(); cfg != nil {
-		if w := cfg.Options.TUI.SidebarWidth; w != nil && *w > 0 {
-			sidebarWidth = *w
-		}
-	}
 	// The header height
 	const landingHeaderHeight = 4
 
@@ -2813,9 +2835,9 @@ func (m *UI) normalPromptFunc(info textarea.PromptInfo) string {
 		return "::: "
 	}
 	if info.Focused {
-		return t.EditorPromptNormalFocused.Render()
+		return t.Editor.PromptNormalFocused.Render()
 	}
-	return t.EditorPromptNormalBlurred.Render()
+	return t.Editor.PromptNormalBlurred.Render()
 }
 
 // yoloPromptFunc returns the yolo mode editor prompt style with warning icon
@@ -2824,15 +2846,15 @@ func (m *UI) yoloPromptFunc(info textarea.PromptInfo) string {
 	t := m.com.Styles
 	if info.LineNumber == 0 {
 		if info.Focused {
-			return t.EditorPromptYoloIconFocused.Render()
+			return t.Editor.PromptYoloIconFocused.Render()
 		} else {
-			return t.EditorPromptYoloIconBlurred.Render()
+			return t.Editor.PromptYoloIconBlurred.Render()
 		}
 	}
 	if info.Focused {
-		return t.EditorPromptYoloDotsFocused.Render()
+		return t.Editor.PromptYoloDotsFocused.Render()
 	}
-	return t.EditorPromptYoloDotsBlurred.Render()
+	return t.Editor.PromptYoloDotsBlurred.Render()
 }
 
 // closeCompletions closes the completions popup and resets state.
@@ -3038,7 +3060,35 @@ func (m *UI) renderEditorView(width int) string {
 
 // cacheSidebarLogo renders and caches the sidebar logo at the specified width.
 func (m *UI) cacheSidebarLogo(width int) {
-	m.sidebarLogo = renderLogo(m.com.Styles, true, width)
+	m.sidebarLogo = renderLogo(m.com.Styles, true, m.com.IsHyper(), width)
+}
+
+// applyTheme replaces the active styles with the given theme and
+// refreshes every component that caches style data.
+func (m *UI) applyTheme(s styles.Styles) {
+	*m.com.Styles = s
+	m.refreshStyles()
+}
+
+// refreshStyles pushes the current *m.com.Styles into every subcomponent
+// that copies or pre-renders style-dependent values at construction time.
+func (m *UI) refreshStyles() {
+	t := m.com.Styles
+	m.header.refresh()
+	if m.layout.sidebar.Dx() > 0 {
+		m.cacheSidebarLogo(m.layout.sidebar.Dx())
+	}
+	m.textarea.SetStyles(t.Editor.Textarea)
+	m.completions.SetStyles(t.Completions.Normal, t.Completions.Focused, t.Completions.Match)
+	m.attachments.Renderer().SetStyles(
+		t.Attachments.Normal,
+		t.Attachments.Deleting,
+		t.Attachments.Image,
+		t.Attachments.Text,
+	)
+	m.todoSpinner.Style = t.Pills.TodoSpinner
+	m.status.help.Styles = t.Help
+	m.chat.InvalidateRenderCaches()
 }
 
 // sendMessage sends a message with the given content and attachments.
@@ -3058,7 +3108,6 @@ func (m *UI) sendMessage(content string, attachments ...message.Attachment) tea.
 		}
 		if newSession.ID != "" {
 			m.session = &newSession
-			m.refreshSessionPermissions()
 			cmds = append(cmds, m.loadSession(newSession.ID))
 		}
 		m.setState(uiChat, m.focus)
@@ -3079,8 +3128,7 @@ func (m *UI) sendMessage(content string, attachments ...message.Attachment) tea.
 		err := m.com.Workspace.AgentRun(context.Background(), sessionID, content, attachments...)
 		if err != nil {
 			isCancelErr := errors.Is(err, context.Canceled)
-			isPermissionErr := errors.Is(err, permission.ErrorPermissionDenied)
-			if isCancelErr || isPermissionErr {
+			if isCancelErr {
 				return nil
 			}
 			return util.InfoMsg{
@@ -3161,10 +3209,6 @@ func (m *UI) openDialog(id string) tea.Cmd {
 		}
 	case dialog.QuitID:
 		if cmd := m.openQuitDialog(); cmd != nil {
-			cmds = append(cmds, cmd)
-		}
-	case dialog.PermissionRulesID:
-		if cmd := m.openPermissionRulesDialog(); cmd != nil {
 			cmds = append(cmds, cmd)
 		}
 	default:
@@ -3287,22 +3331,6 @@ func (m *UI) openFilesDialog() tea.Cmd {
 	return cmd
 }
 
-// openPermissionRulesDialog opens the permission rules management dialog.
-func (m *UI) openPermissionRulesDialog() tea.Cmd {
-	if m.dialog.ContainsDialog(dialog.PermissionRulesID) {
-		m.dialog.BringToFront(dialog.PermissionRulesID)
-		return nil
-	}
-
-	rulesDialog, err := dialog.NewPermissionRules(m.com, m.sessionPermissions)
-	if err != nil {
-		return util.ReportError(err)
-	}
-
-	m.dialog.OpenDialog(rulesDialog)
-	return nil
-}
-
 // openPermissionsDialog opens the permissions dialog for a permission request.
 func (m *UI) openPermissionsDialog(perm permission.PermissionRequest) tea.Cmd {
 	// Close any existing permissions dialog first.
@@ -3328,11 +3356,7 @@ func (m *UI) handlePermissionNotification(notification permission.PermissionNoti
 
 	if permItem, ok := toolItem.(chat.ToolMessageItem); ok {
 		if notification.Granted {
-			if notification.AutoApproved {
-				permItem.SetStatus(chat.ToolStatusAutoApproved)
-			} else {
-				permItem.SetStatus(chat.ToolStatusRunning)
-			}
+			permItem.SetStatus(chat.ToolStatusRunning)
 		} else {
 			permItem.SetStatus(chat.ToolStatusAwaitingPermission)
 		}
@@ -3629,18 +3653,19 @@ func (m *UI) drawSessionDetails(scr uv.Screen, area uv.Rectangle) {
 		blocks...,
 	)
 
-	version := s.CompactDetails.Version.Foreground(s.Border).Width(width).AlignHorizontal(lipgloss.Right).Render(version.Version)
+	version := s.CompactDetails.Version.Width(width).AlignHorizontal(lipgloss.Right).Render(version.Version)
 
 	remainingHeight := height - lipgloss.Height(detailsHeader) - lipgloss.Height(version)
 
 	const maxSectionWidth = 50
-	sectionWidth := min(maxSectionWidth, width/3-2) // account for 2 spaces
-	maxItemsPerSection := remainingHeight - 3       // Account for section title and spacing
+	sectionWidth := max(1, min(maxSectionWidth, width/4-2)) // account for spacing between sections
+	maxItemsPerSection := remainingHeight - 3               // Account for section title and spacing
 
 	lspSection := m.lspInfo(sectionWidth, maxItemsPerSection, false)
 	mcpSection := m.mcpInfo(sectionWidth, maxItemsPerSection, false)
+	skillsSection := m.skillsInfo(sectionWidth, maxItemsPerSection, false)
 	filesSection := m.filesInfo(m.com.Workspace.WorkingDir(), sectionWidth, maxItemsPerSection, false)
-	sections := lipgloss.JoinHorizontal(lipgloss.Top, filesSection, " ", lspSection, " ", mcpSection)
+	sections := lipgloss.JoinHorizontal(lipgloss.Top, filesSection, " ", lspSection, " ", mcpSection, " ", skillsSection)
 	uv.NewStyledString(
 		s.CompactDetails.View.
 			Width(area.Dx()).
@@ -3724,21 +3749,6 @@ func (m *UI) copyChatHighlight() tea.Cmd {
 	)
 }
 
-func (m *UI) deleteMessage(messageID string) tea.Cmd {
-	if messageID == "" {
-		return nil
-	}
-	return func() tea.Msg {
-		if err := m.com.Workspace.MessageDelete(context.Background(), messageID); err != nil {
-			return util.InfoMsg{
-				Type: util.InfoTypeError,
-				Msg:  err.Error(),
-			}
-		}
-		return nil
-	}
-}
-
 func (m *UI) enableDockerMCP() tea.Msg {
 	ctx := context.Background()
 	if err := m.com.Workspace.EnableDockerMCP(ctx); err != nil {
@@ -3757,13 +3767,14 @@ func (m *UI) disableDockerMCP() tea.Msg {
 }
 
 // renderLogo renders the Crush logo with the given styles and dimensions.
-func renderLogo(t *styles.Styles, compact bool, width int) string {
-	return logo.Render(t, version.Version, compact, logo.Opts{
-		FieldColor:   t.LogoFieldColor,
-		TitleColorA:  t.LogoTitleColorA,
-		TitleColorB:  t.LogoTitleColorB,
-		CharmColor:   t.LogoCharmColor,
-		VersionColor: t.LogoVersionColor,
+func renderLogo(t *styles.Styles, compact, hyper bool, width int) string {
+	return logo.Render(t.Logo.GradCanvas, version.Version, compact, logo.Opts{
+		FieldColor:   t.Logo.FieldColor,
+		TitleColorA:  t.Logo.TitleColorA,
+		TitleColorB:  t.Logo.TitleColorB,
+		CharmColor:   t.Logo.CharmColor,
+		VersionColor: t.Logo.VersionColor,
 		Width:        width,
+		Hyper:        hyper,
 	})
 }

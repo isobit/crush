@@ -29,7 +29,7 @@ func (m *UI) permissionsInfo(width, maxItems int, isSection bool) string {
 
 	t := m.com.Styles
 
-	title := t.ResourceGroupTitle.Render("Session Permissions")
+	title := t.Resource.Heading.Render("Session Permissions")
 	if isSection {
 		title = common.Section(t, title, width)
 	}
@@ -51,12 +51,12 @@ func permissionsList(t *styles.Styles, perms []permission.PermissionRequest, wid
 			break
 		}
 
-		icon := t.ResourceOnlineIcon.String()
-		title := t.ResourceName.Render(fmt.Sprintf("%s:%s", p.ToolName, p.Action))
+		icon := t.Resource.OnlineIcon.String()
+		title := t.Resource.Name.Render(fmt.Sprintf("%s:%s", p.ToolName, p.Action))
 
 		var description string
 		if p.Path != "" {
-			description = t.ResourceStatus.Render(home.Short(p.Path))
+			description = t.Resource.StatusText.Render(home.Short(p.Path))
 		}
 
 		rendered = append(rendered, common.Status(t, common.StatusOpts{
@@ -68,7 +68,7 @@ func permissionsList(t *styles.Styles, perms []permission.PermissionRequest, wid
 
 	if len(perms) > maxItems {
 		remaining := len(perms) - maxItems
-		rendered = append(rendered, t.ResourceAdditionalText.Render(fmt.Sprintf("…and %d more", remaining)))
+		rendered = append(rendered, t.Resource.AdditionalText.Render(fmt.Sprintf("…and %d more", remaining)))
 	}
 
 	return strings.Join(rendered, "\n")

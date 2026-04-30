@@ -3,6 +3,7 @@
 package skills
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -15,6 +16,7 @@ import (
 	"sync"
 
 	"github.com/charlievieth/fastwalk"
+	"github.com/charmbracelet/crush/internal/pubsub"
 	"gopkg.in/yaml.v3"
 )
 
@@ -41,6 +43,36 @@ type Skill struct {
 	Path          string            `yaml:"-" json:"path"`
 	SkillFilePath string            `yaml:"-" json:"skill_file_path"`
 	Builtin       bool              `yaml:"-" json:"builtin"`
+}
+
+// DiscoveryState represents the outcome of discovering a single skill file.
+type DiscoveryState int
+
+const (
+	// StateNormal indicates the skill was parsed and validated successfully.
+	StateNormal DiscoveryState = iota
+	// StateError indicates discovery encountered a scan/parse/validate error.
+	StateError
+)
+
+// SkillState represents the latest discovery status of a skill file.
+type SkillState struct {
+	Name  string
+	Path  string
+	State DiscoveryState
+	Err   error
+}
+
+// Event is published when skill discovery completes.
+type Event struct {
+	States []*SkillState
+}
+
+var broker = pubsub.NewBroker[Event]()
+
+// SubscribeEvents returns a channel that receives events when skill discovery state changes.
+func SubscribeEvents(ctx context.Context) <-chan pubsub.Event[Event] {
+	return broker.Subscribe(ctx)
 }
 
 // Validate checks if the skill meets spec requirements.
@@ -140,9 +172,28 @@ func splitFrontmatter(content string) (frontmatter, body string, err error) {
 
 // Discover finds all valid skills in the given paths.
 func Discover(paths []string) []*Skill {
+	skills, _ := DiscoverWithStates(paths)
+	return skills
+}
+
+// DiscoverWithStates finds all valid skills in the given paths and also
+// returns a per-file state slice describing parse/validation outcomes. Useful
+// for diagnostics and UI reporting.
+func DiscoverWithStates(paths []string) ([]*Skill, []*SkillState) {
 	var skills []*Skill
+	var states []*SkillState
 	var mu sync.Mutex
 	seen := make(map[string]bool)
+	addState := func(name, path string, state DiscoveryState, err error) {
+		mu.Lock()
+		states = append(states, &SkillState{
+			Name:  name,
+			Path:  path,
+			State: state,
+			Err:   err,
+		})
+		mu.Unlock()
+	}
 
 	for _, base := range paths {
 		// We use fastwalk with Follow: true instead of filepath.WalkDir because
@@ -156,6 +207,7 @@ func Discover(paths []string) []*Skill {
 		err := fastwalk.Walk(&conf, base, func(path string, d os.DirEntry, err error) error {
 			if err != nil {
 				slog.Warn("Failed to walk skills path entry", "base", base, "path", path, "error", err)
+				addState("", path, StateError, err)
 				return nil
 			}
 			if d.IsDir() || d.Name() != SkillFileName {
@@ -171,19 +223,22 @@ func Discover(paths []string) []*Skill {
 			skill, err := Parse(path)
 			if err != nil {
 				slog.Warn("Failed to parse skill file", "path", path, "error", err)
+				addState("", path, StateError, err)
 				return nil
 			}
 			if err := skill.Validate(); err != nil {
 				slog.Warn("Skill validation failed", "path", path, "error", err)
+				addState(skill.Name, path, StateError, err)
 				return nil
 			}
 			slog.Debug("Successfully loaded skill", "name", skill.Name, "path", path)
 			mu.Lock()
 			skills = append(skills, skill)
 			mu.Unlock()
+			addState(skill.Name, path, StateNormal, nil)
 			return nil
 		})
-		if err != nil {
+		if err != nil && !os.IsNotExist(err) {
 			slog.Warn("Failed to walk skills path", "path", base, "error", err)
 		}
 	}
@@ -198,7 +253,8 @@ func Discover(paths []string) []*Skill {
 		return left < right
 	})
 
-	return skills
+	broker.Publish(pubsub.UpdatedEvent, Event{States: states})
+	return skills, states
 }
 
 // ToPromptXML generates XML for injection into the system prompt.
@@ -243,6 +299,16 @@ func Deduplicate(all []*Skill) []*Skill {
 		}
 	}
 	return result
+}
+
+// ApproxTokenCount returns a rough estimate of how many tokens a string
+// occupies when sent to an LLM. Uses the common ~4-chars-per-token heuristic
+// that approximates GPT/Claude tokenizers well enough for diagnostic logging.
+func ApproxTokenCount(s string) int {
+	if s == "" {
+		return 0
+	}
+	return (len(s) + 3) / 4
 }
 
 // Filter removes skills whose names appear in the disabled list.

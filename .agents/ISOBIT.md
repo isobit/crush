@@ -119,6 +119,20 @@ pulling a new upstream release, use this list to ensure nothing is lost.
 - **Files**: `internal/ui/logo/`
 - Smaller compact logo variant for the sidebar.
 
+### MCP Large Output File Spillover
+
+- **Files**: `internal/agent/tools/mcp-tools.go`
+- When an MCP tool returns text content larger than `LargeContentThreshold`
+  (50 KB), the output is written to a temp file (`mcp-*`) in the
+  data directory (`.crush/`) instead of being returned inline.
+- The agent can also explicitly request file output by passing
+  `__output_file: true` in the tool call parameters. This flag is
+  stripped before forwarding to the MCP server.
+- The agent receives a short message with the file path and is instructed
+  to use `view`/`grep` to process it, keeping the LLM context small.
+- On file-write failure, a warning is logged via `slog.Warn` and the
+  content falls back to inline delivery.
+
 ---
 
 ## Notes

@@ -119,6 +119,13 @@ pulling a new upstream release, use this list to ensure nothing is lost.
 - **Files**: `internal/ui/logo/`
 - Smaller compact logo variant for the sidebar.
 
+### Glob Tool Timeout
+
+- **Files**: `internal/agent/tools/glob.go`, `internal/config/config.go`
+- The glob tool now has a configurable timeout (default 5s) matching the
+  existing grep timeout pattern. Prevents runaway CPU on large file trees.
+- Configured via `crush.json` under `tools.glob.timeout`.
+
 ### MCP Large Output File Spillover
 
 - **Files**: `internal/agent/tools/mcp-tools.go`

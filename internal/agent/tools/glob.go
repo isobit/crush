@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"charm.land/fantasy"
+	"github.com/charmbracelet/crush/internal/config"
 	"github.com/charmbracelet/crush/internal/fsext"
 )
 
@@ -31,7 +32,7 @@ type GlobResponseMetadata struct {
 	Truncated     bool `json:"truncated"`
 }
 
-func NewGlobTool(workingDir string) fantasy.AgentTool {
+func NewGlobTool(workingDir string, cfg config.ToolGlob) fantasy.AgentTool {
 	return fantasy.NewAgentTool(
 		GlobToolName,
 		FirstLineDescription(globDescription),
@@ -42,7 +43,10 @@ func NewGlobTool(workingDir string) fantasy.AgentTool {
 
 			searchPath := cmp.Or(params.Path, workingDir)
 
-			files, truncated, err := globFiles(ctx, params.Pattern, searchPath, 100)
+			searchCtx, cancel := context.WithTimeout(ctx, cfg.GetTimeout())
+			defer cancel()
+
+			files, truncated, err := globFiles(searchCtx, params.Pattern, searchPath, 100)
 			if err != nil {
 				return fantasy.ToolResponse{}, fmt.Errorf("error finding files: %w", err)
 			}

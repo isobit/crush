@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"os"
 	"slices"
 	"strings"
 
@@ -13,6 +12,7 @@ import (
 	"github.com/charmbracelet/crush/internal/agent/tools/mcp"
 	"github.com/charmbracelet/crush/internal/config"
 	"github.com/charmbracelet/crush/internal/permission"
+	"github.com/charmbracelet/crush/internal/tmpfile"
 )
 
 // whitelistDockerTools contains Docker MCP tools that don't require permission.
@@ -172,7 +172,7 @@ func (m *Tool) Run(ctx context.Context, params fantasy.ToolCall) (fantasy.ToolRe
 // returns a response pointing the agent at the file path.
 func (m *Tool) spillToFile(content string) (fantasy.ToolResponse, error) {
 	dataDir := m.cfg.Config().Options.DataDirectory
-	tempFile, createErr := os.CreateTemp(dataDir, "mcp-*")
+	tempFile, createErr := tmpfile.Create(dataDir, "mcp-*")
 	if createErr != nil {
 		slog.Warn("Failed to create temp file for MCP output, returning inline", "error", createErr)
 		return fantasy.NewTextResponse(content), nil

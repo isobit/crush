@@ -70,4 +70,19 @@ func TestApplyEnvOverrides(t *testing.T) {
 		require.True(t, opts.DisableProviderAutoUpdate)
 		require.True(t, opts.DisableDefaultProviders)
 	})
+
+	t.Run("nested TUI field via env", func(t *testing.T) {
+		t.Setenv("CRUSH_TUI_COMPACT_MODE", "true")
+		opts := &Options{TUI: &TUIOptions{}}
+		applyEnvOverrides(opts)
+		require.True(t, opts.TUI.CompactMode)
+	})
+
+	t.Run("nested TUI field allocates nil pointer", func(t *testing.T) {
+		t.Setenv("CRUSH_TUI_VI_MODE", "true")
+		opts := &Options{}
+		applyEnvOverrides(opts)
+		require.NotNil(t, opts.TUI)
+		require.True(t, opts.TUI.ViMode)
+	})
 }

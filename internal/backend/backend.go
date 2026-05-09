@@ -97,6 +97,14 @@ func (b *Backend) CreateWorkspace(args proto.Workspace) (*Workspace, proto.Works
 
 	cfg.Overrides().SkipPermissionRequests = args.YOLO
 
+	// Apply --set CLI overrides.
+	if len(args.SetOverrides) > 0 {
+		cfg.Overrides().CLIOverrides = args.SetOverrides
+		if err := cfg.ApplyCLIOverrides(args.SetOverrides); err != nil {
+			return nil, proto.Workspace{}, fmt.Errorf("failed to apply --set overrides: %w", err)
+		}
+	}
+
 	if err := createDotCrushDir(cfg.Config().Options.DataDirectory); err != nil {
 		return nil, proto.Workspace{}, fmt.Errorf("failed to create data directory: %w", err)
 	}

@@ -51,6 +51,7 @@ func init() {
 	rootCmd.PersistentFlags().StringP("data-dir", "D", "", "Custom crush data directory")
 	rootCmd.PersistentFlags().BoolP("debug", "d", false, "Debug")
 	rootCmd.PersistentFlags().StringVarP(&clientHost, "host", "H", server.DefaultHost(), "Connect to a specific crush server host (for advanced users)")
+	rootCmd.PersistentFlags().StringArrayP("set", "o", nil, "Override a config option (key=value, e.g. --set debug=true)")
 	rootCmd.Flags().BoolP("help", "h", false, "Help")
 	rootCmd.Flags().BoolP("yolo", "y", false, "Automatically accept all permissions (dangerous mode)")
 	rootCmd.Flags().StringP("session", "s", "", "Continue a previous session by ID")
@@ -93,6 +94,9 @@ crush --yolo
 
 # Run with custom data directory
 crush --data-dir /path/to/custom/.crush
+
+# Override a config option for this session
+crush --set disable_auto_summarize=true
 
 # Continue a previous session
 crush --session {session-id}
@@ -246,6 +250,7 @@ func setupLocalWorkspace(cmd *cobra.Command) (workspace.Workspace, func(), error
 	debug, _ := cmd.Flags().GetBool("debug")
 	yolo, _ := cmd.Flags().GetBool("yolo")
 	dataDir, _ := cmd.Flags().GetString("data-dir")
+	setArgs, _ := cmd.Flags().GetStringArray("set")
 	ctx := cmd.Context()
 
 	cwd, err := ResolveCwd(cmd)
@@ -260,6 +265,19 @@ func setupLocalWorkspace(cmd *cobra.Command) (workspace.Workspace, func(), error
 
 	cfg := store.Config()
 	store.Overrides().SkipPermissionRequests = yolo
+
+	// Apply --set overrides.
+	if len(setArgs) > 0 {
+		overrides, err := config.ParseCLIOverrides(setArgs)
+		if err != nil {
+			return nil, nil, err
+		}
+		store.Overrides().CLIOverrides = overrides
+		if err := store.ApplyCLIOverrides(overrides); err != nil {
+			return nil, nil, fmt.Errorf("failed to apply --set overrides: %w", err)
+		}
+		cfg = store.Config()
+	}
 
 	if err := os.MkdirAll(cfg.Options.DataDirectory, 0o700); err != nil {
 		return nil, nil, fmt.Errorf("failed to create data directory: %q %w", cfg.Options.DataDirectory, err)
@@ -335,6 +353,7 @@ func connectToServer(cmd *cobra.Command) (*client.Client, *proto.Workspace, func
 	debug, _ := cmd.Flags().GetBool("debug")
 	yolo, _ := cmd.Flags().GetBool("yolo")
 	dataDir, _ := cmd.Flags().GetString("data-dir")
+	setArgs, _ := cmd.Flags().GetStringArray("set")
 	ctx := cmd.Context()
 
 	cwd, err := ResolveCwd(cmd)
@@ -347,13 +366,22 @@ func connectToServer(cmd *cobra.Command) (*client.Client, *proto.Workspace, func
 		return nil, nil, nil, err
 	}
 
+	var setOverrides map[string]string
+	if len(setArgs) > 0 {
+		setOverrides, err = config.ParseCLIOverrides(setArgs)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+	}
+
 	wsReq := proto.Workspace{
-		Path:    cwd,
-		DataDir: dataDir,
-		Debug:   debug,
-		YOLO:    yolo,
-		Version: version.Version,
-		Env:     os.Environ(),
+		Path:         cwd,
+		DataDir:      dataDir,
+		Debug:        debug,
+		YOLO:         yolo,
+		Version:      version.Version,
+		Env:          os.Environ(),
+		SetOverrides: setOverrides,
 	}
 
 	ws, err := c.CreateWorkspace(ctx, wsReq)

@@ -4,69 +4,65 @@ import (
 	"log/slog"
 	"os"
 	"reflect"
-	"strconv"
 	"strings"
 )
 
-// applyEnvOverrides applies CRUSH_<UPPER_SNAKE> environment variable overrides
-// to the Options struct. The env var name is derived from each field's JSON tag
-// (e.g. json:"hashline_edit" -> CRUSH_HASHLINE_EDIT). Supported field types are
-// string, bool, *bool, and []string (comma-separated).
+// applyEnvOverrides applies CRUSH_<UPPER_SNAKE> environment variable
+// overrides to the Options struct. The env var name maps to dotted json-tag
+// paths with underscores (e.g. CRUSH_TUI_COMPACT_MODE -> tui.compact_mode,
+// CRUSH_DEBUG -> debug). Flat fields retain backward compatibility.
 func applyEnvOverrides(opts *Options) {
 	if opts == nil {
 		return
 	}
 
-	v := reflect.ValueOf(opts).Elem()
-	t := v.Type()
+	// Collect all settable paths from the struct tree.
+	paths := collectPaths(reflect.TypeOf(*opts), "")
+	for _, path := range paths {
+		envKey := "CRUSH_" + strings.ToUpper(strings.ReplaceAll(path, ".", "_"))
+		val, ok := os.LookupEnv(envKey)
+		if !ok {
+			continue
+		}
+		if err := SetFieldByPath(opts, path, val); err != nil {
+			slog.Warn("Invalid value for env var", "key", envKey, "value", val, "error", err)
+		}
+	}
+}
 
+// collectPaths recursively collects all settable json-tag paths from a
+// struct type. It descends into struct and *struct fields.
+func collectPaths(t reflect.Type, prefix string) []string {
+	var paths []string
 	for i := range t.NumField() {
 		field := t.Field(i)
 		jsonTag := field.Tag.Get("json")
 		if jsonTag == "" || jsonTag == "-" {
 			continue
 		}
-
-		// Extract the JSON field name (before any comma).
 		name, _, _ := strings.Cut(jsonTag, ",")
 		if name == "" {
 			continue
 		}
 
-		envKey := "CRUSH_" + strings.ToUpper(name)
-		str, ok := os.LookupEnv(envKey)
-		if !ok {
-			continue
+		fullPath := name
+		if prefix != "" {
+			fullPath = prefix + "." + name
 		}
 
-		fv := v.Field(i)
-		switch fv.Kind() {
-		case reflect.String:
-			fv.SetString(str)
-		case reflect.Bool:
-			b, err := strconv.ParseBool(str)
-			if err != nil {
-				slog.Warn("Invalid boolean value for env var", "key", envKey, "value", str)
-				continue
-			}
-			fv.SetBool(b)
-		case reflect.Pointer:
-			if fv.Type().Elem().Kind() == reflect.Bool {
-				b, err := strconv.ParseBool(str)
-				if err != nil {
-					slog.Warn("Invalid boolean value for env var", "key", envKey, "value", str)
-					continue
-				}
-				fv.Set(reflect.ValueOf(&b))
-			}
-		case reflect.Slice:
-			if fv.Type().Elem().Kind() == reflect.String {
-				parts := strings.Split(str, ",")
-				for i := range parts {
-					parts[i] = strings.TrimSpace(parts[i])
-				}
-				fv.Set(reflect.ValueOf(parts))
-			}
+		ft := field.Type
+		if ft.Kind() == reflect.Pointer {
+			ft = ft.Elem()
+		}
+
+		if ft.Kind() == reflect.Struct && ft != reflect.TypeOf(Attribution{}) {
+			// Descend into nested structs (except opaque ones like
+			// Attribution which have complex sub-fields we don't want
+			// to expose as flat env vars).
+			paths = append(paths, collectPaths(ft, fullPath)...)
+		} else {
+			paths = append(paths, fullPath)
 		}
 	}
+	return paths
 }

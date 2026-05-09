@@ -92,8 +92,23 @@ pulling a new upstream release, use this list to ensure nothing is lost.
 ### Environment Variable Config Overrides
 
 - **Files**: `internal/config/options_env.go`, `internal/config/load.go`
-- `CRUSH_<UPPER_SNAKE>` environment variables override `crush.json`
-  options fields.
+- `CRUSH_<UPPER_SNAKE>` environment variables override Options fields.
+- Now supports nested fields via `SetFieldByPath` (e.g.
+  `CRUSH_TUI_COMPACT_MODE=true` sets `Options.TUI.CompactMode`).
+
+### CLI Config Overrides (`--set`)
+
+- **Files**: `internal/config/cli_overrides.go`,
+  `internal/config/cli_overrides_test.go`, `internal/cmd/root.go`,
+  `internal/proto/proto.go`, `internal/backend/backend.go`
+- `--set key=value` (short: `-o`) persistent flag on the root command
+  overrides any Options field for the current session.
+- Keys use dotted json-tag paths matching the Options struct (e.g.
+  `debug=true`, `tui.compact_mode=true`).
+- Uses `SetFieldByPath` — a shared reflection-based mechanism that walks
+  nested structs by json tag. The same function powers env var overrides.
+- Works in both local and client/server modes (passed through
+  `proto.Workspace.SetOverrides`).
 
 ### Shell Enhancements
 

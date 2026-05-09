@@ -23,6 +23,23 @@ Common shell builtins and core utils available on Windows.
 - Prefer absolute paths over 'cd' (use 'cd' only if user explicitly requests)
 </usage_notes>
 
+{{ if .SandboxEnabled }}
+<sandbox>
+Commands run inside a filesystem and network sandbox. By default:
+- The working directory is writable (persists to disk)
+- /tmp is writable (persists to disk)
+{{ if .SandboxPersist }}- Everything else appears writable but writes go to a session overlay (not to the real filesystem)
+{{ else }}- Everything else appears writable but writes are discarded after each command exits
+{{ end }}- Network access is disabled
+
+If your command needs to write to the real filesystem outside CWD, or needs network:
+- `sandbox_writable_paths`: array of absolute paths (files or directories) that need real disk write access (e.g. module caches, build output dirs)
+- `sandbox_network`: set true if the command needs network (e.g. git fetch, go mod download)
+
+These requests are shown to the user for approval in the permission prompt. Only request what is genuinely needed.
+</sandbox>
+{{ end }}
+
 <background_execution>
 - Set run_in_background=true to run commands in a separate background shell
 - Returns a shell ID for managing the background process

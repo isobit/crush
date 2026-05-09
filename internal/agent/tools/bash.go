@@ -7,6 +7,7 @@ import (
 	_ "embed"
 	"fmt"
 	"html/template"
+	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -20,19 +21,23 @@ import (
 )
 
 type BashParams struct {
-	Description         string `json:"description" description:"A brief description of what the command does, try to keep it under 30 characters or so"`
-	Command             string `json:"command" description:"The command to execute"`
-	WorkingDir          string `json:"working_dir,omitempty" description:"The working directory to execute the command in (defaults to current directory)"`
-	RunInBackground     bool   `json:"run_in_background,omitempty" description:"Set to true (boolean) to run this command in the background. Use job_output to read the output later."`
-	AutoBackgroundAfter int    `json:"auto_background_after,omitempty" description:"Seconds to wait before automatically moving the command to a background job (default: 60)"`
+	Description          string   `json:"description" description:"A brief description of what the command does, try to keep it under 30 characters or so"`
+	Command              string   `json:"command" description:"The command to execute"`
+	WorkingDir           string   `json:"working_dir,omitempty" description:"The working directory to execute the command in (defaults to current directory)"`
+	RunInBackground      bool     `json:"run_in_background,omitempty" description:"Set to true (boolean) to run this command in the background. Use job_output to read the output later."`
+	AutoBackgroundAfter  int      `json:"auto_background_after,omitempty" description:"Seconds to wait before automatically moving the command to a background job (default: 60)"`
+	SandboxWritablePaths []string `json:"sandbox_writable_paths,omitempty" description:"Additional paths (files or directories) that need write access inside the sandbox. Shown to user for approval."`
+	SandboxNetwork       bool     `json:"sandbox_network,omitempty" description:"Set to true if the command needs network access (e.g. git fetch). Shown to user for approval."`
 }
 
 type BashPermissionsParams struct {
-	Description         string `json:"description"`
-	Command             string `json:"command"`
-	WorkingDir          string `json:"working_dir"`
-	RunInBackground     bool   `json:"run_in_background"`
-	AutoBackgroundAfter int    `json:"auto_background_after"`
+	Description          string   `json:"description"`
+	Command              string   `json:"command"`
+	WorkingDir           string   `json:"working_dir"`
+	RunInBackground      bool     `json:"run_in_background"`
+	AutoBackgroundAfter  int      `json:"auto_background_after"`
+	SandboxWritablePaths []string `json:"sandbox_writable_paths,omitempty"`
+	SandboxNetwork       bool     `json:"sandbox_network,omitempty"`
 }
 
 type BashResponseMetadata struct {
@@ -66,6 +71,8 @@ type bashDescriptionData struct {
 	MaxOutputLength int
 	Attribution     config.Attribution
 	ModelName       string
+	SandboxEnabled  bool
+	SandboxPersist  bool
 }
 
 var bannedCommands = []string{
@@ -141,7 +148,7 @@ var bannedCommands = []string{
 	"ufw",
 }
 
-func bashDescription(attribution *config.Attribution, modelName string) string {
+func bashDescription(attribution *config.Attribution, modelName string, sandboxEnabled bool, sandboxPersist bool) string {
 	bannedCommandsStr := strings.Join(bannedCommands, ", ")
 	var out bytes.Buffer
 	if err := bashDescriptionTpl.Execute(&out, bashDescriptionData{
@@ -149,6 +156,8 @@ func bashDescription(attribution *config.Attribution, modelName string) string {
 		MaxOutputLength: MaxOutputLength,
 		Attribution:     *attribution,
 		ModelName:       modelName,
+		SandboxEnabled:  sandboxEnabled,
+		SandboxPersist:  sandboxPersist,
 	}); err != nil {
 		// this should never happen.
 		panic("failed to execute bash description template: " + err.Error())
@@ -188,10 +197,18 @@ func blockFuncs() []shell.BlockFunc {
 	}
 }
 
-func NewBashTool(permissions permission.Service, workingDir string, attribution *config.Attribution, modelName string) fantasy.AgentTool {
+// BashSandboxOptions holds resolved sandbox settings for the bash tool.
+type BashSandboxOptions struct {
+	Mode           shell.SandboxMode
+	NetworkDefault bool
+	OverlayDir     string // Empty means use tmp-overlay.
+}
+
+func NewBashTool(permissions permission.Service, workingDir string, attribution *config.Attribution, modelName string, sandboxOpts BashSandboxOptions) fantasy.AgentTool {
+	sandboxEnabled := shell.ShouldSandbox(sandboxOpts.Mode)
 	return fantasy.NewAgentTool(
 		BashToolName,
-		string(bashDescription(attribution, modelName)),
+		string(bashDescription(attribution, modelName, sandboxEnabled, sandboxOpts.OverlayDir != "")),
 		func(ctx context.Context, params BashParams, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			if params.Command == "" {
 				return fantasy.NewTextErrorResponse("missing command"), nil
@@ -199,6 +216,24 @@ func NewBashTool(permissions permission.Service, workingDir string, attribution 
 
 			// Determine working directory
 			execWorkingDir := cmp.Or(params.WorkingDir, workingDir)
+
+			// Resolve sandbox config for this invocation.
+			var sandboxCfg *shell.SandboxConfig
+			if sandboxEnabled {
+				// Validate requested writable paths.
+				if len(params.SandboxWritablePaths) > 0 {
+					home, _ := os.UserHomeDir()
+					if err := shell.ValidateWritablePaths(params.SandboxWritablePaths, home); err != nil {
+						return fantasy.NewTextErrorResponse(err.Error()), nil
+					}
+				}
+				sandboxCfg = &shell.SandboxConfig{
+					Enabled:       true,
+					WritablePaths: params.SandboxWritablePaths,
+					Network:       sandboxOpts.NetworkDefault || params.SandboxNetwork,
+					OverlayDir:    sandboxOpts.OverlayDir,
+				}
+			}
 
 			isSafeReadOnly := false
 			cmdLower := strings.ToLower(params.Command)
@@ -242,7 +277,7 @@ func NewBashTool(permissions permission.Service, workingDir string, attribution 
 				bgManager := shell.GetBackgroundShellManager()
 				bgManager.Cleanup()
 				// Use background context so it continues after tool returns
-				bgShell, err := bgManager.Start(context.Background(), execWorkingDir, blockFuncs(), params.Command, params.Description)
+				bgShell, err := bgManager.Start(context.Background(), execWorkingDir, blockFuncs(), params.Command, params.Description, sandboxCfg)
 				if err != nil {
 					return fantasy.ToolResponse{}, fmt.Errorf("error starting background shell: %w", err)
 				}
@@ -297,7 +332,7 @@ func NewBashTool(permissions permission.Service, workingDir string, attribution 
 			// Start with detached context so it can survive if moved to background
 			bgManager := shell.GetBackgroundShellManager()
 			bgManager.Cleanup()
-			bgShell, err := bgManager.Start(context.Background(), execWorkingDir, blockFuncs(), params.Command, params.Description)
+			bgShell, err := bgManager.Start(context.Background(), execWorkingDir, blockFuncs(), params.Command, params.Description, sandboxCfg)
 			if err != nil {
 				return fantasy.ToolResponse{}, fmt.Errorf("error starting shell: %w", err)
 			}

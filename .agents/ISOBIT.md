@@ -140,6 +140,38 @@ pulling a new upstream release, use this list to ensure nothing is lost.
 - On file-write failure, a warning is logged via `slog.Warn` and the
   content falls back to inline delivery.
 
+### Bash Sandbox (bubblewrap)
+
+- **Files**: `internal/shell/sandbox.go`, `internal/shell/sandbox_linux.go`,
+  `internal/shell/sandbox_other.go`, `internal/shell/sandbox_test.go`,
+  `internal/shell/sandbox_linux_test.go`, `internal/agent/sandbox.go`,
+  `internal/agent/sandbox_test.go`, `internal/agent/tools/bash.go`,
+  `internal/agent/tools/bash.tpl`, `internal/shell/shell.go`,
+  `internal/shell/background.go`, `internal/config/config.go`,
+  `internal/ui/dialog/permissions.go`
+- On Linux, bash commands can run inside a bubblewrap (`bwrap`) sandbox
+  providing filesystem and network isolation via kernel namespaces.
+- Configured via `crush.json` `options.sandbox` struct:
+  ```json
+  { "sandbox": { "mode": "auto", "persist": true, "network": false } }
+  ```
+- `mode`: `"auto"` (default) enables when `bwrap` is on `$PATH` and
+  platform is Linux; `"on"` fails loudly if unavailable; `"off"` disables.
+- `persist` (default true): uses persistent overlayfs — writes outside
+  CWD accumulate in `.crush/sandbox/` across commands within a session.
+  When false uses `--tmp-overlay` (writes discarded each command).
+- When the kernel doesn't support unprivileged overlayfs (detected at
+  startup via probe), falls back to `--ro-bind / /` (read-only root).
+- The sandbox handler is an `interp.ExecHandler` in the mvdan/sh chain,
+  sitting after block checks but before OS exec. Every external command
+  invocation is wrapped in `bwrap`.
+- The model can request per-command escape hatches via tool params:
+  `sandbox_writable_paths` (real-disk bind mounts that punch through
+  the overlay) and `sandbox_network` (allow network). These are
+  validated (protected paths rejected) and surfaced in the permission
+  prompt (`internal/ui/dialog/permissions.go`).
+- Non-Linux platforms get a no-op handler stub.
+
 ---
 
 ## Notes

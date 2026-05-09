@@ -460,6 +460,12 @@ func (p *Permissions) renderHeader(contentWidth int) string {
 	case tools.BashToolName:
 		if params, ok := p.permission.Params.(tools.BashPermissionsParams); ok {
 			lines = append(lines, p.renderKeyValue("Desc", params.Description, contentWidth))
+			if len(params.SandboxWritablePaths) > 0 {
+				lines = append(lines, p.renderKeyValue("Writable", strings.Join(params.SandboxWritablePaths, ", "), contentWidth))
+			}
+			if params.SandboxNetwork {
+				lines = append(lines, p.renderKeyValue("Network", "enabled", contentWidth))
+			}
 		}
 	case tools.DownloadToolName:
 		if params, ok := p.permission.Params.(tools.DownloadPermissionsParams); ok {

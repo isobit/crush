@@ -56,6 +56,7 @@ type Shell struct {
 	mu         sync.Mutex
 	logger     Logger
 	blockFuncs []BlockFunc
+	sandbox    *SandboxConfig
 }
 
 // Options for creating a new shell
@@ -64,6 +65,7 @@ type Options struct {
 	Env        []string
 	Logger     Logger
 	BlockFuncs []BlockFunc
+	Sandbox    *SandboxConfig
 }
 
 // NewShell creates a new shell instance with the given options
@@ -100,6 +102,7 @@ func NewShell(opts *Options) *Shell {
 		env:        env,
 		logger:     logger,
 		blockFuncs: opts.BlockFuncs,
+		sandbox:    opts.Sandbox,
 	}
 }
 
@@ -328,6 +331,7 @@ func (s *Shell) execHandlers() []func(next interp.ExecHandlerFunc) interp.ExecHa
 	handlers := []func(next interp.ExecHandlerFunc) interp.ExecHandlerFunc{
 		s.builtinHandler(),
 		s.blockHandler(),
+		s.sandboxHandler(),
 	}
 	if useGoCoreUtils {
 		handlers = append(handlers, coreutils.ExecHandler)

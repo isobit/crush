@@ -258,6 +258,14 @@ type Options struct {
 	HashlineEdit              *bool        `json:"hashline_edit,omitempty" jsonschema:"description=Enable hashline-addressed editing mode. When enabled the view tool emits LINE#HASH| prefixed output and hashline_edit replaces edit/multiedit,default=false"`
 	DisableNotifications      bool         `json:"disable_notifications,omitempty" jsonschema:"description=Disable desktop notifications,default=false"`
 	DisabledSkills            []string     `json:"disabled_skills,omitempty" jsonschema:"description=List of skill names to disable and hide from the agent,example=crush-config"`
+	Sandbox *SandboxOptions `json:"sandbox,omitempty" jsonschema:"description=Sandbox options for bash command isolation via bubblewrap"`
+}
+
+// SandboxOptions configures OS-level isolation for bash commands.
+type SandboxOptions struct {
+	Mode    *string `json:"mode,omitempty" jsonschema:"description=Sandbox mode. auto enables when bwrap is available on Linux; on always enables (fails if unavailable); off disables entirely,enum=auto,enum=on,enum=off,default=auto"`
+	Persist *bool   `json:"persist,omitempty" jsonschema:"description=Use persistent overlay filesystem. Writes outside CWD accumulate across commands within a session. When false uses tmpfs overlay (writes discarded each command),default=true"`
+	Network *bool   `json:"network,omitempty" jsonschema:"description=Allow network access inside the sandbox by default. The model can still request network per-command,default=false"`
 }
 
 type MCPs map[string]MCPConfig

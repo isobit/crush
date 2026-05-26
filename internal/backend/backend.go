@@ -90,7 +90,12 @@ func (b *Backend) CreateWorkspace(args proto.Workspace) (*Workspace, proto.Works
 	}
 
 	id := uuid.New().String()
-	cfg, err := config.Init(args.Path, args.DataDir, args.Debug)
+	var loadOpts []config.LoadOption
+	if len(args.ConfigFiles) > 0 {
+		loadOpts = append(loadOpts, config.WithConfigFiles(args.ConfigFiles))
+	}
+
+	cfg, err := config.Init(args.Path, args.DataDir, args.Debug, loadOpts...)
 	if err != nil {
 		return nil, proto.Workspace{}, fmt.Errorf("failed to initialize config: %w", err)
 	}

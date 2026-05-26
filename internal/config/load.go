@@ -28,10 +28,36 @@ import (
 
 const defaultCatwalkURL = "https://catwalk.charm.land"
 
+// LoadOption configures the behavior of Load.
+type LoadOption func(*loadOptions)
+
+type loadOptions struct {
+	configFiles []string
+}
+
+// WithConfigFiles overrides the default config lookup chain with the
+// specified file paths. When set, only these files are loaded and merged
+// (in order), replacing the global/directory-walk configs entirely.
+func WithConfigFiles(paths []string) LoadOption {
+	return func(o *loadOptions) {
+		o.configFiles = paths
+	}
+}
+
 // Load loads the configuration from the default paths and returns a
 // ConfigStore that owns both the pure-data Config and all runtime state.
-func Load(workingDir, dataDir string, debug bool) (*ConfigStore, error) {
-	configPaths := lookupConfigs(workingDir)
+func Load(workingDir, dataDir string, debug bool, opts ...LoadOption) (*ConfigStore, error) {
+	var o loadOptions
+	for _, opt := range opts {
+		opt(&o)
+	}
+
+	var configPaths []string
+	if len(o.configFiles) > 0 {
+		configPaths = o.configFiles
+	} else {
+		configPaths = lookupConfigs(workingDir)
+	}
 
 	cfg, loadedPaths, err := loadFromConfigPaths(configPaths)
 	if err != nil {

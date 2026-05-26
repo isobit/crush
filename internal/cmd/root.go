@@ -49,6 +49,7 @@ var clientHost string
 func init() {
 	rootCmd.PersistentFlags().StringP("cwd", "c", "", "Current working directory")
 	rootCmd.PersistentFlags().StringP("data-dir", "D", "", "Custom crush data directory")
+	rootCmd.PersistentFlags().StringArray("config", nil, "Config file path (overrides default config chain; can be specified multiple times to merge)")
 	rootCmd.PersistentFlags().BoolP("debug", "d", false, "Debug")
 	rootCmd.PersistentFlags().StringVarP(&clientHost, "host", "H", server.DefaultHost(), "Connect to a specific crush server host (for advanced users)")
 	rootCmd.PersistentFlags().StringArrayP("set", "o", nil, "Override a config option (key=value, e.g. --set debug=true)")
@@ -97,6 +98,12 @@ crush --data-dir /path/to/custom/.crush
 
 # Override a config option for this session
 crush --set disable_auto_summarize=true
+
+# Use a specific config file (overrides default config chain)
+crush --config /path/to/custom.json
+
+# Merge multiple config files
+crush --config base.json --config overrides.json
 
 # Continue a previous session
 crush --session {session-id}
@@ -251,6 +258,7 @@ func setupLocalWorkspace(cmd *cobra.Command) (workspace.Workspace, func(), error
 	yolo, _ := cmd.Flags().GetBool("yolo")
 	dataDir, _ := cmd.Flags().GetString("data-dir")
 	setArgs, _ := cmd.Flags().GetStringArray("set")
+	configFiles, _ := cmd.Flags().GetStringArray("config")
 	ctx := cmd.Context()
 
 	cwd, err := ResolveCwd(cmd)
@@ -258,7 +266,12 @@ func setupLocalWorkspace(cmd *cobra.Command) (workspace.Workspace, func(), error
 		return nil, nil, err
 	}
 
-	store, err := config.Init(cwd, dataDir, debug)
+	var loadOpts []config.LoadOption
+	if len(configFiles) > 0 {
+		loadOpts = append(loadOpts, config.WithConfigFiles(configFiles))
+	}
+
+	store, err := config.Init(cwd, dataDir, debug, loadOpts...)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -354,6 +367,7 @@ func connectToServer(cmd *cobra.Command) (*client.Client, *proto.Workspace, func
 	yolo, _ := cmd.Flags().GetBool("yolo")
 	dataDir, _ := cmd.Flags().GetString("data-dir")
 	setArgs, _ := cmd.Flags().GetStringArray("set")
+	configFiles, _ := cmd.Flags().GetStringArray("config")
 	ctx := cmd.Context()
 
 	cwd, err := ResolveCwd(cmd)
@@ -382,6 +396,7 @@ func connectToServer(cmd *cobra.Command) (*client.Client, *proto.Workspace, func
 		Version:      version.Version,
 		Env:          os.Environ(),
 		SetOverrides: setOverrides,
+		ConfigFiles:  configFiles,
 	}
 
 	ws, err := c.CreateWorkspace(ctx, wsReq)

@@ -141,6 +141,18 @@ pulling a new upstream release, use this list to ensure nothing is lost.
   existing grep timeout pattern. Prevents runaway CPU on large file trees.
 - Configured via `crush.json` under `tools.glob.timeout`.
 
+### Config File Override (`--config`)
+
+- **Files**: `internal/cmd/root.go`, `internal/config/load.go`,
+  `internal/config/init.go`, `internal/proto/proto.go`,
+  `internal/backend/backend.go`
+- `--config /path/to/file.json` persistent flag overrides the entire
+  default config lookup chain (global, data, directory-walk configs).
+- Can be passed multiple times; files are merged in order (later wins).
+- Works in both local and client/server modes (passed through
+  `proto.Workspace.ConfigFiles`).
+- Uses `config.WithConfigFiles` load option internally.
+
 ### MCP Large Output File Spillover
 
 - **Files**: `internal/agent/tools/mcp-tools.go`

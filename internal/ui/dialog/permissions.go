@@ -797,7 +797,8 @@ func (p *Permissions) ShortHelp() []key.Binding {
 	}
 
 	if p.hasDiffView() {
-		bindings = append(bindings,
+		bindings = append(
+			bindings,
 			p.keyMap.ToggleDiffMode,
 			p.keyMap.ToggleFullscreen,
 		)

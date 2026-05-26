@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"slices"
 	"sync"
+	"sync/atomic"
 
 	"github.com/charmbracelet/crush/internal/csync"
 	"github.com/charmbracelet/crush/internal/db"
@@ -85,18 +86,28 @@ type Service interface {
 	ListSessionPermissions(sessionID string) []PermissionRequest
 	DeleteSessionPermission(sessionID string, permissionID string)
 }
+
+// PermissionKey is a composite key for session permission lookups.
+type PermissionKey struct {
+	SessionID string
+	ToolName  string
+	Action    string
+	Path      string
+}
+
 type permissionService struct {
 	*pubsub.Broker[PermissionRequest]
 
 	notificationBroker    *pubsub.Broker[PermissionNotification]
 	workingDir            string
 	queries               *db.Queries
-	sessionPermissions    []PermissionRequest
-	sessionPermissionsMu  sync.RWMutex
+	sessionPermissions    *csync.Map[PermissionKey, bool]
+	sessionPermissionKeys []PermissionKey
+	sessionPermissionsKeysMu sync.RWMutex
 	pendingRequests       *csync.Map[string, chan bool]
 	autoApproveSessions   map[string]bool
 	autoApproveSessionsMu sync.RWMutex
-	skip                  bool
+	skip                  atomic.Bool
 	allowedTools          []string
 
 	// used to make sure we only process one request at a time
@@ -115,9 +126,16 @@ func (s *permissionService) GrantPersistent(permission PermissionRequest) {
 		respCh <- true
 	}
 
-	s.sessionPermissionsMu.Lock()
-	s.sessionPermissions = append(s.sessionPermissions, permission)
-	s.sessionPermissionsMu.Unlock()
+	key := PermissionKey{
+		SessionID: permission.SessionID,
+		ToolName:  permission.ToolName,
+		Action:    permission.Action,
+		Path:      permission.Path,
+	}
+	s.sessionPermissions.Set(key, true)
+	s.sessionPermissionsKeysMu.Lock()
+	s.sessionPermissionKeys = append(s.sessionPermissionKeys, key)
+	s.sessionPermissionsKeysMu.Unlock()
 
 	s.activeRequestMu.Lock()
 	if s.activeRequest != nil && s.activeRequest.ID == permission.ID {
@@ -197,7 +215,7 @@ func (s *permissionService) Deny(permission PermissionRequest) {
 }
 
 func (s *permissionService) Request(ctx context.Context, opts CreatePermissionRequest) (bool, error) {
-	if s.skip {
+	if s.skip.Load() {
 		return true, nil
 	}
 
@@ -219,12 +237,13 @@ func (s *permissionService) Request(ctx context.Context, opts CreatePermissionRe
 		return true, nil
 	}
 
+	s.requestMu.Lock()
+	defer s.requestMu.Unlock()
+
 	// tell the UI that a permission was requested
 	s.notificationBroker.Publish(pubsub.CreatedEvent, PermissionNotification{
 		ToolCallID: opts.ToolCallID,
 	})
-	s.requestMu.Lock()
-	defer s.requestMu.Unlock()
 
 	s.autoApproveSessionsMu.RLock()
 	autoApprove := s.autoApproveSessions[opts.SessionID]
@@ -281,18 +300,18 @@ func (s *permissionService) Request(ctx context.Context, opts CreatePermissionRe
 		}
 	}
 
-	s.sessionPermissionsMu.RLock()
-	for _, p := range s.sessionPermissions {
-		if p.ToolName == permission.ToolName && p.Action == permission.Action && p.SessionID == permission.SessionID && p.Path == permission.Path {
-			s.sessionPermissionsMu.RUnlock()
-			s.notificationBroker.Publish(pubsub.CreatedEvent, PermissionNotification{
-				ToolCallID: opts.ToolCallID,
-				Granted:    true,
-			})
-			return true, nil
-		}
+	if _, ok := s.sessionPermissions.Get(PermissionKey{
+		SessionID: permission.SessionID,
+		ToolName:  permission.ToolName,
+		Action:    permission.Action,
+		Path:      permission.Path,
+	}); ok {
+		s.notificationBroker.Publish(pubsub.CreatedEvent, PermissionNotification{
+			ToolCallID: opts.ToolCallID,
+			Granted:    true,
+		})
+		return true, nil
 	}
-	s.sessionPermissionsMu.RUnlock()
 
 	s.activeRequestMu.Lock()
 	s.activeRequest = &permission
@@ -324,38 +343,46 @@ func (s *permissionService) SubscribeNotifications(ctx context.Context) <-chan p
 }
 
 func (s *permissionService) SetSkipRequests(skip bool) {
-	s.skip = skip
+	s.skip.Store(skip)
 }
 
 func (s *permissionService) SkipRequests() bool {
-	return s.skip
+	return s.skip.Load()
 }
 
 func (s *permissionService) ListSessionPermissions(sessionID string) []PermissionRequest {
-	s.sessionPermissionsMu.RLock()
-	defer s.sessionPermissionsMu.RUnlock()
+	s.sessionPermissionsKeysMu.RLock()
+	defer s.sessionPermissionsKeysMu.RUnlock()
 
 	var result []PermissionRequest
-	for _, p := range s.sessionPermissions {
-		if p.SessionID == sessionID {
-			result = append(result, p)
+	for _, key := range s.sessionPermissionKeys {
+		if key.SessionID == sessionID {
+			result = append(result, PermissionRequest{
+				SessionID: key.SessionID,
+				ToolName:  key.ToolName,
+				Action:    key.Action,
+				Path:      key.Path,
+				ID:        key.SessionID + ":" + key.ToolName + ":" + key.Action + ":" + key.Path,
+			})
 		}
 	}
 	return result
 }
 
 func (s *permissionService) DeleteSessionPermission(sessionID string, permissionID string) {
-	s.sessionPermissionsMu.Lock()
-	defer s.sessionPermissionsMu.Unlock()
+	s.sessionPermissionsKeysMu.Lock()
+	defer s.sessionPermissionsKeysMu.Unlock()
 
-	var filtered []PermissionRequest
-	for _, p := range s.sessionPermissions {
-		if p.SessionID == sessionID && p.ID == permissionID {
+	var filtered []PermissionKey
+	for _, key := range s.sessionPermissionKeys {
+		id := key.SessionID + ":" + key.ToolName + ":" + key.Action + ":" + key.Path
+		if key.SessionID == sessionID && id == permissionID {
+			s.sessionPermissions.Del(key)
 			continue
 		}
-		filtered = append(filtered, p)
+		filtered = append(filtered, key)
 	}
-	s.sessionPermissions = filtered
+	s.sessionPermissionKeys = filtered
 }
 
 func (s *permissionService) ListRules(ctx context.Context) ([]db.PermissionRule, error) {
@@ -373,15 +400,16 @@ func (s *permissionService) DeleteRule(ctx context.Context, id int64) error {
 }
 
 func NewPermissionService(workingDir string, skip bool, allowedTools []string, queries *db.Queries) Service {
-	return &permissionService{
+	svc := &permissionService{
 		Broker:              pubsub.NewBroker[PermissionRequest](),
 		notificationBroker:  pubsub.NewBroker[PermissionNotification](),
 		workingDir:          workingDir,
 		queries:             queries,
-		sessionPermissions:  make([]PermissionRequest, 0),
+		sessionPermissions:  csync.NewMap[PermissionKey, bool](),
 		autoApproveSessions: make(map[string]bool),
-		skip:                skip,
 		allowedTools:        allowedTools,
 		pendingRequests:     csync.NewMap[string, chan bool](),
 	}
+	svc.skip.Store(skip)
+	return svc
 }

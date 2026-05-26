@@ -15,6 +15,7 @@ import (
 // PermissionRuleItem wraps a [db.PermissionRule] to implement the [ListItem]
 // interface.
 type PermissionRuleItem struct {
+	*list.Versioned
 	db.PermissionRule
 	t       *styles.Styles
 	mode    permissionRulesMode
@@ -29,6 +30,8 @@ var _ ListItem = &PermissionRuleItem{}
 func (p *PermissionRuleItem) Filter() string {
 	return fmt.Sprintf("%s:%s %s %s", p.ToolName, p.Action, p.Path, paramsSummary(p.PermissionRule))
 }
+
+func (p *PermissionRuleItem) Finished() bool { return true }
 
 // ID returns the unique identifier of the permission rule.
 func (p *PermissionRuleItem) ID() string {
@@ -105,6 +108,7 @@ func permissionRuleItems(t *styles.Styles, mode permissionRulesMode, rules ...db
 // SessionPermissionItem wraps a [permission.PermissionRequest] to display
 // session-scoped permissions in the permission rules dialog.
 type SessionPermissionItem struct {
+	*list.Versioned
 	permission.PermissionRequest
 	t       *styles.Styles
 	mode    permissionRulesMode
@@ -119,6 +123,8 @@ var _ ListItem = &SessionPermissionItem{}
 func (s *SessionPermissionItem) Filter() string {
 	return fmt.Sprintf("%s:%s %s", s.ToolName, s.Action, s.Path)
 }
+
+func (s *SessionPermissionItem) Finished() bool { return true }
 
 // ID returns the unique identifier of the session permission.
 func (s *SessionPermissionItem) ID() string {

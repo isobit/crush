@@ -19,6 +19,7 @@ import (
 	"github.com/charmbracelet/crush/internal/oauth"
 	"github.com/charmbracelet/crush/internal/permission"
 	"github.com/charmbracelet/crush/internal/session"
+	"github.com/charmbracelet/crush/internal/skills"
 )
 
 // AppWorkspace implements the Workspace interface by delegating
@@ -71,6 +72,12 @@ func (w *AppWorkspace) ParseAgentToolSessionID(sessionID string) (string, string
 // -- Messages --
 
 func (w *AppWorkspace) ListMessages(ctx context.Context, sessionID string) ([]message.Message, error) {
+	// Drain any debounced updates so the caller observes the latest
+	// in-memory state. message.Service buffers streaming deltas and a
+	// cold List would otherwise miss them at session-switch time.
+	if err := w.app.Messages.FlushAll(ctx); err != nil {
+		return nil, err
+	}
 	return w.app.Messages.List(ctx, sessionID)
 }
 
@@ -321,6 +328,16 @@ func (w *AppWorkspace) MarkProjectInitialized() error {
 
 func (w *AppWorkspace) InitializePrompt() (string, error) {
 	return agent.InitializePrompt(w.store)
+}
+
+func (w *AppWorkspace) ListSkills(_ context.Context) ([]skills.CatalogEntry, error) {
+	mgr := w.app.Skills
+	return skills.Catalog(mgr.ActiveSkills(), mgr.ResolvedPaths(), mgr.WorkingDir()), nil
+}
+
+func (w *AppWorkspace) ReadSkill(_ context.Context, skillID string) ([]byte, skills.SkillReadResult, error) {
+	mgr := w.app.Skills
+	return skills.ReadContent(mgr.ActiveSkills(), mgr.ResolvedPaths(), mgr.WorkingDir(), skillID)
 }
 
 // -- MCP operations --

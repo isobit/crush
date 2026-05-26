@@ -14,10 +14,10 @@ import (
 // execution inside bubblewrap (bwrap) for filesystem and network
 // isolation. Uses overlayfs to provide a writable filesystem view
 // without modifying the real filesystem.
-func (s *Shell) sandboxHandler() func(next interp.ExecHandlerFunc) interp.ExecHandlerFunc {
+func sandboxHandler(cwd string, cfg *SandboxConfig) func(next interp.ExecHandlerFunc) interp.ExecHandlerFunc {
 	return func(next interp.ExecHandlerFunc) interp.ExecHandlerFunc {
 		return func(ctx context.Context, args []string) error {
-			if s.sandbox == nil || !s.sandbox.Enabled {
+			if cfg == nil || !cfg.Enabled {
 				return next(ctx, args)
 			}
 			if len(args) == 0 {
@@ -29,7 +29,7 @@ func (s *Shell) sandboxHandler() func(next interp.ExecHandlerFunc) interp.ExecHa
 				return next(ctx, args)
 			}
 
-			bwrapArgs := buildBwrapArgs(s.cwd, s.sandbox)
+			bwrapArgs := buildBwrapArgs(cwd, cfg)
 			bwrapArgs = append(bwrapArgs, "--")
 			bwrapArgs = append(bwrapArgs, args...)
 

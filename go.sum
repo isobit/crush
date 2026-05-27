@@ -264,6 +264,8 @@ github.com/jordanella/go-ansi-paintbrush v0.0.0-20240728195301-b7ad996ecf3d h1:o
 github.com/jordanella/go-ansi-paintbrush v0.0.0-20240728195301-b7ad996ecf3d/go.mod h1:SV0W0APWP9MZ1/gfDQ/NzzTlWdIgYZ/ZbpN4d/UXRYw=
 github.com/josharian/intern v1.0.0 h1:vlS4z54oSdjm0bgjRigI+G1HpF+tI+9rE5LLzOg8HmY=
 github.com/josharian/intern v1.0.0/go.mod h1:5DoeVV0s6jJacbCEi61lwdGj/aVlrQvzHFFd8Hwg//Y=
+github.com/kagisearch/kagi-openapi-golang v0.0.0-20260526215348-96575e864d62 h1:nyUi7Wel3KlVSa5ArgX/snlizqfaxU48qtvXS/JK5GE=
+github.com/kagisearch/kagi-openapi-golang v0.0.0-20260526215348-96575e864d62/go.mod h1:vONkS+clG730HSKOw3nZVa22TjB21r6csKYzYt0a9zI=
 github.com/kaptinlin/go-i18n v0.4.8 h1:ymGkz0uU974wljuuHZufHP1BlFWVk5Tf/sSMO8Cl9yQ=
 github.com/kaptinlin/go-i18n v0.4.8/go.mod h1:F+ezt0Q39p5x8PQW6p4xKMovhjNbhZYHuqwyEV1hHMw=
 github.com/kaptinlin/jsonpointer v0.4.23 h1:0VisnCL7rJT7BRTwxSWMU7vC0PD/RFgmisNcURkWp3k=

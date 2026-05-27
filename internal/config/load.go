@@ -137,6 +137,20 @@ func Load(workingDir, dataDir string, debug bool, opts ...LoadOption) (*ConfigSt
 		return nil, fmt.Errorf("failed to configure providers: %w", err)
 	}
 
+	// Resolve and validate Kagi API key.
+	if cfg.Tools.WebSearch.KagiAPIKey != "" {
+		resolved, err := valueResolver.ResolveValue(cfg.Tools.WebSearch.KagiAPIKey)
+		if err != nil {
+			return nil, fmt.Errorf("failed to resolve tools.web_search.kagi_api_key: %w", err)
+		}
+		if resolved == "" {
+			return nil, fmt.Errorf("tools.web_search.kagi_api_key is configured but resolves to an empty value")
+		}
+		cfg.Tools.WebSearch.KagiAPIKey = resolved
+	} else if cfg.Tools.WebSearch.Provider == "kagi" {
+		return nil, fmt.Errorf("tools.web_search.provider is \"kagi\" but kagi_api_key is not set")
+	}
+
 	if !cfg.IsConfigured() {
 		slog.Warn("No providers configured")
 		return store, nil

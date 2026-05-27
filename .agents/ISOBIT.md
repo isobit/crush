@@ -199,6 +199,27 @@ pulling a new upstream release, use this list to ensure nothing is lost.
   prompt (`internal/ui/dialog/permissions.go`).
 - Non-Linux platforms get a no-op handler stub.
 
+### Kagi Search Integration
+
+- **Files**: `internal/agent/tools/search_kagi.go`,
+  `internal/agent/tools/web_search.go`,
+  `internal/agent/tools/web_search_kagi.md.tpl`,
+  `internal/config/config.go`, `internal/config/load.go`,
+  `internal/agent/coordinator.go`
+- `tools.web_search.provider` selects the backend: `"kagi"` or `"duckduckgo"`
+  (default). When `"kagi"`, `kagi_api_key` is required.
+- `tools.web_search.kagi_api_key` is resolved via shell interpolation and
+  validated during config load (fails early if provider is kagi but key is
+  missing or resolves to empty).
+- `tools.web_search.enable_direct_use` (bool, default false) exposes
+  `web_search` directly to the top-level coder agent in addition to
+  sub-agents.
+- Uses the official `github.com/kagisearch/kagi-openapi-golang` client.
+- Sub-agents (e.g. `agentic_fetch`) automatically inherit the backend
+  selection since they receive the tool from the same constructor.
+- Separate description template (`web_search_kagi.md.tpl`) is shown when
+  Kagi is active.
+
 ---
 
 ## Notes

@@ -147,6 +147,7 @@ require (
 	github.com/jackmordaunt/icns/v3 v3.0.1 // indirect
 	github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
+	github.com/kagisearch/kagi-openapi-golang v0.0.0-20260526215348-96575e864d62 // indirect
 	github.com/kaptinlin/go-i18n v0.4.8 // indirect
 	github.com/kaptinlin/jsonpointer v0.4.23 // indirect
 	github.com/kaptinlin/jsonschema v0.7.14 // indirect

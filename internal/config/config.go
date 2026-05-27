@@ -269,19 +269,19 @@ type Options struct {
 	// the SQLite database and workspace overrides. Relative paths are
 	// resolved against the working directory; absolute paths are used
 	// verbatim. After defaulting the stored value is always absolute.
-	DataDirectory             string       `json:"data_directory,omitempty" jsonschema:"description=Directory for storing application data. Relative paths are resolved against the working directory; absolute paths are used as-is.,default=.crush,example=.crush"`
-	DisabledTools             []string     `json:"disabled_tools,omitempty" jsonschema:"description=List of built-in tools to disable and hide from the agent,example=bash,example=sourcegraph"`
-	DisableProviderAutoUpdate bool         `json:"disable_provider_auto_update,omitempty" jsonschema:"description=Disable providers auto-update,default=false"`
-	DisableDefaultProviders   bool         `json:"disable_default_providers,omitempty" jsonschema:"description=Ignore all default/embedded providers. When enabled\\, providers must be fully specified in the config file with base_url\\, models\\, and api_key - no merging with defaults occurs,default=false"`
-	Attribution               *Attribution `json:"attribution,omitempty" jsonschema:"description=Attribution settings for generated content"`
-	DisableMetrics            bool         `json:"disable_metrics,omitempty" jsonschema:"description=Disable sending metrics,default=false"`
-	InitializeAs              string       `json:"initialize_as,omitempty" jsonschema:"description=Name of the context file to create/update during project initialization,default=AGENTS.md,example=AGENTS.md,example=CRUSH.md,example=CLAUDE.md,example=docs/LLMs.md"`
-	AutoLSP                   *bool        `json:"auto_lsp,omitempty" jsonschema:"description=Automatically setup LSPs based on root markers,default=true"`
-	Progress                  *bool        `json:"progress,omitempty" jsonschema:"description=Show indeterminate progress updates during long operations,default=true"`
-	HashlineEdit              *bool        `json:"hashline_edit,omitempty" jsonschema:"description=Enable hashline-addressed editing mode. When enabled the view tool emits LINE#HASH| prefixed output and hashline_edit replaces edit/multiedit,default=false"`
-	DisableNotifications      bool         `json:"disable_notifications,omitempty" jsonschema:"description=Disable desktop notifications,default=false"`
-	DisabledSkills            []string     `json:"disabled_skills,omitempty" jsonschema:"description=List of skill names to disable and hide from the agent,example=crush-config"`
-	Sandbox *SandboxOptions `json:"sandbox,omitempty" jsonschema:"description=Sandbox options for bash command isolation via bubblewrap"`
+	DataDirectory             string          `json:"data_directory,omitempty" jsonschema:"description=Directory for storing application data. Relative paths are resolved against the working directory; absolute paths are used as-is.,default=.crush,example=.crush"`
+	DisabledTools             []string        `json:"disabled_tools,omitempty" jsonschema:"description=List of built-in tools to disable and hide from the agent,example=bash,example=sourcegraph"`
+	DisableProviderAutoUpdate bool            `json:"disable_provider_auto_update,omitempty" jsonschema:"description=Disable providers auto-update,default=false"`
+	DisableDefaultProviders   bool            `json:"disable_default_providers,omitempty" jsonschema:"description=Ignore all default/embedded providers. When enabled\\, providers must be fully specified in the config file with base_url\\, models\\, and api_key - no merging with defaults occurs,default=false"`
+	Attribution               *Attribution    `json:"attribution,omitempty" jsonschema:"description=Attribution settings for generated content"`
+	DisableMetrics            bool            `json:"disable_metrics,omitempty" jsonschema:"description=Disable sending metrics,default=false"`
+	InitializeAs              string          `json:"initialize_as,omitempty" jsonschema:"description=Name of the context file to create/update during project initialization,default=AGENTS.md,example=AGENTS.md,example=CRUSH.md,example=CLAUDE.md,example=docs/LLMs.md"`
+	AutoLSP                   *bool           `json:"auto_lsp,omitempty" jsonschema:"description=Automatically setup LSPs based on root markers,default=true"`
+	Progress                  *bool           `json:"progress,omitempty" jsonschema:"description=Show indeterminate progress updates during long operations,default=true"`
+	HashlineEdit              *bool           `json:"hashline_edit,omitempty" jsonschema:"description=Enable hashline-addressed editing mode. When enabled the view tool emits LINE#HASH| prefixed output and hashline_edit replaces edit/multiedit,default=false"`
+	DisableNotifications      bool            `json:"disable_notifications,omitempty" jsonschema:"description=Disable desktop notifications,default=false"`
+	DisabledSkills            []string        `json:"disabled_skills,omitempty" jsonschema:"description=List of skill names to disable and hide from the agent,example=crush-config"`
+	Sandbox                   *SandboxOptions `json:"sandbox,omitempty" jsonschema:"description=Sandbox options for bash command isolation via bubblewrap"`
 }
 
 // SandboxOptions configures OS-level isolation for bash commands.
@@ -525,9 +525,10 @@ type Agent struct {
 }
 
 type Tools struct {
-	Ls   ToolLs   `json:"ls,omitzero"`
-	Glob ToolGlob `json:"glob,omitzero"`
-	Grep ToolGrep `json:"grep,omitzero"`
+	Ls        ToolLs        `json:"ls,omitzero"`
+	Glob      ToolGlob      `json:"glob,omitzero"`
+	Grep      ToolGrep      `json:"grep,omitzero"`
+	WebSearch ToolWebSearch `json:"web_search,omitzero"`
 }
 
 type ToolLs struct {
@@ -556,6 +557,12 @@ type ToolGrep struct {
 // GetTimeout returns the user-defined timeout or the default.
 func (t ToolGrep) GetTimeout() time.Duration {
 	return ptrValOr(t.Timeout, 5*time.Second)
+}
+
+type ToolWebSearch struct {
+	Provider        string `json:"provider,omitempty" jsonschema:"description=Search provider to use,enum=duckduckgo,enum=kagi,default=duckduckgo"`
+	KagiAPIKey      string `json:"kagi_api_key,omitempty" jsonschema:"description=Kagi Search API key (required when provider is kagi),example=$KAGI_API_KEY"`
+	EnableDirectUse *bool  `json:"enable_direct_use,omitempty" jsonschema:"description=Expose web_search directly to the top-level agent (in addition to agentic_fetch sub-agents),default=false"`
 }
 
 // HookConfig defines a user-configured shell command that fires on a hook
@@ -694,6 +701,7 @@ func allToolNames() []string {
 		"sourcegraph",
 		"todos",
 		"view",
+		"web_search",
 		"write",
 		"list_mcp_resources",
 		"read_mcp_resource",
@@ -733,6 +741,10 @@ func (c *Config) SetupAgents() {
 		allowedTools = filterSlice(allowedTools, []string{"edit", "multiedit"}, false)
 	} else {
 		allowedTools = filterSlice(allowedTools, []string{"hashline_edit"}, false)
+	}
+
+	if !ptrValOr(c.Tools.WebSearch.EnableDirectUse, false) {
+		allowedTools = filterSlice(allowedTools, []string{"web_search"}, false)
 	}
 
 	agents := map[string]Agent{

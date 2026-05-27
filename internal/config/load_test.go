@@ -684,7 +684,7 @@ func TestConfig_setupAgentsWithNoDisabledTools(t *testing.T) {
 	cfg.SetupAgents()
 	coderAgent, ok := cfg.Agents[AgentCoder]
 	require.True(t, ok)
-	expectedTools := filterSlice(allToolNames(), []string{"hashline_edit"}, false)
+	expectedTools := filterSlice(allToolNames(), []string{"hashline_edit", "web_search"}, false)
 	assert.Equal(t, expectedTools, coderAgent.AllowedTools)
 
 	taskAgent, ok := cfg.Agents[AgentTask]

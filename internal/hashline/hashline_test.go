@@ -235,27 +235,19 @@ func TestCollisionRate(t *testing.T) {
 	require.Less(t, collisionRate, 0.5, "collision rate should be reasonable for 1000 distinct lines in 4096 buckets")
 }
 
-func TestSingleLine(t *testing.T) {
+func TestFormatLinesRoundTrip(t *testing.T) {
 	t.Parallel()
 
-	lines := []string{"only line"}
+	lines := []string{"package main", "", "func main() {", "\tfmt.Println(\"hello\")", "}"}
 	refs := HashFile(lines)
-	require.Len(t, refs, 1)
-	require.Equal(t, 1, refs[0].Num)
+	formatted := FormatLines(lines, 1)
+	outputLines := strings.Split(formatted, "\n")
 
-	result := FormatLines(lines, 1)
-	require.Contains(t, result, "1#")
-	require.Contains(t, result, "| only line")
-}
-
-func TestVeryLongLine(t *testing.T) {
-	t.Parallel()
-
-	longLine := strings.Repeat("x", 10000)
-	h := ComputeHash(longLine)
-	require.Len(t, h, 3)
-
-	lines := []string{longLine}
-	result := FormatLines(lines, 1)
-	require.True(t, strings.HasPrefix(result, "1#"))
+	for i, out := range outputLines {
+		expectedPrefix := fmt.Sprintf("%d#%s| ", refs[i].Num, refs[i].Hash)
+		require.True(t, strings.HasPrefix(out, expectedPrefix),
+			"line %d: expected prefix %q, got %q", i+1, expectedPrefix, out)
+		content := strings.TrimPrefix(out, expectedPrefix)
+		require.Equal(t, lines[i], content)
+	}
 }

@@ -669,3 +669,169 @@ func TestHashlineEditPrefixStripping(t *testing.T) {
 		require.Equal(t, "42#abc| markdown anchor\nnormal text\nmore normal text\n", got)
 	})
 }
+
+func TestHashlineDeleteFile(t *testing.T) {
+	t.Parallel()
+
+	t.Run("deletes existing file", func(t *testing.T) {
+		t.Parallel()
+		ft := newMockFiletracker()
+		dir := t.TempDir()
+		filePath := filepath.Join(dir, "to_delete.txt")
+		require.NoError(t, os.WriteFile(filePath, []byte("content\n"), 0o644))
+
+		perms := &mockPermissionService{}
+		hist := &mockHistoryService{}
+		call := fantasy.ToolCall{ID: "test-call"}
+		resp, err := hashlineDeleteFile(testCtx(), perms, hist, ft, filePath, dir, call)
+		require.NoError(t, err)
+		require.False(t, resp.IsError, resp.Content)
+		require.Contains(t, resp.Content, "File deleted")
+
+		_, statErr := os.Stat(filePath)
+		require.True(t, os.IsNotExist(statErr))
+	})
+
+	t.Run("non-existent file returns error", func(t *testing.T) {
+		t.Parallel()
+		ft := newMockFiletracker()
+		dir := t.TempDir()
+		filePath := filepath.Join(dir, "ghost.txt")
+
+		perms := &mockPermissionService{}
+		hist := &mockHistoryService{}
+		call := fantasy.ToolCall{ID: "test-call"}
+		resp, err := hashlineDeleteFile(testCtx(), perms, hist, ft, filePath, dir, call)
+		require.NoError(t, err)
+		require.True(t, resp.IsError)
+		require.Contains(t, resp.Content, "file not found")
+	})
+}
+
+func TestHashlineMoveFile(t *testing.T) {
+	t.Parallel()
+
+	t.Run("moves file and creates parent dirs", func(t *testing.T) {
+		t.Parallel()
+		ft := newMockFiletracker()
+		dir := t.TempDir()
+		oldPath := filepath.Join(dir, "original.txt")
+		require.NoError(t, os.WriteFile(oldPath, []byte("hello\n"), 0o644))
+
+		newRelPath := "sub/dir/moved.txt"
+		perms := &mockPermissionService{}
+		hist := &mockHistoryService{}
+		call := fantasy.ToolCall{ID: "test-call"}
+		resp, err := hashlineMoveFile(testCtx(), perms, hist, ft, oldPath, newRelPath, dir, call)
+		require.NoError(t, err)
+		require.False(t, resp.IsError, resp.Content)
+		require.Contains(t, resp.Content, "File moved")
+
+		_, statErr := os.Stat(oldPath)
+		require.True(t, os.IsNotExist(statErr))
+
+		newPath := filepath.Join(dir, newRelPath)
+		got := readFile(t, newPath)
+		require.Equal(t, "hello\n", got)
+	})
+
+	t.Run("non-existent source returns error", func(t *testing.T) {
+		t.Parallel()
+		ft := newMockFiletracker()
+		dir := t.TempDir()
+		oldPath := filepath.Join(dir, "ghost.txt")
+
+		perms := &mockPermissionService{}
+		hist := &mockHistoryService{}
+		call := fantasy.ToolCall{ID: "test-call"}
+		resp, err := hashlineMoveFile(testCtx(), perms, hist, ft, oldPath, "new.txt", dir, call)
+		require.NoError(t, err)
+		require.True(t, resp.IsError)
+		require.Contains(t, resp.Content, "file not found")
+	})
+}
+
+func TestHashlineEditStaleFile(t *testing.T) {
+	t.Parallel()
+
+	ft := newMockFiletracker()
+	dir := t.TempDir()
+	filePath := filepath.Join(dir, "test.txt")
+	require.NoError(t, os.WriteFile(filePath, []byte("original\n"), 0o644))
+
+	// Record read, then modify file after the read.
+	ft.RecordRead(testCtx(), "test-session", filePath)
+	time.Sleep(50 * time.Millisecond)
+
+	// Touch the file with a new mod time.
+	now := time.Now().Add(2 * time.Second)
+	require.NoError(t, os.Chtimes(filePath, now, now))
+
+	resp, err := callEdit(t, filePath, dir, ft, []HashlineOp{
+		{Op: "replace", Pos: "1#abc", Lines: json.RawMessage(`["changed"]`)},
+	})
+	require.NoError(t, err)
+	require.True(t, resp.IsError)
+	require.Contains(t, resp.Content, "has been modified since")
+}
+
+func TestHashlineEditEndOnNonReplace(t *testing.T) {
+	t.Parallel()
+
+	ft := newMockFiletracker()
+	dir := t.TempDir()
+	content := "line1\nline2\nline3\n"
+	filePath := setupTestFile(t, dir, content, ft)
+	lines := fileLines(content)
+
+	resp, err := callEdit(t, filePath, dir, ft, []HashlineOp{
+		{Op: "append", Pos: ref(lines, 1), End: ref(lines, 2), Lines: json.RawMessage(`["X"]`)},
+	})
+	require.NoError(t, err)
+	require.True(t, resp.IsError)
+	require.Contains(t, resp.Content, "end is only valid for replace")
+}
+
+func TestHashlineEditMixedOps(t *testing.T) {
+	t.Parallel()
+
+	ft := newMockFiletracker()
+	dir := t.TempDir()
+	content := "a\nb\nc\nd\ne\n"
+	filePath := setupTestFile(t, dir, content, ft)
+	lines := fileLines(content)
+
+	resp, err := callEdit(t, filePath, dir, ft, []HashlineOp{
+		{Op: "replace", Pos: ref(lines, 3), Lines: json.RawMessage(`["C"]`)},
+		{Op: "append", Pos: ref(lines, 5), Lines: json.RawMessage(`["AFTER_E"]`)},
+		{Op: "prepend", Pos: ref(lines, 1), Lines: json.RawMessage(`["BEFORE_A"]`)},
+	})
+	require.NoError(t, err)
+	require.False(t, resp.IsError, resp.Content)
+
+	got := readFile(t, filePath)
+	require.Equal(t, "BEFORE_A\na\nb\nC\nd\ne\nAFTER_E\n", got)
+}
+
+func TestStripSingleHashlinePrefixBoundary(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{"hash len 1", "5#a| content", "content"},
+		{"hash len 2", "5#ab| content", "content"},
+		{"hash len 3", "5#abc| content", "content"},
+		{"hash len 4", "5#abcd| content", "content"},
+		{"hash len 5 rejected", "5#abcde| content", "5#abcde| content"},
+		{"hash len 0 rejected", "5#| content", "5#| content"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tt.expected, stripSingleHashlinePrefix(tt.input))
+		})
+	}
+}

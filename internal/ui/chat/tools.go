@@ -265,6 +265,8 @@ func NewToolMessageItem(
 		item = NewReferencesToolMessageItem(sty, toolCall, result, canceled)
 	case tools.LSPRestartToolName:
 		item = NewLSPRestartToolMessageItem(sty, toolCall, result, canceled)
+	case tools.NumbatToolName:
+		item = NewNumbatToolMessageItem(sty, toolCall, result, canceled)
 	default:
 		if IsDockerMCPTool(toolCall.Name) {
 			item = NewDockerMCPToolMessageItem(sty, toolCall, result, canceled)
@@ -1665,6 +1667,8 @@ func prettifyToolName(name string) string {
 		return "View"
 	case tools.WriteToolName:
 		return "Write"
+	case tools.NumbatToolName:
+		return "Numbat"
 	default:
 		return humanizedToolName(name)
 	}

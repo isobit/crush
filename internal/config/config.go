@@ -703,6 +703,7 @@ func allToolNames() []string {
 		"view",
 		"web_search",
 		"write",
+		"numbat",
 		"list_mcp_resources",
 		"read_mcp_resource",
 	}

@@ -539,6 +539,7 @@ func (c *coordinator) buildTools(ctx context.Context, agent config.Agent, isSubA
 		tools.NewTodosTool(c.sessions),
 		tools.NewViewTool(c.lspManager, c.permissions, c.filetracker, c.skillTracker, c.cfg.WorkingDir(), hashlineMode, c.cfg.Config().Options.SkillsPaths...),
 		tools.NewWriteTool(c.lspManager, c.permissions, c.history, c.filetracker, c.cfg.WorkingDir()),
+		tools.NewNumbatTool(),
 	)
 
 	// Add LSP tools if user has configured LSPs or auto_lsp is enabled (nil or true).

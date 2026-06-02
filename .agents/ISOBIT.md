@@ -220,6 +220,21 @@ pulling a new upstream release, use this list to ensure nothing is lost.
 - Separate description template (`web_search_kagi.md.tpl`) is shown when
   Kagi is active.
 
+### Numbat Tool
+
+- **Files**: `internal/agent/tools/numbat.go`,
+  `internal/agent/tools/numbat.md`,
+  `internal/agent/tools/numbat_test.go`,
+  `internal/ui/chat/numbat.go`
+- Wraps the `numbat` CLI for scientific computation with first-class
+  physical dimensions and units (dimensional analysis, unit conversion).
+- Passes code via stdin with `--no-config --no-init --color never`.
+- 30-second execution timeout.
+- Gracefully reports an error if `numbat` is not on `$PATH`.
+- Custom chat renderer shows the code prominently in the tool call
+  display for human review (one-line summary in header, full code block
+  in body when multi-line).
+
 ---
 
 ## Notes

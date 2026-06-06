@@ -3,7 +3,6 @@ package tools
 import (
 	"context"
 	_ "embed"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"os"
@@ -36,10 +35,10 @@ type HashlineEditParams struct {
 }
 
 type HashlineOp struct {
-	Op    string          `json:"op" description:"Operation: replace, append, or prepend"`
-	Pos   string          `json:"pos,omitempty" description:"Start line reference (LINE#HASH)"`
-	End   string          `json:"end,omitempty" description:"End line reference for range replace (LINE#HASH)"`
-	Lines json.RawMessage `json:"lines" description:"New content lines: string[], string, or null (delete)"`
+	Op    string   `json:"op" description:"Operation: replace, append, or prepend"`
+	Pos   string   `json:"pos,omitempty" description:"Start line reference (LINE#HASH)"`
+	End   string   `json:"end,omitempty" description:"End line reference for range replace (LINE#HASH)"`
+	Lines []string `json:"lines" description:"New content lines: string[], or empty/null to delete"`
 }
 
 type HashlineEditPermissionsParams struct {
@@ -216,14 +215,11 @@ func hashlineCreateFile(
 
 	var allLines []string
 	for _, edit := range edits {
-		lines, err := parseLines(edit.Lines)
-		if err != nil {
-			return fantasy.NewTextErrorResponse(fmt.Sprintf("invalid lines: %v", err)), nil
-		}
-		if lines == nil {
+		lines := stripHashlinePrefixes(edit.Lines)
+		if len(lines) == 0 {
 			continue
 		}
-		allLines = append(allLines, *lines...)
+		allLines = append(allLines, lines...)
 	}
 
 	newContent := strings.Join(allLines, "\n")
@@ -340,12 +336,7 @@ func hashlineEditFile(
 			continue
 		}
 
-		newLines, err := parseLines(edit.Lines)
-		if err != nil {
-			validationErrors = append(validationErrors, fmt.Sprintf("edit %d: invalid lines: %v", i+1, err))
-			continue
-		}
-		re.newLines = newLines
+		re.newLines = stripHashlinePrefixes(edit.Lines)
 
 		if edit.Pos != "" {
 			lineNum, hash, err := hashline.ParseRef(edit.Pos)
@@ -436,27 +427,27 @@ func hashlineEditFile(
 		case "replace":
 			start := re.startLine - 1
 			end := re.endLine
-			if stripped == nil {
+			if len(stripped) == 0 {
 				lines = append(lines[:start], lines[end:]...)
 			} else {
-				replacement := make([]string, 0, len(*stripped)+len(lines))
+				replacement := make([]string, 0, len(stripped)+len(lines))
 				replacement = append(replacement, lines[:start]...)
-				replacement = append(replacement, *stripped...)
+				replacement = append(replacement, stripped...)
 				replacement = append(replacement, lines[end:]...)
 				lines = replacement
 			}
 
 		case "append":
 			if !re.hasAnchor {
-				if stripped != nil {
-					lines = append(lines, *stripped...)
+				if len(stripped) > 0 {
+					lines = append(lines, stripped...)
 				}
 			} else {
 				insertAt := re.startLine
-				if stripped != nil {
-					newSlice := make([]string, 0, len(lines)+len(*stripped))
+				if len(stripped) > 0 {
+					newSlice := make([]string, 0, len(lines)+len(stripped))
 					newSlice = append(newSlice, lines[:insertAt]...)
-					newSlice = append(newSlice, *stripped...)
+					newSlice = append(newSlice, stripped...)
 					newSlice = append(newSlice, lines[insertAt:]...)
 					lines = newSlice
 				}
@@ -464,15 +455,15 @@ func hashlineEditFile(
 
 		case "prepend":
 			if !re.hasAnchor {
-				if stripped != nil {
-					lines = append(*stripped, lines...)
+				if len(stripped) > 0 {
+					lines = append(stripped, lines...)
 				}
 			} else {
 				insertAt := re.startLine - 1
-				if stripped != nil {
-					newSlice := make([]string, 0, len(lines)+len(*stripped))
+				if len(stripped) > 0 {
+					newSlice := make([]string, 0, len(lines)+len(stripped))
 					newSlice = append(newSlice, lines[:insertAt]...)
-					newSlice = append(newSlice, *stripped...)
+					newSlice = append(newSlice, stripped...)
 					newSlice = append(newSlice, lines[insertAt:]...)
 					lines = newSlice
 				}
@@ -556,40 +547,18 @@ func hashlineEditFile(
 	), nil
 }
 
-// parseLines normalizes the json.RawMessage Lines field into *[]string.
-// Returns nil for JSON null (meaning delete), a slice for array or
-// single string.
-func parseLines(raw json.RawMessage) (*[]string, error) {
-	if len(raw) == 0 || string(raw) == "null" {
-		return nil, nil
-	}
-
-	var arr []string
-	if err := json.Unmarshal(raw, &arr); err == nil {
-		return &arr, nil
-	}
-
-	var single string
-	if err := json.Unmarshal(raw, &single); err == nil {
-		lines := strings.Split(single, "\n")
-		return &lines, nil
-	}
-
-	return nil, fmt.Errorf("lines must be a string array, a string, or null")
-}
-
 // stripHashlinePrefixes strips `LINE#HASH| ` prefixes from content
 // lines only when a majority (≥50%) of non-empty lines carry the
 // prefix. This avoids corrupting legitimate content like markdown
 // anchors or comments that happen to match the pattern.
-func stripHashlinePrefixes(lines *[]string) *[]string {
-	if lines == nil {
+func stripHashlinePrefixes(lines []string) []string {
+	if len(lines) == 0 {
 		return nil
 	}
 
 	nonEmpty := 0
 	prefixCount := 0
-	for _, line := range *lines {
+	for _, line := range lines {
 		if line == "" {
 			continue
 		}
@@ -600,16 +569,16 @@ func stripHashlinePrefixes(lines *[]string) *[]string {
 	}
 
 	if nonEmpty == 0 || prefixCount == 0 || prefixCount < (nonEmpty+1)/2 {
-		result := make([]string, len(*lines))
-		copy(result, *lines)
-		return &result
+		result := make([]string, len(lines))
+		copy(result, lines)
+		return result
 	}
 
-	result := make([]string, len(*lines))
-	for i, line := range *lines {
+	result := make([]string, len(lines))
+	for i, line := range lines {
 		result[i] = stripSingleHashlinePrefix(line)
 	}
-	return &result
+	return result
 }
 
 // hasHashlinePrefix reports whether a line starts with a `LINE#HASH| `
@@ -689,7 +658,7 @@ type resolvedEdit struct {
 	op        string
 	startLine int
 	endLine   int
-	newLines  *[]string
+	newLines  []string
 	hasAnchor bool
 	origIdx   int
 }

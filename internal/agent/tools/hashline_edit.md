@@ -9,7 +9,7 @@ Lines are referenced by `LINE#HASH` where `LINE` is a 1-based line number and `H
   - `op` (required): `"replace"`, `"append"`, or `"prepend"`.
   - `pos`: Start line reference (e.g., `"10#a4f"`). Required for `replace`, optional anchor for `append`/`prepend`.
   - `end`: End line reference for range replace (e.g., `"15#b2c"`). Only used with `replace`.
-  - `lines`: New content lines as `string[]`, a single `string`, or `null` (delete).
+  - `lines`: New content lines as `string[]`, or `null`/`[]` to delete.
 - `delete`: If true, deletes the file (no `edits` needed).
 - `move`: New path to move/rename the file (no `edits` needed).
 
@@ -17,7 +17,7 @@ Lines are referenced by `LINE#HASH` where `LINE` is a 1-based line number and `H
 
 ### replace
 Replace one or more lines. Single line: only `pos`. Range: `pos` + `end` (inclusive).
-- `lines: null` deletes the line(s).
+- `lines: null` or `lines: []` deletes the line(s).
 - `lines: ["new content"]` replaces with new content.
 
 ### append

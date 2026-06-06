@@ -2,7 +2,6 @@ package tools
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -98,46 +97,6 @@ func fileLines(content string) []string {
 
 // --- Unit tests for helpers ------------------------------------------------
 
-func TestParseLines(t *testing.T) {
-	t.Parallel()
-
-	t.Run("null", func(t *testing.T) {
-		t.Parallel()
-		result, err := parseLines(json.RawMessage("null"))
-		require.NoError(t, err)
-		require.Nil(t, result)
-	})
-
-	t.Run("empty raw", func(t *testing.T) {
-		t.Parallel()
-		result, err := parseLines(nil)
-		require.NoError(t, err)
-		require.Nil(t, result)
-	})
-
-	t.Run("string array", func(t *testing.T) {
-		t.Parallel()
-		result, err := parseLines(json.RawMessage(`["line1", "line2"]`))
-		require.NoError(t, err)
-		require.NotNil(t, result)
-		require.Equal(t, []string{"line1", "line2"}, *result)
-	})
-
-	t.Run("single string", func(t *testing.T) {
-		t.Parallel()
-		result, err := parseLines(json.RawMessage(`"hello\nworld"`))
-		require.NoError(t, err)
-		require.NotNil(t, result)
-		require.Equal(t, []string{"hello", "world"}, *result)
-	})
-
-	t.Run("invalid", func(t *testing.T) {
-		t.Parallel()
-		_, err := parseLines(json.RawMessage(`42`))
-		require.Error(t, err)
-	})
-}
-
 func TestStripSingleHashlinePrefix(t *testing.T) {
 	t.Parallel()
 
@@ -172,49 +131,43 @@ func TestStripHashlinePrefixes(t *testing.T) {
 	t.Run("majority prefixed strips all", func(t *testing.T) {
 		t.Parallel()
 		lines := []string{"10#a4f| hello", "", "20#bcd| world"}
-		result := stripHashlinePrefixes(&lines)
-		require.NotNil(t, result)
-		require.Equal(t, []string{"hello", "", "world"}, *result)
+		result := stripHashlinePrefixes(lines)
+		require.Equal(t, []string{"hello", "", "world"}, result)
 	})
 
 	t.Run("minority prefixed preserves all", func(t *testing.T) {
 		t.Parallel()
 		lines := []string{"10#a4f| hello", "plain line", "another plain line"}
-		result := stripHashlinePrefixes(&lines)
-		require.NotNil(t, result)
-		require.Equal(t, []string{"10#a4f| hello", "plain line", "another plain line"}, *result)
+		result := stripHashlinePrefixes(lines)
+		require.Equal(t, []string{"10#a4f| hello", "plain line", "another plain line"}, result)
 	})
 
 	t.Run("no prefixes preserves all", func(t *testing.T) {
 		t.Parallel()
 		lines := []string{"42#abc| some markdown anchor", "normal text", "more normal text"}
-		result := stripHashlinePrefixes(&lines)
-		require.NotNil(t, result)
-		require.Equal(t, []string{"42#abc| some markdown anchor", "normal text", "more normal text"}, *result)
+		result := stripHashlinePrefixes(lines)
+		require.Equal(t, []string{"42#abc| some markdown anchor", "normal text", "more normal text"}, result)
 	})
 
 	t.Run("all empty lines preserves", func(t *testing.T) {
 		t.Parallel()
 		lines := []string{"", "", ""}
-		result := stripHashlinePrefixes(&lines)
-		require.NotNil(t, result)
-		require.Equal(t, []string{"", "", ""}, *result)
+		result := stripHashlinePrefixes(lines)
+		require.Equal(t, []string{"", "", ""}, result)
 	})
 
 	t.Run("single prefixed line strips", func(t *testing.T) {
 		t.Parallel()
 		lines := []string{"5#abc| content"}
-		result := stripHashlinePrefixes(&lines)
-		require.NotNil(t, result)
-		require.Equal(t, []string{"content"}, *result)
+		result := stripHashlinePrefixes(lines)
+		require.Equal(t, []string{"content"}, result)
 	})
 
 	t.Run("exactly half prefixed strips", func(t *testing.T) {
 		t.Parallel()
 		lines := []string{"10#a4f| hello", "plain line"}
-		result := stripHashlinePrefixes(&lines)
-		require.NotNil(t, result)
-		require.Equal(t, []string{"hello", "plain line"}, *result)
+		result := stripHashlinePrefixes(lines)
+		require.Equal(t, []string{"hello", "plain line"}, result)
 	})
 }
 
@@ -274,7 +227,7 @@ func TestHashlineEditIntegration(t *testing.T) {
 		lines := fileLines(content)
 
 		resp, err := callEdit(t, filePath, dir, ft, []HashlineOp{
-			{Op: "replace", Pos: ref(lines, 2), Lines: json.RawMessage(`["REPLACED"]`)},
+			{Op: "replace", Pos: ref(lines, 2), Lines: []string{"REPLACED"}},
 		})
 		require.NoError(t, err)
 		require.False(t, resp.IsError, resp.Content)
@@ -292,7 +245,7 @@ func TestHashlineEditIntegration(t *testing.T) {
 		lines := fileLines(content)
 
 		resp, err := callEdit(t, filePath, dir, ft, []HashlineOp{
-			{Op: "replace", Pos: ref(lines, 2), End: ref(lines, 4), Lines: json.RawMessage(`["REPLACED_RANGE"]`)},
+			{Op: "replace", Pos: ref(lines, 2), End: ref(lines, 4), Lines: []string{"REPLACED_RANGE"}},
 		})
 		require.NoError(t, err)
 		require.False(t, resp.IsError, resp.Content)
@@ -310,7 +263,7 @@ func TestHashlineEditIntegration(t *testing.T) {
 		lines := fileLines(content)
 
 		resp, err := callEdit(t, filePath, dir, ft, []HashlineOp{
-			{Op: "replace", Pos: ref(lines, 2), Lines: json.RawMessage(`null`)},
+			{Op: "replace", Pos: ref(lines, 2), Lines: nil},
 		})
 		require.NoError(t, err)
 		require.False(t, resp.IsError, resp.Content)
@@ -328,7 +281,7 @@ func TestHashlineEditIntegration(t *testing.T) {
 		lines := fileLines(content)
 
 		resp, err := callEdit(t, filePath, dir, ft, []HashlineOp{
-			{Op: "append", Pos: ref(lines, 2), Lines: json.RawMessage(`["INSERTED"]`)},
+			{Op: "append", Pos: ref(lines, 2), Lines: []string{"INSERTED"}},
 		})
 		require.NoError(t, err)
 		require.False(t, resp.IsError, resp.Content)
@@ -345,7 +298,7 @@ func TestHashlineEditIntegration(t *testing.T) {
 		filePath := setupTestFile(t, dir, content, ft)
 
 		resp, err := callEdit(t, filePath, dir, ft, []HashlineOp{
-			{Op: "append", Lines: json.RawMessage(`["APPENDED"]`)},
+			{Op: "append", Lines: []string{"APPENDED"}},
 		})
 		require.NoError(t, err)
 		require.False(t, resp.IsError, resp.Content)
@@ -363,7 +316,7 @@ func TestHashlineEditIntegration(t *testing.T) {
 		lines := fileLines(content)
 
 		resp, err := callEdit(t, filePath, dir, ft, []HashlineOp{
-			{Op: "prepend", Pos: ref(lines, 2), Lines: json.RawMessage(`["PREPENDED"]`)},
+			{Op: "prepend", Pos: ref(lines, 2), Lines: []string{"PREPENDED"}},
 		})
 		require.NoError(t, err)
 		require.False(t, resp.IsError, resp.Content)
@@ -380,7 +333,7 @@ func TestHashlineEditIntegration(t *testing.T) {
 		filePath := setupTestFile(t, dir, content, ft)
 
 		resp, err := callEdit(t, filePath, dir, ft, []HashlineOp{
-			{Op: "prepend", Lines: json.RawMessage(`["FIRST"]`)},
+			{Op: "prepend", Lines: []string{"FIRST"}},
 		})
 		require.NoError(t, err)
 		require.False(t, resp.IsError, resp.Content)
@@ -396,7 +349,7 @@ func TestHashlineEditIntegration(t *testing.T) {
 		filePath := filepath.Join(dir, "new.go")
 
 		resp, err := callCreate(t, filePath, dir, ft, []HashlineOp{
-			{Op: "append", Lines: json.RawMessage(`["package main", "", "func main() {}"]`)},
+			{Op: "append", Lines: []string{"package main", "", "func main() {}"}},
 		})
 		require.NoError(t, err)
 		require.False(t, resp.IsError, resp.Content)
@@ -412,7 +365,7 @@ func TestHashlineEditIntegration(t *testing.T) {
 		filePath := filepath.Join(dir, "new.go")
 
 		resp, err := callCreate(t, filePath, dir, ft, []HashlineOp{
-			{Op: "append", Pos: "1#abc", Lines: json.RawMessage(`["hello"]`)},
+			{Op: "append", Pos: "1#abc", Lines: []string{"hello"}},
 		})
 		require.NoError(t, err)
 		require.True(t, resp.IsError)
@@ -433,7 +386,7 @@ func TestHashlineEditErrors(t *testing.T) {
 		filePath := setupTestFile(t, dir, content, ft)
 
 		resp, err := callEdit(t, filePath, dir, ft, []HashlineOp{
-			{Op: "replace", Pos: "2#fff", Lines: json.RawMessage(`["REPLACED"]`)},
+			{Op: "replace", Pos: "2#fff", Lines: []string{"REPLACED"}},
 		})
 		require.NoError(t, err)
 		require.True(t, resp.IsError)
@@ -449,7 +402,7 @@ func TestHashlineEditErrors(t *testing.T) {
 		lines := fileLines(content)
 
 		resp, err := callEdit(t, filePath, dir, ft, []HashlineOp{
-			{Op: "replace", Pos: ref(lines, 1), Lines: json.RawMessage(`["line1"]`)},
+			{Op: "replace", Pos: ref(lines, 1), Lines: []string{"line1"}},
 		})
 		require.NoError(t, err)
 		require.True(t, resp.IsError)
@@ -465,8 +418,8 @@ func TestHashlineEditErrors(t *testing.T) {
 		lines := fileLines(content)
 
 		resp, err := callEdit(t, filePath, dir, ft, []HashlineOp{
-			{Op: "replace", Pos: ref(lines, 1), End: ref(lines, 3), Lines: json.RawMessage(`["X"]`)},
-			{Op: "replace", Pos: ref(lines, 2), End: ref(lines, 4), Lines: json.RawMessage(`["Y"]`)},
+			{Op: "replace", Pos: ref(lines, 1), End: ref(lines, 3), Lines: []string{"X"}},
+			{Op: "replace", Pos: ref(lines, 2), End: ref(lines, 4), Lines: []string{"Y"}},
 		})
 		require.NoError(t, err)
 		require.True(t, resp.IsError)
@@ -481,7 +434,7 @@ func TestHashlineEditErrors(t *testing.T) {
 		filePath := setupTestFile(t, dir, content, ft)
 
 		resp, err := callEdit(t, filePath, dir, ft, []HashlineOp{
-			{Op: "replace", Pos: "99#abc", Lines: json.RawMessage(`["X"]`)},
+			{Op: "replace", Pos: "99#abc", Lines: []string{"X"}},
 		})
 		require.NoError(t, err)
 		require.True(t, resp.IsError)
@@ -496,7 +449,7 @@ func TestHashlineEditErrors(t *testing.T) {
 		filePath := setupTestFile(t, dir, content, ft)
 
 		resp, err := callEdit(t, filePath, dir, ft, []HashlineOp{
-			{Op: "bogus", Lines: json.RawMessage(`["X"]`)},
+			{Op: "bogus", Lines: []string{"X"}},
 		})
 		require.NoError(t, err)
 		require.True(t, resp.IsError)
@@ -511,7 +464,7 @@ func TestHashlineEditErrors(t *testing.T) {
 		require.NoError(t, os.WriteFile(filePath, []byte("hello\n"), 0o644))
 
 		resp, err := callEdit(t, filePath, dir, ft, []HashlineOp{
-			{Op: "replace", Pos: "1#abc", Lines: json.RawMessage(`["X"]`)},
+			{Op: "replace", Pos: "1#abc", Lines: []string{"X"}},
 		})
 		require.NoError(t, err)
 		require.True(t, resp.IsError)
@@ -526,7 +479,7 @@ func TestHashlineEditErrors(t *testing.T) {
 		filePath := setupTestFile(t, dir, content, ft)
 
 		resp, err := callEdit(t, filePath, dir, ft, []HashlineOp{
-			{Op: "replace", Pos: "badref", Lines: json.RawMessage(`["X"]`)},
+			{Op: "replace", Pos: "badref", Lines: []string{"X"}},
 		})
 		require.NoError(t, err)
 		require.True(t, resp.IsError)
@@ -542,7 +495,7 @@ func TestHashlineEditErrors(t *testing.T) {
 		lines := fileLines(content)
 
 		resp, err := callEdit(t, filePath, dir, ft, []HashlineOp{
-			{Op: "replace", Pos: ref(lines, 3), End: ref(lines, 1), Lines: json.RawMessage(`["X"]`)},
+			{Op: "replace", Pos: ref(lines, 3), End: ref(lines, 1), Lines: []string{"X"}},
 		})
 		require.NoError(t, err)
 		require.True(t, resp.IsError)
@@ -562,8 +515,8 @@ func TestHashlineEditBottomUpOrdering(t *testing.T) {
 	lines := fileLines(content)
 
 	resp, err := callEdit(t, filePath, dir, ft, []HashlineOp{
-		{Op: "replace", Pos: ref(lines, 2), Lines: json.RawMessage(`["B"]`)},
-		{Op: "replace", Pos: ref(lines, 4), Lines: json.RawMessage(`["D"]`)},
+		{Op: "replace", Pos: ref(lines, 2), Lines: []string{"B"}},
+		{Op: "replace", Pos: ref(lines, 4), Lines: []string{"D"}},
 	})
 	require.NoError(t, err)
 	require.False(t, resp.IsError, resp.Content)
@@ -582,8 +535,8 @@ func TestHashlineEditAdjacentLines(t *testing.T) {
 	lines := fileLines(content)
 
 	resp, err := callEdit(t, filePath, dir, ft, []HashlineOp{
-		{Op: "replace", Pos: ref(lines, 2), Lines: json.RawMessage(`["REPLACED2"]`)},
-		{Op: "replace", Pos: ref(lines, 3), Lines: json.RawMessage(`["REPLACED3"]`)},
+		{Op: "replace", Pos: ref(lines, 2), Lines: []string{"REPLACED2"}},
+		{Op: "replace", Pos: ref(lines, 3), Lines: []string{"REPLACED3"}},
 	})
 	require.NoError(t, err)
 	require.False(t, resp.IsError, resp.Content)
@@ -603,7 +556,7 @@ func TestHashlineEditCRLF(t *testing.T) {
 	unixLines := fileLines(strings.ReplaceAll(content, "\r\n", "\n"))
 
 	resp, err := callEdit(t, filePath, dir, ft, []HashlineOp{
-		{Op: "replace", Pos: ref(unixLines, 2), Lines: json.RawMessage(`["REPLACED"]`)},
+		{Op: "replace", Pos: ref(unixLines, 2), Lines: []string{"REPLACED"}},
 	})
 	require.NoError(t, err)
 	require.False(t, resp.IsError, resp.Content)
@@ -620,7 +573,7 @@ func TestHashlineEditEmptyFile(t *testing.T) {
 	filePath := setupTestFile(t, dir, "", ft)
 
 	resp, err := callEdit(t, filePath, dir, ft, []HashlineOp{
-		{Op: "append", Lines: json.RawMessage(`["first line"]`)},
+		{Op: "append", Lines: []string{"first line"}},
 	})
 	require.NoError(t, err)
 	require.False(t, resp.IsError, resp.Content)
@@ -641,7 +594,7 @@ func TestHashlineEditPrefixStripping(t *testing.T) {
 		lines := fileLines(content)
 
 		resp, err := callEdit(t, filePath, dir, ft, []HashlineOp{
-			{Op: "replace", Pos: ref(lines, 1), Lines: json.RawMessage(`["1#abc| REPLACED"]`)},
+			{Op: "replace", Pos: ref(lines, 1), Lines: []string{"1#abc| REPLACED"}},
 		})
 		require.NoError(t, err)
 		require.False(t, resp.IsError, resp.Content)
@@ -659,8 +612,10 @@ func TestHashlineEditPrefixStripping(t *testing.T) {
 		lines := fileLines(content)
 
 		resp, err := callEdit(t, filePath, dir, ft, []HashlineOp{
-			{Op: "replace", Pos: ref(lines, 1), End: ref(lines, 3),
-				Lines: json.RawMessage(`["42#abc| markdown anchor", "normal text", "more normal text"]`)},
+			{
+				Op: "replace", Pos: ref(lines, 1), End: ref(lines, 3),
+				Lines: []string{"42#abc| markdown anchor", "normal text", "more normal text"},
+			},
 		})
 		require.NoError(t, err)
 		require.False(t, resp.IsError, resp.Content)
@@ -768,7 +723,7 @@ func TestHashlineEditStaleFile(t *testing.T) {
 	require.NoError(t, os.Chtimes(filePath, now, now))
 
 	resp, err := callEdit(t, filePath, dir, ft, []HashlineOp{
-		{Op: "replace", Pos: "1#abc", Lines: json.RawMessage(`["changed"]`)},
+		{Op: "replace", Pos: "1#abc", Lines: []string{"changed"}},
 	})
 	require.NoError(t, err)
 	require.True(t, resp.IsError)
@@ -785,7 +740,7 @@ func TestHashlineEditEndOnNonReplace(t *testing.T) {
 	lines := fileLines(content)
 
 	resp, err := callEdit(t, filePath, dir, ft, []HashlineOp{
-		{Op: "append", Pos: ref(lines, 1), End: ref(lines, 2), Lines: json.RawMessage(`["X"]`)},
+		{Op: "append", Pos: ref(lines, 1), End: ref(lines, 2), Lines: []string{"X"}},
 	})
 	require.NoError(t, err)
 	require.True(t, resp.IsError)
@@ -802,9 +757,9 @@ func TestHashlineEditMixedOps(t *testing.T) {
 	lines := fileLines(content)
 
 	resp, err := callEdit(t, filePath, dir, ft, []HashlineOp{
-		{Op: "replace", Pos: ref(lines, 3), Lines: json.RawMessage(`["C"]`)},
-		{Op: "append", Pos: ref(lines, 5), Lines: json.RawMessage(`["AFTER_E"]`)},
-		{Op: "prepend", Pos: ref(lines, 1), Lines: json.RawMessage(`["BEFORE_A"]`)},
+		{Op: "replace", Pos: ref(lines, 3), Lines: []string{"C"}},
+		{Op: "append", Pos: ref(lines, 5), Lines: []string{"AFTER_E"}},
+		{Op: "prepend", Pos: ref(lines, 1), Lines: []string{"BEFORE_A"}},
 	})
 	require.NoError(t, err)
 	require.False(t, resp.IsError, resp.Content)

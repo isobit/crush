@@ -3,7 +3,9 @@ package tools
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"charm.land/fantasy"
 	"github.com/charmbracelet/crush/internal/config"
@@ -22,11 +24,13 @@ func (m *mockBashPermissionService) Request(ctx context.Context, req permission.
 	return true, nil
 }
 
-func (m *mockBashPermissionService) Grant(req permission.PermissionRequest) {}
+func (m *mockBashPermissionService) Grant(req permission.PermissionRequest) bool { return true }
 
-func (m *mockBashPermissionService) Deny(req permission.PermissionRequest) {}
+func (m *mockBashPermissionService) Deny(req permission.PermissionRequest) bool { return true }
 
-func (m *mockBashPermissionService) GrantPersistent(req permission.PermissionRequest) {}
+func (m *mockBashPermissionService) GrantPersistent(req permission.PermissionRequest) bool {
+	return true
+}
 
 func (m *mockBashPermissionService) AutoApproveSession(sessionID string) {}
 
@@ -44,7 +48,7 @@ func (m *mockBashPermissionService) DeleteRule(ctx context.Context, id int64) er
 	return nil
 }
 
-func (m *mockBashPermissionService) GrantAlways(req permission.PermissionRequest) {}
+func (m *mockBashPermissionService) GrantAlways(req permission.PermissionRequest) bool { return true }
 
 func (m *mockBashPermissionService) ListRules(ctx context.Context) ([]db.PermissionRule, error) {
 	return nil, nil
@@ -106,11 +110,13 @@ func (m *recordingPermissionService) Request(ctx context.Context, req permission
 	return m.allow, nil
 }
 
-func (m *recordingPermissionService) Grant(req permission.PermissionRequest) {}
+func (m *recordingPermissionService) Grant(req permission.PermissionRequest) bool { return true }
 
-func (m *recordingPermissionService) Deny(req permission.PermissionRequest) {}
+func (m *recordingPermissionService) Deny(req permission.PermissionRequest) bool { return true }
 
-func (m *recordingPermissionService) GrantPersistent(req permission.PermissionRequest) {}
+func (m *recordingPermissionService) GrantPersistent(req permission.PermissionRequest) bool {
+	return true
+}
 
 func (m *recordingPermissionService) AutoApproveSession(sessionID string) {}
 
@@ -124,7 +130,7 @@ func (m *recordingPermissionService) SubscribeNotifications(ctx context.Context)
 	return make(<-chan pubsub.Event[permission.PermissionNotification])
 }
 
-func (m *recordingPermissionService) GrantAlways(_ permission.PermissionRequest) {}
+func (m *recordingPermissionService) GrantAlways(_ permission.PermissionRequest) bool { return true }
 
 func (m *recordingPermissionService) ListSessionPermissions(_ string) []permission.PermissionRequest {
 	return nil
@@ -209,4 +215,31 @@ func runBashTool(t *testing.T, tool fantasy.AgentTool, ctx context.Context, para
 	resp, err := tool.Run(ctx, call)
 	require.NoError(t, err)
 	return resp
+}
+
+func TestTruncateOutputValidUTF8(t *testing.T) {
+	t.Parallel()
+	// CJK characters are 2 cells wide; this string is far wider than
+	// MaxOutputLength so TruncateOutput must truncate it.
+	content := strings.Repeat("你好世界", MaxOutputLength)
+
+	out := TruncateOutput(content)
+	require.True(t, utf8.ValidString(out), "truncated output must stay valid UTF-8")
+	require.Contains(t, out, "lines truncated")
+}
+
+func TestTruncateOutputShortContent(t *testing.T) {
+	t.Parallel()
+	content := "short output"
+	require.Equal(t, content, TruncateOutput(content))
+}
+
+func TestTruncateOutputEmoji(t *testing.T) {
+	t.Parallel()
+	// Emoji with ZWJ sequences should not be split.
+	content := strings.Repeat("👨‍👩‍👧‍👦", MaxOutputLength)
+
+	out := TruncateOutput(content)
+	require.True(t, utf8.ValidString(out), "truncated output must stay valid UTF-8")
+	require.Contains(t, out, "lines truncated")
 }

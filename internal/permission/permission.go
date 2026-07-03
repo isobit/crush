@@ -23,7 +23,6 @@ import (
 // approval can't be reused across calls that happen to share a context.
 type hookApprovalKey struct{}
 
-
 // WithHookApproval returns a context that marks the given tool call ID as
 // pre-approved by a hook. When the permission service sees a matching
 // request it short-circuits the normal prompt and grants immediately.
@@ -72,10 +71,24 @@ type PermissionRequest struct {
 
 type Service interface {
 	pubsub.Subscriber[PermissionRequest]
-	GrantPersistent(permission PermissionRequest)
-	GrantAlways(permission PermissionRequest)
-	Grant(permission PermissionRequest)
-	Deny(permission PermissionRequest)
+	// GrantPersistent grants a permission request and remembers the grant
+	// for the session. It returns true if this call actually resolved the
+	// pending request; false if the request had already been resolved
+	// (e.g., by another concurrent caller) or is unknown.
+	GrantPersistent(permission PermissionRequest) bool
+	// GrantAlways grants a permission request and persists it as an
+	// always-allow rule. It returns true if this call actually resolved
+	// the pending request; false if it had already been resolved or is
+	// unknown.
+	GrantAlways(permission PermissionRequest) bool
+	// Grant grants a permission request. It returns true if this call
+	// actually resolved the pending request; false if the request had
+	// already been resolved or is unknown.
+	Grant(permission PermissionRequest) bool
+	// Deny denies a permission request. It returns true if this call
+	// actually resolved the pending request; false if the request had
+	// already been resolved or is unknown.
+	Deny(permission PermissionRequest) bool
 	Request(ctx context.Context, opts CreatePermissionRequest) (bool, error)
 	AutoApproveSession(sessionID string)
 	SetSkipRequests(skip bool)
@@ -98,17 +111,17 @@ type PermissionKey struct {
 type permissionService struct {
 	*pubsub.Broker[PermissionRequest]
 
-	notificationBroker    *pubsub.Broker[PermissionNotification]
-	workingDir            string
-	queries               *db.Queries
-	sessionPermissions    *csync.Map[PermissionKey, bool]
-	sessionPermissionKeys []PermissionKey
+	notificationBroker       *pubsub.Broker[PermissionNotification]
+	workingDir               string
+	queries                  *db.Queries
+	sessionPermissions       *csync.Map[PermissionKey, bool]
+	sessionPermissionKeys    []PermissionKey
 	sessionPermissionsKeysMu sync.RWMutex
-	pendingRequests       *csync.Map[string, chan bool]
-	autoApproveSessions   map[string]bool
-	autoApproveSessionsMu sync.RWMutex
-	skip                  atomic.Bool
-	allowedTools          []string
+	pendingRequests          *csync.Map[string, chan bool]
+	autoApproveSessions      map[string]bool
+	autoApproveSessionsMu    sync.RWMutex
+	skip                     atomic.Bool
+	allowedTools             []string
 
 	// used to make sure we only process one request at a time
 	requestMu       sync.Mutex
@@ -116,45 +129,83 @@ type permissionService struct {
 	activeRequestMu sync.Mutex
 }
 
-func (s *permissionService) GrantPersistent(permission PermissionRequest) {
-	s.notificationBroker.Publish(pubsub.CreatedEvent, PermissionNotification{
-		ToolCallID: permission.ToolCallID,
-		Granted:    true,
-	})
-	respCh, ok := s.pendingRequests.Get(permission.ID)
-	if ok {
-		respCh <- true
+// resolve atomically removes the pending request entry for the given
+// permission and, if it was still pending, publishes exactly one
+// PermissionNotification and forwards the outcome to the waiter on
+// respCh. It returns true if this call resolved the request, false if
+// it had already been resolved (e.g., by another concurrent caller) or
+// the request ID is unknown.
+//
+// If onResolve is non-nil it runs after the pending entry has been
+// taken but before the notification is published or the waiter is
+// unblocked. This lets GrantPersistent record the session permission
+// only when it actually wins the race, so a losing GrantPersistent
+// that lost to a Deny does not leak an auto-approve entry.
+//
+// All three public resolution methods (Grant, GrantPersistent, Deny)
+// route through this helper so multi-subscriber UIs can race safely:
+// the first caller wins, the rest become no-ops.
+func (s *permissionService) resolve(permission PermissionRequest, granted, denied bool, onResolve func()) bool {
+	respCh, ok := s.pendingRequests.Take(permission.ID)
+	if !ok {
+		return false
 	}
 
-	key := PermissionKey{
-		SessionID: permission.SessionID,
-		ToolName:  permission.ToolName,
-		Action:    permission.Action,
-		Path:      permission.Path,
+	if onResolve != nil {
+		onResolve()
 	}
-	s.sessionPermissions.Set(key, true)
-	s.sessionPermissionsKeysMu.Lock()
-	s.sessionPermissionKeys = append(s.sessionPermissionKeys, key)
-	s.sessionPermissionsKeysMu.Unlock()
+
+	s.notificationBroker.Publish(pubsub.CreatedEvent, PermissionNotification{
+		ToolCallID: permission.ToolCallID,
+		Granted:    granted,
+		Denied:     denied,
+	})
+
+	// respCh is buffered (cap 1) and only ever has at most one sender
+	// per request because Take removes the entry under the map lock,
+	// so this send never blocks.
+	respCh <- granted
 
 	s.activeRequestMu.Lock()
 	if s.activeRequest != nil && s.activeRequest.ID == permission.ID {
 		s.activeRequest = nil
 	}
 	s.activeRequestMu.Unlock()
+	return true
 }
 
-func (s *permissionService) GrantAlways(permission PermissionRequest) {
-	s.notificationBroker.Publish(pubsub.CreatedEvent, PermissionNotification{
-		ToolCallID: permission.ToolCallID,
-		Granted:    true,
+func (s *permissionService) GrantPersistent(permission PermissionRequest) bool {
+	// Record the persistent grant only if this call wins the
+	// pending-request race. Otherwise a losing GrantPersistent that
+	// lost to a Deny would still leave an auto-approve entry behind,
+	// silently flipping later denied calls to allowed.
+	return s.resolve(permission, true, false, func() {
+		key := PermissionKey{
+			SessionID: permission.SessionID,
+			ToolName:  permission.ToolName,
+			Action:    permission.Action,
+			Path:      permission.Path,
+		}
+		s.sessionPermissions.Set(key, true)
+		s.sessionPermissionsKeysMu.Lock()
+		s.sessionPermissionKeys = append(s.sessionPermissionKeys, key)
+		s.sessionPermissionsKeysMu.Unlock()
 	})
-	respCh, ok := s.pendingRequests.Get(permission.ID)
-	if ok {
-		respCh <- true
-	}
+}
 
-	if s.queries != nil {
+func (s *permissionService) Grant(permission PermissionRequest) bool {
+	return s.resolve(permission, true, false, nil)
+}
+
+func (s *permissionService) Deny(permission PermissionRequest) bool {
+	return s.resolve(permission, false, true, nil)
+}
+
+func (s *permissionService) GrantAlways(permission PermissionRequest) bool {
+	return s.resolve(permission, true, false, func() {
+		if s.queries == nil {
+			return
+		}
 		paramsJSON := "{}"
 		if permission.Params != nil {
 			if b, err := json.Marshal(permission.Params); err == nil {
@@ -170,48 +221,7 @@ func (s *permissionService) GrantAlways(permission PermissionRequest) {
 		if err != nil {
 			slog.Error("Failed to persist permission rule", "error", err)
 		}
-	}
-
-	s.activeRequestMu.Lock()
-	if s.activeRequest != nil && s.activeRequest.ID == permission.ID {
-		s.activeRequest = nil
-	}
-	s.activeRequestMu.Unlock()
-}
-
-func (s *permissionService) Grant(permission PermissionRequest) {
-	s.notificationBroker.Publish(pubsub.CreatedEvent, PermissionNotification{
-		ToolCallID: permission.ToolCallID,
-		Granted:    true,
 	})
-	respCh, ok := s.pendingRequests.Get(permission.ID)
-	if ok {
-		respCh <- true
-	}
-
-	s.activeRequestMu.Lock()
-	if s.activeRequest != nil && s.activeRequest.ID == permission.ID {
-		s.activeRequest = nil
-	}
-	s.activeRequestMu.Unlock()
-}
-
-func (s *permissionService) Deny(permission PermissionRequest) {
-	s.notificationBroker.Publish(pubsub.CreatedEvent, PermissionNotification{
-		ToolCallID: permission.ToolCallID,
-		Granted:    false,
-		Denied:     true,
-	})
-	respCh, ok := s.pendingRequests.Get(permission.ID)
-	if ok {
-		respCh <- false
-	}
-
-	s.activeRequestMu.Lock()
-	if s.activeRequest != nil && s.activeRequest.ID == permission.ID {
-		s.activeRequest = nil
-	}
-	s.activeRequestMu.Unlock()
 }
 
 func (s *permissionService) Request(ctx context.Context, opts CreatePermissionRequest) (bool, error) {

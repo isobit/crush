@@ -49,7 +49,7 @@ func (n *NumbatToolRenderContext) RenderTool(sty *styles.Styles, width int, opts
 	// Show a one-line summary of the code in the header.
 	codeSummary := strings.ReplaceAll(params.Code, "\n", " ")
 	codeSummary = strings.ReplaceAll(codeSummary, "\t", " ")
-	header := toolHeader(sty, opts.Status, "Numbat", cappedWidth, opts.Compact, codeSummary)
+	header := toolHeader(sty, opts.Status, "Numbat", cappedWidth, opts, codeSummary)
 	if opts.Compact {
 		return header
 	}

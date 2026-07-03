@@ -244,6 +244,26 @@ pulling a new upstream release, use this list to ensure nothing is lost.
 - The `Sidebar.WorkingDir` style is used as a general "muted text" style
   in places where the old `Styles.Muted` field was used (upstream removed
   the top-level `Muted` field).
-- The `permission.NewPermissionService` signature has an extra
-  `*db.Queries` parameter compared to upstream — tests that call it need
-  the fourth `nil` argument.
+- The `permission.NewPermissionService` signature diverges from upstream:
+  it is `(workingDir, skip, allowedTools []string, queries *db.Queries)`.
+  Upstream added the `allowedTools` param in v0.81.0; isobit adds the
+  trailing `*db.Queries`. Tests need both trailing args (`..., nil, nil`).
+- Permission resolution (`Grant`, `GrantPersistent`, `GrantAlways`, `Deny`)
+  returns `bool` since v0.81.0 and routes through the shared `resolve`
+  helper. `GrantAlways` (isobit) passes an `onResolve` callback that
+  persists the always-allow rule via `db.Queries`; `GrantPersistent`
+  tracks session keys in its callback. The `Workspace` interface mirrors
+  these bool returns (`PermissionGrantAlways` included).
+- The permission dialog has four options (Allow, Allow for Session, Always
+  Allow, Deny) cycling with `% 4`; upstream tests assuming three options
+  must be adapted.
+- Shell exec: `execHandlerOption(cwd, blockFuncs, sandbox...)` merges
+  isobit's sandbox handler with upstream's process-group-isolated base
+  handler. `newRunner` keeps the variadic `sandbox ...*SandboxConfig` and
+  also applies upstream's `withNonInteractiveEnv`.
+- The `toolHeader` renderer takes `*ToolRenderOpts` (not a bare `bool`)
+  since v0.81.0; isobit renderers (`chat/file.go`, `chat/numbat.go`) pass
+  `opts` directly.
+- Config gained upstream's `notification_style` field; `disable_notifications`
+  is deprecated but retained. The glob-timeout feature was adopted upstream
+  (default 30s there) but isobit keeps its 5s default `ToolGlob`.

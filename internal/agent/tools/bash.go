@@ -13,6 +13,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/x/ansi"
+
 	"charm.land/fantasy"
 	"github.com/charmbracelet/crush/internal/config"
 	"github.com/charmbracelet/crush/internal/fsext"
@@ -74,6 +76,7 @@ type bashDescriptionData struct {
 	RgAvailable     bool
 	SandboxEnabled  bool
 	SandboxPersist  bool
+	GhAvailable     bool
 }
 
 var bannedCommands = []string{
@@ -160,6 +163,7 @@ func bashDescription(attribution *config.Attribution, modelID string, sandboxEna
 		RgAvailable:     getRg() != "",
 		SandboxEnabled:  sandboxEnabled,
 		SandboxPersist:  sandboxPersist,
+		GhAvailable:     ghAvailable,
 	}); err != nil {
 		// this should never happen.
 		panic("failed to execute bash description template: " + err.Error())
@@ -456,27 +460,20 @@ func formatOutput(stdout, stderr string, execErr error) string {
 }
 
 func TruncateOutput(content string) string {
-	if len(content) <= MaxOutputLength {
+	if ansi.StringWidth(content) <= MaxOutputLength {
 		return content
 	}
 
 	halfLength := MaxOutputLength / 2
-	start := content[:halfLength]
-	end := content[len(content)-halfLength:]
+	start := ansi.Truncate(content, halfLength, "")
+	end := ansi.TruncateLeft(content, ansi.StringWidth(content)-halfLength, "")
 
-	truncatedLinesCount := countLines(content[halfLength : len(content)-halfLength])
+	truncatedLinesCount := max(strings.Count(content, "\n")-strings.Count(start, "\n")-strings.Count(end, "\n"), 0)
 	return fmt.Sprintf("%s\n\n... [%d lines truncated] ...\n\n%s", start, truncatedLinesCount, end)
 }
 
 func truncateOutput(content string) string {
 	return TruncateOutput(content)
-}
-
-func countLines(s string) int {
-	if s == "" {
-		return 0
-	}
-	return len(strings.Split(s, "\n"))
 }
 
 func normalizeWorkingDir(path string) string {

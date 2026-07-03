@@ -18,12 +18,12 @@ import (
 	"github.com/charmbracelet/crush/internal/csync"
 	"github.com/charmbracelet/crush/internal/db"
 	"github.com/charmbracelet/crush/internal/filetracker"
-	"github.com/charmbracelet/crush/internal/shell"
 	"github.com/charmbracelet/crush/internal/history"
 	"github.com/charmbracelet/crush/internal/lsp"
 	"github.com/charmbracelet/crush/internal/message"
 	"github.com/charmbracelet/crush/internal/permission"
 	"github.com/charmbracelet/crush/internal/session"
+	"github.com/charmbracelet/crush/internal/shell"
 	"github.com/stretchr/testify/require"
 
 	_ "github.com/joho/godotenv/autoload"
@@ -153,6 +153,7 @@ func coderAgent(r *vcr.Recorder, env fakeEnv, large, small fantasy.LanguageModel
 	cfg.Config().Options.SkillsPaths = nil
 	cfg.Config().Options.DisabledSkills = []string{"crush-config"}
 	cfg.Config().Options.ContextPaths = nil
+	cfg.Config().Options.GlobalContextPaths = nil
 	cfg.Config().LSP = nil
 
 	// Clear LSP config to ensure test reproducibility - user's LSP config

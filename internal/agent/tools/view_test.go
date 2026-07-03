@@ -217,11 +217,13 @@ func (m *mockViewPermissionService) Request(ctx context.Context, req permission.
 	return true, nil
 }
 
-func (m *mockViewPermissionService) Grant(req permission.PermissionRequest) {}
+func (m *mockViewPermissionService) Grant(req permission.PermissionRequest) bool { return true }
 
-func (m *mockViewPermissionService) Deny(req permission.PermissionRequest) {}
+func (m *mockViewPermissionService) Deny(req permission.PermissionRequest) bool { return true }
 
-func (m *mockViewPermissionService) GrantPersistent(req permission.PermissionRequest) {}
+func (m *mockViewPermissionService) GrantPersistent(req permission.PermissionRequest) bool {
+	return true
+}
 
 func (m *mockViewPermissionService) AutoApproveSession(sessionID string) {}
 
@@ -235,7 +237,7 @@ func (m *mockViewPermissionService) SubscribeNotifications(ctx context.Context) 
 	return make(<-chan pubsub.Event[permission.PermissionNotification])
 }
 
-func (m *mockViewPermissionService) GrantAlways(_ permission.PermissionRequest) {}
+func (m *mockViewPermissionService) GrantAlways(_ permission.PermissionRequest) bool { return true }
 
 func (m *mockViewPermissionService) ListSessionPermissions(_ string) []permission.PermissionRequest {
 	return nil

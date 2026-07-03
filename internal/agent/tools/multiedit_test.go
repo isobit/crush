@@ -21,13 +21,15 @@ func (m *mockPermissionService) Request(ctx context.Context, req permission.Crea
 	return true, nil
 }
 
-func (m *mockPermissionService) Grant(req permission.PermissionRequest) {}
+func (m *mockPermissionService) Grant(req permission.PermissionRequest) bool { return true }
 
-func (m *mockPermissionService) Deny(req permission.PermissionRequest) {}
+func (m *mockPermissionService) Deny(req permission.PermissionRequest) bool { return true }
 
-func (m *mockPermissionService) GrantPersistent(req permission.PermissionRequest) {}
+func (m *mockPermissionService) GrantPersistent(req permission.PermissionRequest) bool {
+	return true
+}
 
-func (m *mockPermissionService) GrantAlways(req permission.PermissionRequest) {}
+func (m *mockPermissionService) GrantAlways(req permission.PermissionRequest) bool { return true }
 
 func (m *mockPermissionService) AutoApproveSession(sessionID string) {}
 

@@ -41,7 +41,7 @@ pulling a new upstream release, use this list to ensure nothing is lost.
 
 - **Files**: `internal/ui/model/ui.go`, `internal/config/`
 - `cfg.Options.TUI.SidebarWidth` (set via `crush.json`) overrides the
-  default sidebar width of 30 columns.
+  default sidebar width of 32 columns.
 
 ### Chat — Scroll Indicator
 
@@ -268,3 +268,12 @@ pulling a new upstream release, use this list to ensure nothing is lost.
 - Config gained upstream's `notification_style` field; `disable_notifications`
   is deprecated but retained. The glob-timeout feature was adopted upstream
   (default 30s there) but isobit keeps its 5s default `ToolGlob`.
+- Since v0.87.0, permission diff rendering must support both isobit's
+  `hashline_edit` and upstream's `lsp_replace_symbol` tool.
+- Since v0.87.0, `RuntimeOverrides` retains isobit's `CLIOverrides` alongside
+  upstream's `EnabledChannels`; `proto.Workspace` similarly carries
+  `ConfigFiles`, `SetOverrides`, and `Channels`.
+- Since v0.87.0, local and client workspaces retain isobit's permission-rule
+  and message-deletion methods alongside upstream's question APIs.
+- Since v0.87.0, sidebar content uses upstream's scrollable 32-column layout
+  while preserving isobit's labeled cwd and optional data-directory rows.

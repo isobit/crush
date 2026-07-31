@@ -59,6 +59,8 @@ func init() {
 	rootCmd.PersistentFlags().StringArrayP("set", "o", nil, "Override a config option (key=value, e.g. --set debug=true)")
 	rootCmd.Flags().BoolP("help", "h", false, "Help")
 	rootCmd.Flags().BoolP("yolo", "y", false, "Automatically accept all permissions (dangerous mode)")
+	rootCmd.PersistentFlags().StringSlice("channels", nil, "MCP servers to enable as channels (repeatable), e.g. --channels server:webhook")
+	_ = rootCmd.PersistentFlags().MarkHidden("channels")
 	rootCmd.Flags().StringP("session", "s", "", "Continue a previous session by ID")
 	rootCmd.Flags().BoolP("continue", "C", false, "Continue the most recent session")
 	rootCmd.MarkFlagsMutuallyExclusive("session", "continue")
@@ -262,6 +264,7 @@ func setupWorkspace(cmd *cobra.Command) (workspace.Workspace, func(), error) {
 func setupLocalWorkspace(cmd *cobra.Command) (workspace.Workspace, func(), error) {
 	debug, _ := cmd.Flags().GetBool("debug")
 	yolo, _ := cmd.Flags().GetBool("yolo")
+	channels, _ := cmd.Flags().GetStringSlice("channels")
 	dataDir, _ := cmd.Flags().GetString("data-dir")
 	setArgs, _ := cmd.Flags().GetStringArray("set")
 	configFiles, _ := cmd.Flags().GetStringArray("config")
@@ -284,6 +287,7 @@ func setupLocalWorkspace(cmd *cobra.Command) (workspace.Workspace, func(), error
 
 	cfg := store.Config()
 	store.Overrides().SkipPermissionRequests = yolo
+	store.Overrides().EnabledChannels = channels
 
 	// Apply --set overrides.
 	if len(setArgs) > 0 {
@@ -405,6 +409,7 @@ func connectToServer(cmd *cobra.Command) (*client.Client, *proto.Workspace, func
 
 	debug, _ := cmd.Flags().GetBool("debug")
 	yolo, _ := cmd.Flags().GetBool("yolo")
+	channels, _ := cmd.Flags().GetStringSlice("channels")
 	dataDir, _ := cmd.Flags().GetString("data-dir")
 	setArgs, _ := cmd.Flags().GetStringArray("set")
 	configFiles, _ := cmd.Flags().GetStringArray("config")
@@ -433,6 +438,7 @@ func connectToServer(cmd *cobra.Command) (*client.Client, *proto.Workspace, func
 		DataDir:      dataDir,
 		Debug:        debug,
 		YOLO:         yolo,
+		Channels:     channels,
 		Version:      version.Version,
 		Env:          os.Environ(),
 		SetOverrides: setOverrides,

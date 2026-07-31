@@ -180,10 +180,11 @@ pulling a new upstream release, use this list to ensure nothing is lost.
   providing filesystem and network isolation via kernel namespaces.
 - Configured via `crush.json` `options.sandbox` struct:
   ```json
-  { "sandbox": { "mode": "auto", "persist": true, "network": false } }
+  { "sandbox": { "mode": "off", "persist": true, "network": false } }
   ```
-- `mode`: `"auto"` (default) enables when `bwrap` is on `$PATH` and
-  platform is Linux; `"on"` fails loudly if unavailable; `"off"` disables.
+- `mode`: `"off"` (default) disables sandboxing; `"auto"` enables when
+  `bwrap` is on `$PATH` and the platform is Linux; `"on"` fails loudly if
+  unavailable.
 - `persist` (default true): uses persistent overlayfs — writes outside
   CWD accumulate in `.crush/sandbox/` across commands within a session.
   When false uses `--tmp-overlay` (writes discarded each command).

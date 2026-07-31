@@ -13,19 +13,19 @@ func ptr[T any](v T) *T { return &v }
 func TestSandboxModeFromConfig(t *testing.T) {
 	t.Parallel()
 
-	t.Run("nil opts defaults to auto", func(t *testing.T) {
+	t.Run("nil opts defaults to off", func(t *testing.T) {
 		t.Parallel()
-		require.Equal(t, shell.SandboxModeAuto, sandboxModeFromConfig(nil))
+		require.Equal(t, shell.SandboxModeOff, sandboxModeFromConfig(nil))
 	})
 
-	t.Run("nil sandbox field defaults to auto", func(t *testing.T) {
+	t.Run("nil sandbox field defaults to off", func(t *testing.T) {
 		t.Parallel()
-		require.Equal(t, shell.SandboxModeAuto, sandboxModeFromConfig(&config.Options{}))
+		require.Equal(t, shell.SandboxModeOff, sandboxModeFromConfig(&config.Options{}))
 	})
 
-	t.Run("nil mode defaults to auto", func(t *testing.T) {
+	t.Run("nil mode defaults to off", func(t *testing.T) {
 		t.Parallel()
-		require.Equal(t, shell.SandboxModeAuto, sandboxModeFromConfig(&config.Options{
+		require.Equal(t, shell.SandboxModeOff, sandboxModeFromConfig(&config.Options{
 			Sandbox: &config.SandboxOptions{},
 		}))
 	})

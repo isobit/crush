@@ -9,10 +9,10 @@ import (
 )
 
 // sandboxModeFromConfig extracts the sandbox mode from config options,
-// defaulting to "auto" when unset.
+// defaulting to "off" when unset.
 func sandboxModeFromConfig(opts *config.Options) shell.SandboxMode {
 	if opts == nil || opts.Sandbox == nil || opts.Sandbox.Mode == nil {
-		return shell.SandboxModeAuto
+		return shell.SandboxModeOff
 	}
 	return shell.SandboxMode(*opts.Sandbox.Mode)
 }

@@ -505,6 +505,11 @@
           "description": "Show indeterminate progress updates during long operations",
           "default": true
         },
+        "hashline_edit": {
+          "type": "boolean",
+          "description": "Enable hashline-addressed editing mode. When enabled the view tool emits LINE#HASH| prefixed output and hashline_edit replaces edit/multiedit",
+          "default": false
+        },
         "disable_notifications": {
           "type": "boolean",
           "description": "Deprecated: Use notification_style instead. Disable desktop notifications",
@@ -531,6 +536,10 @@
           },
           "type": "array",
           "description": "List of skill names to disable and hide from the agent"
+        },
+        "sandbox": {
+          "$ref": "#/$defs/SandboxOptions",
+          "description": "Sandbox options for bash command isolation via bubblewrap"
         }
       },
       "additionalProperties": false,
@@ -654,6 +663,32 @@
       "additionalProperties": false,
       "type": "object"
     },
+    "SandboxOptions": {
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "on",
+            "off"
+          ],
+          "description": "Sandbox mode. auto enables when bwrap is available on Linux; on always enables (fails if unavailable); off disables entirely",
+          "default": "off"
+        },
+        "persist": {
+          "type": "boolean",
+          "description": "Use persistent overlay filesystem. Writes outside CWD accumulate across commands within a session. When false uses tmpfs overlay (writes discarded each command)",
+          "default": true
+        },
+        "network": {
+          "type": "boolean",
+          "description": "Allow network access inside the sandbox by default. The model can still request network per-command",
+          "default": false
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
     "SelectedModel": {
       "properties": {
         "model": {
@@ -753,6 +788,16 @@
           "description": "Enable vi-style keybindings in the text editor",
           "default": false
         },
+        "sidebar_width": {
+          "type": "integer",
+          "description": "Width of the sidebar in columns",
+          "default": 30,
+          "examples": [
+            30,
+            40,
+            50
+          ]
+        },
         "completions": {
           "$ref": "#/$defs/Completions",
           "description": "Completions UI options"
@@ -842,16 +887,46 @@
       "additionalProperties": false,
       "type": "object"
     },
+    "ToolWebSearch": {
+      "properties": {
+        "provider": {
+          "type": "string",
+          "enum": [
+            "duckduckgo",
+            "kagi"
+          ],
+          "description": "Search provider to use",
+          "default": "duckduckgo"
+        },
+        "kagi_api_key": {
+          "type": "string",
+          "description": "Kagi Search API key (required when provider is kagi)",
+          "examples": [
+            "$KAGI_API_KEY"
+          ]
+        },
+        "enable_direct_use": {
+          "type": "boolean",
+          "description": "Expose web_search directly to the top-level agent (in addition to agentic_fetch sub-agents)",
+          "default": false
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
     "Tools": {
       "properties": {
         "ls": {
           "$ref": "#/$defs/ToolLs"
         },
+        "glob": {
+          "$ref": "#/$defs/ToolGlob"
+        },
         "grep": {
           "$ref": "#/$defs/ToolGrep"
         },
-        "glob": {
-          "$ref": "#/$defs/ToolGlob"
+        "web_search": {
+          "$ref": "#/$defs/ToolWebSearch"
         }
       },
       "additionalProperties": false,

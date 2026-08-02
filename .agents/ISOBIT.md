@@ -121,7 +121,7 @@ pulling a new upstream release, use this list to ensure nothing is lost.
 ### Tool Elapsed Time Display
 
 - **Files**: `internal/ui/chat/tools.go`
-- Tool calls show elapsed wall-clock time while running.
+- Tool calls keep their active spinner and elapsed wall-clock time updating until a result arrives.
 
 ### Suppress Update Nag
 

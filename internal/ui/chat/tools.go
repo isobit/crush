@@ -181,6 +181,7 @@ func newBaseToolMessageItem(
 		status = ToolStatusCanceled
 	}
 
+	startedAt := time.Now()
 	v := list.NewVersioned()
 	t := &baseToolMessageItem{
 		Versioned:                v,
@@ -192,7 +193,7 @@ func newBaseToolMessageItem(
 		toolCall:                 toolCall,
 		result:                   result,
 		status:                   status,
-		startedAt:                time.Now(),
+		startedAt:                startedAt,
 		hasCappedWidth:           hasCappedWidth,
 	}
 	t.anim = anim.New(anim.Settings{
@@ -202,6 +203,10 @@ func newBaseToolMessageItem(
 		GradColorB:  sty.WorkingGradToColor,
 		LabelColor:  sty.WorkingLabelColor,
 		CycleColors: true,
+		Suffix: func() string {
+			return formatToolElapsed(startedAt)
+		},
+		SuffixColor: sty.WorkingTimerColor,
 	})
 
 	return t
@@ -476,7 +481,7 @@ func (t *baseToolMessageItem) isSpinning() bool {
 			Status:   t.status,
 		})
 	}
-	return !t.toolCall.Finished && t.status != ToolStatusCanceled
+	return t.result == nil && t.status != ToolStatusCanceled
 }
 
 // SetSpinningFunc sets a custom function to determine if the tool should spin.
@@ -536,6 +541,14 @@ func pendingTool(sty *styles.Styles, name string, anim *anim.Anim, nested bool) 
 	}
 
 	return fmt.Sprintf("%s %s %s", icon, toolName, animView)
+}
+
+func formatToolElapsed(startedAt time.Time) string {
+	elapsed := time.Since(startedAt)
+	if elapsed < time.Second {
+		return ""
+	}
+	return elapsed.Round(time.Second).String()
 }
 
 // toolEarlyStateContent handles error/cancelled/pending states before content rendering.

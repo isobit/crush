@@ -446,11 +446,16 @@ func TestBaseToolMessageItem_AnimateBumpsVersion(t *testing.T) {
 		a.Animate(anim.StepMsg{ID: "some-other-tool"})
 	})
 
-	// Finished → no bump on any ID. The entry is frozen; a stray
-	// bump would needlessly invalidate frozen entries.
 	tcFinished := tc
 	tcFinished.Finished = true
 	item.SetToolCall(tcFinished)
+	require.False(t, item.Finished(), "tool must remain active until its result lands")
+	requireBump(t, "Animate[awaiting result,own ID]", v, func() {
+		a.Animate(anim.StepMsg{ID: tc.ID})
+	})
+
+	// Finished → no bump on any ID. The entry is frozen; a stray
+	// bump would needlessly invalidate frozen entries.
 	item.SetResult(&message.ToolResult{ToolCallID: tc.ID, Content: "ok"})
 	require.True(t, item.Finished(), "tool must report Finished() once the result lands")
 
@@ -566,4 +571,12 @@ func TestBaseToolMessageItem_FinishedTransition(t *testing.T) {
 	tcCanceled := message.ToolCall{ID: "tc-cancel", Name: "bash", Input: "{}", Finished: false}
 	canceled := NewToolMessageItem(&sty, "msg", tcCanceled, nil, true)
 	require.True(t, canceled.Finished(), "canceled tool must be Finished()")
+}
+
+func TestFormatToolElapsed(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now()
+	require.Empty(t, formatToolElapsed(now))
+	require.Equal(t, "1s", formatToolElapsed(now.Add(-time.Second)))
 }

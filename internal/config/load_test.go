@@ -63,7 +63,7 @@ func TestLookupConfigs_BoundedByProject(t *testing.T) {
 		project := filepath.Join(parent, "project")
 		require.NoError(t, os.Mkdir(project, 0o755))
 
-		got := lookupConfigs(project)
+		got := lookupConfigs(project, "")
 		for _, p := range got {
 			require.NotEqual(t, filepath.Join(parent, "crush.json"), p)
 		}
@@ -88,7 +88,7 @@ func TestLookupConfigs_BoundedByProject(t *testing.T) {
 		gitInit.Dir = worktree
 		require.NoError(t, gitInit.Run())
 
-		got := lookupConfigs(worktree)
+		got := lookupConfigs(worktree, "")
 		strayEval, err := filepath.EvalSymlinks(filepath.Join(parent, "crush.json"))
 		require.NoError(t, err)
 		for _, p := range got {
@@ -105,7 +105,7 @@ func TestLookupConfigs_BoundedByProject(t *testing.T) {
 		local := filepath.Join(project, "crush.json")
 		require.NoError(t, os.WriteFile(local, []byte(`{}`), 0o644))
 
-		got := lookupConfigs(project)
+		got := lookupConfigs(project, "")
 
 		localEval, err := filepath.EvalSymlinks(local)
 		require.NoError(t, err)
@@ -126,7 +126,7 @@ func TestLookupConfigs_BoundedByProject(t *testing.T) {
 	t.Run("global config is always included regardless of boundary", func(t *testing.T) {
 		project := t.TempDir()
 
-		got := lookupConfigs(project)
+		got := lookupConfigs(project, "")
 		// Global config and global data path are always prepended,
 		// even when no project file exists.
 		require.Contains(t, got, GlobalConfig())
@@ -138,7 +138,7 @@ func TestLookupConfigs_BoundedByProject(t *testing.T) {
 			t.Skip("system config not supported on Windows")
 		}
 
-		got := lookupConfigs(t.TempDir())
+		got := lookupConfigs(t.TempDir(), "")
 		require.NotEmpty(t, got)
 		// The system-wide config must be first so it has the lowest
 		// priority when configs are merged.

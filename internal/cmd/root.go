@@ -54,6 +54,7 @@ func init() {
 	rootCmd.PersistentFlags().StringP("cwd", "c", "", "Current working directory")
 	rootCmd.PersistentFlags().StringP("data-dir", "D", "", "Custom crush data directory")
 	rootCmd.PersistentFlags().StringArray("config", nil, "Config file path (overrides default config chain; can be specified multiple times to merge)")
+	rootCmd.PersistentFlags().StringP("profile", "p", "", "Config profile name; layers crush.<profile>.json over the base configs and isolates OAuth tokens and preferred models")
 	rootCmd.PersistentFlags().BoolP("debug", "d", false, "Debug")
 	rootCmd.PersistentFlags().StringVarP(&clientHost, "host", "H", server.DefaultHost(), "Connect to a specific crush server host (for advanced users)")
 	rootCmd.PersistentFlags().StringArrayP("set", "o", nil, "Override a config option (key=value, e.g. --set debug=true)")
@@ -64,6 +65,7 @@ func init() {
 	rootCmd.Flags().StringP("session", "s", "", "Continue a previous session by ID")
 	rootCmd.Flags().BoolP("continue", "C", false, "Continue the most recent session")
 	rootCmd.MarkFlagsMutuallyExclusive("session", "continue")
+	rootCmd.MarkFlagsMutuallyExclusive("config", "profile")
 
 	rootCmd.AddCommand(
 		runCmd,
@@ -268,6 +270,7 @@ func setupLocalWorkspace(cmd *cobra.Command) (workspace.Workspace, func(), error
 	dataDir, _ := cmd.Flags().GetString("data-dir")
 	setArgs, _ := cmd.Flags().GetStringArray("set")
 	configFiles, _ := cmd.Flags().GetStringArray("config")
+	profile, _ := cmd.Flags().GetString("profile")
 	ctx := cmd.Context()
 
 	cwd, err := ResolveCwd(cmd)
@@ -278,6 +281,9 @@ func setupLocalWorkspace(cmd *cobra.Command) (workspace.Workspace, func(), error
 	var loadOpts []config.LoadOption
 	if len(configFiles) > 0 {
 		loadOpts = append(loadOpts, config.WithConfigFiles(configFiles))
+	}
+	if profile != "" {
+		loadOpts = append(loadOpts, config.WithProfile(profile))
 	}
 
 	store, err := config.Init(cwd, dataDir, debug, loadOpts...)
@@ -413,6 +419,7 @@ func connectToServer(cmd *cobra.Command) (*client.Client, *proto.Workspace, func
 	dataDir, _ := cmd.Flags().GetString("data-dir")
 	setArgs, _ := cmd.Flags().GetStringArray("set")
 	configFiles, _ := cmd.Flags().GetStringArray("config")
+	profile, _ := cmd.Flags().GetString("profile")
 	ctx := cmd.Context()
 
 	cwd, err := ResolveCwd(cmd)
@@ -443,6 +450,7 @@ func connectToServer(cmd *cobra.Command) (*client.Client, *proto.Workspace, func
 		Env:          os.Environ(),
 		SetOverrides: setOverrides,
 		ConfigFiles:  configFiles,
+		Profile:      profile,
 	}
 
 	ws, err := c.CreateWorkspace(ctx, wsReq)

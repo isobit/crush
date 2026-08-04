@@ -75,7 +75,8 @@ type ConfigStore struct {
 	config             *Config
 	workingDir         string
 	resolver           VariableResolver
-	globalDataPath     string   // ~/.local/share/crush/crush.json
+	globalDataPath     string   // ~/.local/share/crush/crush.json (or profile variant)
+	profile            string   // active config profile, empty when none
 	workspacePath      string   // .crush/crush.json
 	loadedPaths        []string // config files that were successfully loaded
 	knownProviders     []catwalk.Provider
@@ -1013,7 +1014,7 @@ func (s *ConfigStore) reloadFromDiskLocked(ctx context.Context) error {
 	// Migrate deprecated disable_notifications before reloading config.
 	migrateDisableNotifications()
 
-	configPaths := lookupConfigs(s.workingDir)
+	configPaths := lookupConfigs(s.workingDir, s.profile)
 	cfg, loadedPaths, err := loadFromConfigPaths(configPaths)
 	if err != nil {
 		return fmt.Errorf("failed to reload config: %w", err)

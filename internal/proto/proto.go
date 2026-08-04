@@ -19,6 +19,7 @@ type Workspace struct {
 	Debug        bool              `json:"debug,omitempty"`
 	DataDir      string            `json:"data_dir,omitempty"`
 	ConfigFiles  []string          `json:"config_files,omitempty"`
+	Profile      string            `json:"profile,omitempty"`
 	Version      string            `json:"version,omitempty"`
 	ClientID     string            `json:"client_id,omitempty"`
 	Config       *config.Config    `json:"config,omitempty"`

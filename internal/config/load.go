@@ -39,6 +39,7 @@ type LoadOption func(*loadOptions)
 
 type loadOptions struct {
 	configFiles []string
+	profile     string
 }
 
 // WithConfigFiles overrides the default config lookup chain with the
@@ -47,6 +48,19 @@ type loadOptions struct {
 func WithConfigFiles(paths []string) LoadOption {
 	return func(o *loadOptions) {
 		o.configFiles = paths
+	}
+}
+
+// WithProfile selects a named configuration profile. When set, the profile
+// variants crush.<profile>.json are layered on top of the base global and
+// data configs (rather than replacing them), and all ScopeGlobal writes
+// (OAuth tokens, preferred models, etc.) are directed at the profile data
+// file. This keeps directory-level state such as the providers.json cache
+// and shared hooks in the base configs while isolating profile-specific
+// settings and credentials.
+func WithProfile(name string) LoadOption {
+	return func(o *loadOptions) {
+		o.profile = name
 	}
 }
 
@@ -61,11 +75,16 @@ func Load(workingDir, dataDir string, debug bool, opts ...LoadOption) (*ConfigSt
 	// Migrate deprecated disable_notifications before loading config.
 	migrateDisableNotifications()
 
+	// Validate the profile name before it is used to build file paths.
+	if err := validateProfileName(o.profile); err != nil {
+		return nil, err
+	}
+
 	var configPaths []string
 	if len(o.configFiles) > 0 {
 		configPaths = o.configFiles
 	} else {
-		configPaths = lookupConfigs(workingDir)
+		configPaths = lookupConfigs(workingDir, o.profile)
 	}
 
 	cfg, loadedPaths, err := loadFromConfigPaths(configPaths)
@@ -75,12 +94,21 @@ func Load(workingDir, dataDir string, debug bool, opts ...LoadOption) (*ConfigSt
 
 	cfg.setDefaults(workingDir, dataDir)
 
+	// A profile directs all ScopeGlobal writes (OAuth tokens, preferred
+	// models, etc.) at the profile data file so credentials persist per
+	// profile instead of leaking into the shared base config.
+	globalDataPath := GlobalConfigData()
+	if o.profile != "" {
+		globalDataPath = GlobalConfigDataProfile(o.profile)
+	}
+
 	store := &ConfigStore{
 		config:         cfg,
 		workingDir:     workingDir,
-		globalDataPath: GlobalConfigData(),
+		globalDataPath: globalDataPath,
 		workspacePath:  filepath.Join(cfg.Options.DataDirectory, fmt.Sprintf("%s.json", appName)),
 		loadedPaths:    loadedPaths,
+		profile:        o.profile,
 	}
 
 	if debug {
@@ -896,12 +924,20 @@ func resolveSelectedModels(cfg *Config, knownProviders []catwalk.Provider) (reso
 // so an unrelated crush.json placed above the project is never picked
 // up. Global user-level config locations are always included
 // regardless of the boundary.
-func lookupConfigs(cwd string) []string {
-	// prepend default config paths
+func lookupConfigs(cwd, profile string) []string {
+	// prepend default config paths, layering profile variants directly on
+	// top of the base global and data configs so profile settings override
+	// them while shared state (hooks, providers.json cache) is preserved.
 	configPaths := []string{
 		systemConfigPath,
 		GlobalConfig(),
-		GlobalConfigData(),
+	}
+	if profile != "" {
+		configPaths = append(configPaths, GlobalConfigProfile(profile))
+	}
+	configPaths = append(configPaths, GlobalConfigData())
+	if profile != "" {
+		configPaths = append(configPaths, GlobalConfigDataProfile(profile))
 	}
 
 	configNames := []string{appName + ".json", "." + appName + ".json"}
@@ -1074,6 +1110,45 @@ func GlobalConfig() string {
 	return filepath.Join(home.Config(), appName, fmt.Sprintf("%s.json", appName))
 }
 
+// profileConfigName returns the config file name for a profile, e.g.
+// "crush.psqr.json".
+func profileConfigName(profile string) string {
+	return fmt.Sprintf("%s.%s.json", appName, profile)
+}
+
+// GlobalConfigProfile returns the profile-specific config file path in the
+// global config directory (e.g. ~/.config/crush/crush.<profile>.json). It
+// respects the same CRUSH_GLOBAL_CONFIG/XDG overrides as GlobalConfig.
+func GlobalConfigProfile(profile string) string {
+	return filepath.Join(filepath.Dir(GlobalConfig()), profileConfigName(profile))
+}
+
+// GlobalConfigDataProfile returns the profile-specific data config file path
+// in the global data directory (e.g.
+// ~/.local/share/crush/crush.<profile>.json). It respects the same
+// CRUSH_GLOBAL_DATA/XDG overrides as GlobalConfigData.
+func GlobalConfigDataProfile(profile string) string {
+	return filepath.Join(filepath.Dir(GlobalConfigData()), profileConfigName(profile))
+}
+
+var profileNameRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
+
+// validateProfileName rejects profile names that are empty-after-trim or that
+// could escape the config directory or produce surprising file names. An
+// empty name means no profile and is always valid.
+func validateProfileName(profile string) error {
+	if profile == "" {
+		return nil
+	}
+	if strings.ContainsAny(profile, `/\`) || strings.Contains(profile, "..") {
+		return fmt.Errorf("invalid profile name %q: must not contain path separators or %q", profile, "..")
+	}
+	if !profileNameRe.MatchString(profile) {
+		return fmt.Errorf("invalid profile name %q: use letters, digits, '.', '_' or '-'", profile)
+	}
+	return nil
+}
+
 // GlobalCacheDir returns the path to the global cache directory for the
 // application.
 func GlobalCacheDir() string {
@@ -1095,7 +1170,7 @@ func GlobalCacheDir() string {
 
 // ProjectConfigs returns list of current project configs paths.
 func ProjectConfigs(cwd string) []string {
-	return lookupConfigs(cwd)
+	return lookupConfigs(cwd, "")
 }
 
 // GlobalConfigData returns the path to the main data directory for the application.

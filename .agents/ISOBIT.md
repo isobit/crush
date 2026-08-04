@@ -153,6 +153,32 @@ pulling a new upstream release, use this list to ensure nothing is lost.
   `proto.Workspace.ConfigFiles`).
 - Uses `config.WithConfigFiles` load option internally.
 
+### Config Profiles (`--profile`/`-p`)
+
+- **Files**: `internal/cmd/root.go`, `internal/config/load.go`,
+  `internal/config/store.go`, `internal/config/profile_test.go`,
+  `internal/proto/proto.go`, `internal/backend/backend.go`
+- `--profile <name>` (short: `-p`) layers `crush.<profile>.json` on top of
+  the base global and data configs instead of replacing the chain like
+  `--config` does. This keeps directory-level state (the `providers.json`
+  cache, shared hooks in the base `crush.json`) while isolating
+  profile-specific settings.
+- Crucially, all `ScopeGlobal` writes (OAuth tokens, preferred models) are
+  redirected to the profile data file
+  (`~/.local/share/crush/crush.<profile>.json`) so per-profile MCP
+  credentials persist across runs instead of leaking into or reading from
+  the shared base config.
+- Chain order (low->high): system, base global config, profile config,
+  base data config, profile data config, project configs, workspace.
+- Profile names are validated (`validateProfileName`) to reject path
+  separators and `..`. Mutually exclusive with `--config`.
+- The active profile is stored on `ConfigStore.profile` so
+  `ReloadFromDisk` keeps the profile layer. Helpers `GlobalConfigProfile`
+  and `GlobalConfigDataProfile` derive the paths (honoring
+  `CRUSH_GLOBAL_CONFIG`/`CRUSH_GLOBAL_DATA`/XDG overrides).
+- Works in both local and client/server modes (passed through
+  `proto.Workspace.Profile`). Uses `config.WithProfile` internally.
+
 ### MCP Large Output File Spillover
 
 - **Files**: `internal/agent/tools/mcp-tools.go`

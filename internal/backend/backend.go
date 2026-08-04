@@ -351,6 +351,12 @@ func (b *Backend) CreateWorkspace(args proto.Workspace) (*Workspace, proto.Works
 	if len(args.ConfigFiles) > 0 {
 		loadOpts = append(loadOpts, config.WithConfigFiles(args.ConfigFiles))
 	}
+	if args.Profile != "" {
+		loadOpts = append(loadOpts, config.WithProfile(args.Profile))
+	}
+	if len(args.ConfigFiles) > 0 {
+		loadOpts = append(loadOpts, config.WithConfigFiles(args.ConfigFiles))
+	}
 
 	cfg, err := config.Init(args.Path, args.DataDir, args.Debug, loadOpts...)
 	if err != nil {

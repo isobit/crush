@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"maps"
 	"slices"
 	"strings"
 
@@ -77,7 +78,7 @@ func (m *Tool) Info() fantasy.ToolInfo {
 
 	if input, ok := m.tool.InputSchema.(map[string]any); ok {
 		if props, ok := input["properties"].(map[string]any); ok {
-			parameters = props
+			parameters = maps.Clone(props)
 		}
 		if req, ok := input["required"].([]any); ok {
 			// Convert []any -> []string when elements are strings

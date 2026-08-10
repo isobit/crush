@@ -1,6 +1,9 @@
 package shell
 
 import (
+	"context"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -145,6 +148,78 @@ func TestValidateWritablePaths(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestSandboxWritablePolicy(t *testing.T) {
+	t.Parallel()
+
+	cwd := t.TempDir()
+	writable := t.TempDir()
+	cfg := &SandboxConfig{Enabled: true, WritablePaths: []string{writable}}
+	roots := sandboxWritableRoots(cwd, cfg)
+
+	allowed := []string{
+		filepath.Join(cwd, "out.txt"),
+		filepath.Join(writable, "out.txt"),
+		"/tmp/crush-sandbox-test.txt",
+		"/dev/null",
+	}
+	for _, p := range allowed {
+		require.True(t, pathWithinRoots(resolveSandboxPath(p), roots),
+			"write to %s should be allowed", p)
+	}
+
+	denied := []string{
+		"/etc/crush-sandbox-should-not-write",
+		"/home/other/file",
+		"/var/lib/crush-escape",
+		"/usr/local/crush-escape",
+	}
+	for _, p := range denied {
+		require.False(t, pathWithinRoots(resolveSandboxPath(p), roots),
+			"write to %s should be denied", p)
+	}
+}
+
+func TestSandboxOpenHandlerDeniesWrite(t *testing.T) {
+	t.Parallel()
+
+	cwd := t.TempDir()
+	cfg := &SandboxConfig{Enabled: true}
+	h := sandboxOpenHandler(cwd, cfg)
+
+	// The denial path returns before reaching the underlying open, so a
+	// bare context (no HandlerContext) is sufficient here.
+	_, err := h(context.Background(), "/etc/crush-sandbox-should-not-write",
+		os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
+	require.ErrorIs(t, err, os.ErrPermission)
+}
+
+func TestSandboxRedirectionIsContained(t *testing.T) {
+	t.Parallel()
+
+	cwd := t.TempDir()
+	// A path outside every writable root (cwd, /tmp, /dev, /proc). t.TempDir
+	// lives under /tmp, so it cannot be used as an escape target here.
+	escape := "/etc/crush-sandbox-escaped.txt"
+	cfg := &SandboxConfig{Enabled: true}
+
+	sh := NewShell(&Options{WorkingDir: cwd, Sandbox: cfg})
+
+	// A redirection targeting a path outside the writable roots must fail
+	// and must not create the file on the real filesystem.
+	_, _, err := sh.Exec(context.Background(), "echo pwned > "+escape)
+	require.Error(t, err)
+	_, statErr := os.Stat(escape)
+	require.True(t, os.IsNotExist(statErr), "file outside sandbox must not be created")
+
+	// A redirection inside the working directory succeeds and persists.
+	inside := filepath.Join(cwd, "ok.txt")
+	_, _, err = sh.Exec(context.Background(), "echo ok > "+inside)
+	require.NoError(t, err)
+	data, err := os.ReadFile(inside)
+	require.NoError(t, err)
+	require.Equal(t, "ok\n", string(data))
 }
 
 func TestShouldSandbox(t *testing.T) {

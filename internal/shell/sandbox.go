@@ -1,11 +1,18 @@
 package shell
 
 import (
+	"context"
+	"io"
+	"io/fs"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
+
+	"mvdan.cc/sh/v3/interp"
 )
 
 // SandboxMode controls whether sandbox isolation is enabled.
@@ -69,10 +76,8 @@ func ValidateWritablePaths(dirs []string, home string) error {
 			return &InvalidSandboxPathError{Path: dir, Reason: "must be an absolute path"}
 		}
 		cleaned := filepath.Clean(dir)
-		for _, p := range protectedPaths {
-			if cleaned == p {
-				return &InvalidSandboxPathError{Path: dir, Reason: "protected system path"}
-			}
+		if slices.Contains(protectedPaths, cleaned) {
+			return &InvalidSandboxPathError{Path: dir, Reason: "protected system path"}
 		}
 		if home != "" {
 			for _, sub := range protectedHomeDirs {
@@ -134,6 +139,99 @@ func BwrapOverlayAvailable() bool {
 		bwrapOverlayAvailable = cmd.Run() == nil
 	})
 	return bwrapOverlayAvailable
+}
+
+// sandboxOpenHandler returns an [interp.OpenHandlerFunc] that applies the
+// sandbox's writable-path policy to files the shell opens itself:
+// redirections (>, >>, <), heredoc/herestring targets, and any other I/O
+// mvdan/sh performs in-process. External commands are already contained by
+// bwrap (see sandboxHandler); those in-process opens are not, because they
+// run in the Crush process and would otherwise reach the real filesystem
+// regardless of the sandbox.
+//
+// Reads are allowed from anywhere — the sandbox mounts the root filesystem
+// readable. Writes are permitted only inside the working directory, /tmp,
+// /dev, /proc, and any configured WritablePaths; a write anywhere else is
+// rejected with a permission error so it cannot modify the real filesystem.
+// This is intentionally stricter than the overlay (which would silently
+// discard such a write) because failing loudly is safer for a redirection.
+func sandboxOpenHandler(cwd string, cfg *SandboxConfig) interp.OpenHandlerFunc {
+	def := interp.DefaultOpenHandler()
+	roots := sandboxWritableRoots(cwd, cfg)
+	return func(ctx context.Context, path string, flag int, perm os.FileMode) (io.ReadWriteCloser, error) {
+		if isWriteFlag(flag) && path != "" &&
+			!(runtime.GOOS == "windows" && path == "/dev/null") {
+			abs := path
+			if !filepath.IsAbs(abs) {
+				abs = filepath.Join(interp.HandlerCtx(ctx).Dir, abs)
+			}
+			abs = resolveSandboxPath(abs)
+			if !pathWithinRoots(abs, roots) {
+				return nil, &os.PathError{
+					Op:   "open",
+					Path: path,
+					Err:  fs.ErrPermission,
+				}
+			}
+		}
+		return def(ctx, path, flag, perm)
+	}
+}
+
+// sandboxWritableRoots returns the filesystem roots a sandboxed shell may
+// write to via its own redirections. It mirrors the writable mounts that
+// buildBwrapArgs grants external commands: the working directory, /tmp,
+// /dev, /proc, and any explicitly configured WritablePaths. Roots are
+// symlink-resolved so the comparison matches the resolved target path.
+func sandboxWritableRoots(cwd string, cfg *SandboxConfig) []string {
+	raw := make([]string, 0, len(cfg.WritablePaths)+4)
+	if cwd != "" {
+		raw = append(raw, cwd)
+	}
+	raw = append(raw, "/tmp", "/dev", "/proc")
+	raw = append(raw, cfg.WritablePaths...)
+
+	roots := make([]string, 0, len(raw))
+	for _, r := range raw {
+		roots = append(roots, resolveSandboxPath(r))
+	}
+	return roots
+}
+
+// pathWithinRoots reports whether path is equal to, or nested under, any of
+// the given roots. All inputs are expected to be cleaned absolute paths.
+func pathWithinRoots(path string, roots []string) bool {
+	for _, root := range roots {
+		if path == root || strings.HasPrefix(path, root+string(filepath.Separator)) {
+			return true
+		}
+	}
+	return false
+}
+
+// isWriteFlag reports whether an open flag would allow modifying the file.
+// O_RDONLY is 0, so any of the write-intent bits means a write.
+func isWriteFlag(flag int) bool {
+	return flag&(os.O_WRONLY|os.O_RDWR|os.O_CREATE|os.O_APPEND|os.O_TRUNC) != 0
+}
+
+// resolveSandboxPath cleans path and resolves symlinks so a symlinked
+// parent directory cannot be used to escape the writable roots. The final
+// component may not exist yet (file creation), so it falls back to
+// resolving the deepest existing ancestor and re-attaching the remainder.
+func resolveSandboxPath(path string) string {
+	cleaned := filepath.Clean(path)
+	if resolved, err := filepath.EvalSymlinks(cleaned); err == nil {
+		return resolved
+	}
+	dir, base := filepath.Split(cleaned)
+	if dir == "" {
+		return cleaned
+	}
+	if resolvedDir, err := filepath.EvalSymlinks(filepath.Clean(dir)); err == nil {
+		return filepath.Join(resolvedDir, base)
+	}
+	return cleaned
 }
 
 // ShouldSandbox determines whether sandboxing should be enabled given the

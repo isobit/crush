@@ -185,13 +185,21 @@ func RunAndCapturePTY(ctx context.Context, opts RunOptions) (CaptureResult, erro
 // stateful [Shell] so the two surfaces cannot drift.
 func newRunner(cwd string, env []string, stdin io.Reader, stdout, stderr io.Writer, blockFuncs []BlockFunc, sandbox ...*SandboxConfig) (*interp.Runner, error) {
 	env = withNonInteractiveEnv(env)
-	return interp.New(
+	opts := []interp.RunnerOption{
 		interp.StdIO(stdin, stdout, stderr),
 		interp.Interactive(false),
 		interp.Env(expand.ListEnviron(env...)),
 		interp.Dir(cwd),
 		execHandlerOption(cwd, blockFuncs, sandbox...),
-	)
+	}
+	// When sandboxing is active, constrain files the shell opens itself
+	// (redirections, heredocs) to the same writable roots bwrap grants
+	// external commands. Without this, `echo x > /etc/foo` would bypass
+	// the sandbox entirely since mvdan/sh opens redirect targets in-process.
+	if len(sandbox) > 0 && sandbox[0] != nil && sandbox[0].Enabled {
+		opts = append(opts, interp.OpenHandler(sandboxOpenHandler(cwd, sandbox[0])))
+	}
+	return interp.New(opts...)
 }
 
 // execHandlerOption returns an interp.RunnerOption that installs the

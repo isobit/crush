@@ -219,6 +219,16 @@ pulling a new upstream release, use this list to ensure nothing is lost.
 - The sandbox handler is an `interp.ExecHandler` in the mvdan/sh chain,
   sitting after block checks but before OS exec. Every external command
   invocation is wrapped in `bwrap`.
+- Shell I/O is contained too: when the sandbox is active, `newRunner`
+  installs `sandboxOpenHandler` as an `interp.OpenHandler` so files the
+  shell opens itself (redirections `>`/`>>`/`<`, heredocs) obey the same
+  writable-path policy as external commands. mvdan/sh performs those opens
+  in-process, so without this a redirection like `echo x > /etc/foo` would
+  bypass `bwrap` and hit the real filesystem. Reads are allowed anywhere
+  (root is mounted readable); writes are permitted only within CWD, `/tmp`,
+  `/dev`, `/proc`, and configured `WritablePaths`, and are otherwise
+  rejected with a permission error (stricter than the overlay, which would
+  silently discard the write).
 - The model can request per-command escape hatches via tool params:
   `sandbox_writable_paths` (real-disk bind mounts that punch through
   the overlay) and `sandbox_network` (allow network). These are

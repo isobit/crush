@@ -28,12 +28,12 @@ Common shell builtins and core utils available on Windows.
 
 {{ if .SandboxEnabled }}
 <sandbox>
-Commands run inside a filesystem and network sandbox. By default:
+Commands run inside a filesystem and network sandbox (bwrap on linux):
+
 - The working directory is writable (persists to disk)
 - /tmp is writable (persists to disk)
-{{ if .SandboxPersist }}- Everything else appears writable but writes go to a session overlay (not to the real filesystem)
-{{ else }}- Everything else appears writable but writes are discarded after each command exits
-{{ end }}- Network access is disabled
+- Everything else is read-only
+- Network access is disabled
 
 If your command needs to write to the real filesystem outside CWD, or needs network:
 - `sandbox_writable_paths`: array of absolute paths (files or directories) that need real disk write access (e.g. module caches, build output dirs)

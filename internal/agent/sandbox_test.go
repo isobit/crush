@@ -79,31 +79,3 @@ func TestSandboxNetworkFromConfig(t *testing.T) {
 		}))
 	})
 }
-
-func TestSandboxPersistFromConfig(t *testing.T) {
-	t.Parallel()
-
-	t.Run("nil opts defaults to true", func(t *testing.T) {
-		t.Parallel()
-		require.True(t, sandboxPersistFromConfig(nil))
-	})
-
-	t.Run("nil sandbox defaults to true", func(t *testing.T) {
-		t.Parallel()
-		require.True(t, sandboxPersistFromConfig(&config.Options{}))
-	})
-
-	t.Run("true", func(t *testing.T) {
-		t.Parallel()
-		require.True(t, sandboxPersistFromConfig(&config.Options{
-			Sandbox: &config.SandboxOptions{Persist: ptr(true)},
-		}))
-	})
-
-	t.Run("false", func(t *testing.T) {
-		t.Parallel()
-		require.False(t, sandboxPersistFromConfig(&config.Options{
-			Sandbox: &config.SandboxOptions{Persist: ptr(false)},
-		}))
-	})
-}

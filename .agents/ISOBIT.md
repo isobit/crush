@@ -206,16 +206,16 @@ pulling a new upstream release, use this list to ensure nothing is lost.
   providing filesystem and network isolation via kernel namespaces.
 - Configured via `crush.json` `options.sandbox` struct:
   ```json
-  { "sandbox": { "mode": "off", "persist": true, "network": false } }
+  { "sandbox": { "mode": "off", "network": false } }
   ```
 - `mode`: `"off"` (default) disables sandboxing; `"auto"` enables when
   `bwrap` is on `$PATH` and the platform is Linux; `"on"` fails loudly if
   unavailable.
-- `persist` (default true): uses persistent overlayfs — writes outside
-  CWD accumulate in `.crush/sandbox/` across commands within a session.
-  When false uses `--tmp-overlay` (writes discarded each command).
-- When the kernel doesn't support unprivileged overlayfs (detected at
-  startup via probe), falls back to `--ro-bind / /` (read-only root).
+- The root filesystem is bind-mounted read-only (`--ro-bind / /`). Only the
+  working directory, `/tmp`, `/dev`, `/proc`, and configured `WritablePaths`
+  are writable, and those writes go straight to the real filesystem. There is
+  no overlay: writes outside the writable roots fail rather than being
+  discarded or accumulated.
 - The sandbox handler is an `interp.ExecHandler` in the mvdan/sh chain,
   sitting after block checks but before OS exec. Every external command
   invocation is wrapped in `bwrap`.
@@ -227,13 +227,11 @@ pulling a new upstream release, use this list to ensure nothing is lost.
   bypass `bwrap` and hit the real filesystem. Reads are allowed anywhere
   (root is mounted readable); writes are permitted only within CWD, `/tmp`,
   `/dev`, `/proc`, and configured `WritablePaths`, and are otherwise
-  rejected with a permission error (stricter than the overlay, which would
-  silently discard the write).
+  rejected with a permission error.
 - The model can request per-command escape hatches via tool params:
-  `sandbox_writable_paths` (real-disk bind mounts that punch through
-  the overlay) and `sandbox_network` (allow network). These are
-  validated (protected paths rejected) and surfaced in the permission
-  prompt (`internal/ui/dialog/permissions.go`).
+  `sandbox_writable_paths` (real-disk bind mounts) and `sandbox_network`
+  (allow network). These are validated (protected paths rejected) and
+  surfaced in the permission prompt (`internal/ui/dialog/permissions.go`).
 - Non-Linux platforms get a no-op handler stub.
 
 ### Kagi Search Integration

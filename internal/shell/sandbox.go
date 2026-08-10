@@ -33,15 +33,10 @@ type SandboxConfig struct {
 	Enabled bool
 	// WritablePaths are additional paths (files or directories) to bind
 	// read-write inside the sandbox (beyond the working directory and /tmp).
-	// These paths bypass the overlay and write directly to disk.
+	// These paths write directly to the real filesystem.
 	WritablePaths []string
 	// Network allows network access inside the sandbox when true.
 	Network bool
-	// OverlayDir, when set, enables persistent overlay mode. Writes
-	// outside CWD and WritablePaths go to OverlayDir/upper and persist
-	// across commands. OverlayDir/work is used as the overlayfs workdir.
-	// When empty, uses --tmp-overlay (writes discarded each command).
-	OverlayDir string
 }
 
 // protectedPaths are directories that cannot be requested as writable.
@@ -105,9 +100,6 @@ func (e *InvalidSandboxPathError) Error() string {
 var (
 	bwrapAvailable     bool
 	bwrapAvailableOnce sync.Once
-
-	bwrapOverlayAvailable     bool
-	bwrapOverlayAvailableOnce sync.Once
 )
 
 // BwrapAvailable returns whether bubblewrap (bwrap) is installed and the
@@ -124,23 +116,6 @@ func BwrapAvailable() bool {
 	return bwrapAvailable
 }
 
-// BwrapOverlayAvailable returns whether bwrap overlay support works on
-// this system (requires bwrap ≥ 0.11.0 and kernel support for
-// unprivileged overlayfs with userxattr).
-func BwrapOverlayAvailable() bool {
-	bwrapOverlayAvailableOnce.Do(func() {
-		if !BwrapAvailable() {
-			bwrapOverlayAvailable = false
-			return
-		}
-		// Probe: try a tmp-overlay mount. If it fails, overlay isn't
-		// usable on this system.
-		cmd := exec.Command("bwrap", "--overlay-src", "/", "--tmp-overlay", "/", "--", "true")
-		bwrapOverlayAvailable = cmd.Run() == nil
-	})
-	return bwrapOverlayAvailable
-}
-
 // sandboxOpenHandler returns an [interp.OpenHandlerFunc] that applies the
 // sandbox's writable-path policy to files the shell opens itself:
 // redirections (>, >>, <), heredoc/herestring targets, and any other I/O
@@ -153,8 +128,6 @@ func BwrapOverlayAvailable() bool {
 // readable. Writes are permitted only inside the working directory, /tmp,
 // /dev, /proc, and any configured WritablePaths; a write anywhere else is
 // rejected with a permission error so it cannot modify the real filesystem.
-// This is intentionally stricter than the overlay (which would silently
-// discard such a write) because failing loudly is safer for a redirection.
 func sandboxOpenHandler(cwd string, cfg *SandboxConfig) interp.OpenHandlerFunc {
 	def := interp.DefaultOpenHandler()
 	roots := sandboxWritableRoots(cwd, cfg)

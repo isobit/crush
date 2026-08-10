@@ -11,20 +11,13 @@ import (
 func TestBuildBwrapArgs(t *testing.T) {
 	t.Parallel()
 
-	overlayAvailable := BwrapOverlayAvailable()
-
 	t.Run("basic sandbox no network", func(t *testing.T) {
 		t.Parallel()
 		cfg := &SandboxConfig{Enabled: true}
 		got := buildBwrapArgs("/home/user/project", cfg)
 
-		if overlayAvailable {
-			require.Contains(t, got, "--overlay-src")
-			require.Contains(t, got, "--tmp-overlay")
-		} else {
-			require.Contains(t, got, "--ro-bind")
-		}
-		// Common args regardless of overlay support.
+		// Root is mounted read-only; CWD and /tmp are writable binds.
+		require.Contains(t, got, "--ro-bind")
 		require.Contains(t, got, "--bind")
 		require.Contains(t, got, "--unshare-net")
 		require.Contains(t, got, "--unshare-pid")
@@ -54,18 +47,6 @@ func TestBuildBwrapArgs(t *testing.T) {
 			}
 		}
 		require.True(t, found, "expected --bind /home/user/go/pkg/mod in args: %v", got)
-	})
-
-	t.Run("persistent overlay uses upper/work dirs", func(t *testing.T) {
-		t.Parallel()
-		if !overlayAvailable {
-			t.Skip("overlay not available")
-		}
-		dir := t.TempDir()
-		cfg := &SandboxConfig{Enabled: true, OverlayDir: dir}
-		got := buildBwrapArgs("/home/user/project", cfg)
-		require.Contains(t, got, "--overlay")
-		require.NotContains(t, got, "--tmp-overlay")
 	})
 }
 
@@ -153,14 +134,9 @@ func TestSandboxHandler_EnabledWithBwrap(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, stdout, "tmp-ok")
 
-	// Writing outside CWD and /tmp: with overlay this succeeds silently,
-	// without overlay (ro-bind fallback) it fails.
-	_, _, err = sh.Exec(t.Context(), "touch /opt/sandbox-test-file && echo overlay-ok")
-	if BwrapOverlayAvailable() {
-		require.NoError(t, err)
-	} else {
-		require.Error(t, err)
-	}
+	// Writing outside CWD and /tmp hits the read-only root and fails.
+	_, _, err = sh.Exec(t.Context(), "touch /opt/sandbox-test-file && echo ro-ok")
+	require.Error(t, err)
 }
 
 func TestSandboxHandler_NetworkBlocked(t *testing.T) {

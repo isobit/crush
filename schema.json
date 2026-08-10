@@ -713,11 +713,6 @@
           "description": "Sandbox mode. auto enables when bwrap is available on Linux; on always enables (fails if unavailable); off disables entirely",
           "default": "off"
         },
-        "persist": {
-          "type": "boolean",
-          "description": "Use persistent overlay filesystem. Writes outside CWD accumulate across commands within a session. When false uses tmpfs overlay (writes discarded each command)",
-          "default": true
-        },
         "network": {
           "type": "boolean",
           "description": "Allow network access inside the sandbox by default. The model can still request network per-command",

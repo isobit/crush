@@ -332,7 +332,6 @@ type Options struct {
 // SandboxOptions configures OS-level isolation for bash commands.
 type SandboxOptions struct {
 	Mode    *string `json:"mode,omitempty" jsonschema:"description=Sandbox mode. auto enables when bwrap is available on Linux; on always enables (fails if unavailable); off disables entirely,enum=auto,enum=on,enum=off,default=off"`
-	Persist *bool   `json:"persist,omitempty" jsonschema:"description=Use persistent overlay filesystem. Writes outside CWD accumulate across commands within a session. When false uses tmpfs overlay (writes discarded each command),default=true"`
 	Network *bool   `json:"network,omitempty" jsonschema:"description=Allow network access inside the sandbox by default. The model can still request network per-command,default=false"`
 }
 

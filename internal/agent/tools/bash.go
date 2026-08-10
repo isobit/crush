@@ -75,7 +75,6 @@ type bashDescriptionData struct {
 	ModelID         string
 	RgAvailable     bool
 	SandboxEnabled  bool
-	SandboxPersist  bool
 	GhAvailable     bool
 }
 
@@ -152,7 +151,7 @@ var bannedCommands = []string{
 	"ufw",
 }
 
-func bashDescription(attribution *config.Attribution, modelID string, sandboxEnabled bool, sandboxPersist bool) string {
+func bashDescription(attribution *config.Attribution, modelID string, sandboxEnabled bool) string {
 	bannedCommandsStr := strings.Join(bannedCommands, ", ")
 	var out bytes.Buffer
 	if err := bashDescriptionTpl.Execute(&out, bashDescriptionData{
@@ -162,7 +161,6 @@ func bashDescription(attribution *config.Attribution, modelID string, sandboxEna
 		ModelID:         modelID,
 		RgAvailable:     getRg() != "",
 		SandboxEnabled:  sandboxEnabled,
-		SandboxPersist:  sandboxPersist,
 		GhAvailable:     ghAvailable,
 	}); err != nil {
 		// this should never happen.
@@ -207,14 +205,13 @@ func blockFuncs() []shell.BlockFunc {
 type BashSandboxOptions struct {
 	Mode           shell.SandboxMode
 	NetworkDefault bool
-	OverlayDir     string // Empty means use tmp-overlay.
 }
 
 func NewBashTool(permissions permission.Service, workingDir string, attribution *config.Attribution, modelID string, sandboxOpts BashSandboxOptions) fantasy.AgentTool {
 	sandboxEnabled := shell.ShouldSandbox(sandboxOpts.Mode)
 	return fantasy.NewAgentTool(
 		BashToolName,
-		string(bashDescription(attribution, modelID, sandboxEnabled, sandboxOpts.OverlayDir != "")),
+		string(bashDescription(attribution, modelID, sandboxEnabled)),
 		func(ctx context.Context, params BashParams, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			if params.Command == "" {
 				return fantasy.NewTextErrorResponse("missing command"), nil
@@ -237,7 +234,6 @@ func NewBashTool(permissions permission.Service, workingDir string, attribution 
 					Enabled:       true,
 					WritablePaths: params.SandboxWritablePaths,
 					Network:       sandboxOpts.NetworkDefault || params.SandboxNetwork,
-					OverlayDir:    sandboxOpts.OverlayDir,
 				}
 			}
 

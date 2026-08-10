@@ -206,7 +206,7 @@ pulling a new upstream release, use this list to ensure nothing is lost.
   providing filesystem and network isolation via kernel namespaces.
 - Configured via `crush.json` `options.sandbox` struct:
   ```json
-  { "sandbox": { "mode": "off", "network": false } }
+  { "sandbox": { "mode": "off", "network": false, "hidden_paths": [] } }
   ```
 - `mode`: `"off"` (default) disables sandboxing; `"auto"` enables when
   `bwrap` is on `$PATH` and the platform is Linux; `"on"` fails loudly if
@@ -216,6 +216,15 @@ pulling a new upstream release, use this list to ensure nothing is lost.
   are writable, and those writes go straight to the real filesystem. There is
   no overlay: writes outside the writable roots fail rather than being
   discarded or accumulated.
+- `hidden_paths`: absolute files/dirs to hide from the sandbox. Each is
+  masked by binding a placeholder over it (`--ro-bind <placeholder> <path>`):
+  a notice file for files, a notice-containing directory for directories
+  (bind source/dest types must match). The placeholder explains the path is
+  hidden. Hidden binds are appended after the writable binds so they win when
+  a hidden path nests inside a writable root. The placeholder is created once
+  per process under a temp dir (`hiddenPathPlaceholders`). Reads of hidden
+  paths via the shell's own in-process I/O (redirections, heredocs) are also
+  rejected by `sandboxOpenHandler`, since bwrap only covers external commands.
 - The sandbox handler is an `interp.ExecHandler` in the mvdan/sh chain,
   sitting after block checks but before OS exec. Every external command
   invocation is wrapped in `bwrap`.

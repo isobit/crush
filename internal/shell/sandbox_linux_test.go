@@ -3,6 +3,8 @@
 package shell
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -48,6 +50,66 @@ func TestBuildBwrapArgs(t *testing.T) {
 		}
 		require.True(t, found, "expected --bind /home/user/go/pkg/mod in args: %v", got)
 	})
+
+	t.Run("hidden paths mask with a ro-bind placeholder", func(t *testing.T) {
+		t.Parallel()
+		// Use a real file and a real dir so the placeholder type matches.
+		dir := t.TempDir()
+		hiddenFile := filepath.Join(dir, "secret.txt")
+		require.NoError(t, os.WriteFile(hiddenFile, []byte("x"), 0o644))
+		hiddenDir := filepath.Join(dir, "secretdir")
+		require.NoError(t, os.Mkdir(hiddenDir, 0o755))
+
+		cfg := &SandboxConfig{
+			Enabled:     true,
+			HiddenPaths: []string{hiddenFile, hiddenDir},
+		}
+		got := buildBwrapArgs("/home/user/project", cfg)
+
+		file, placeholderDir, err := hiddenPathPlaceholders()
+		require.NoError(t, err)
+
+		requireBind := func(src, dst string) {
+			found := false
+			for i, arg := range got {
+				if arg == "--ro-bind" && i+2 < len(got) && got[i+1] == src && got[i+2] == dst {
+					found = true
+					break
+				}
+			}
+			require.True(t, found, "expected --ro-bind %s %s in args: %v", src, dst, got)
+		}
+		requireBind(file, hiddenFile)
+		requireBind(placeholderDir, hiddenDir)
+	})
+}
+
+func TestSandboxHandler_HiddenPathMasked(t *testing.T) {
+	t.Parallel()
+
+	if !BwrapAvailable() {
+		t.Skip("bwrap not available")
+	}
+
+	dir := t.TempDir()
+	secretDir := t.TempDir()
+	secret := filepath.Join(secretDir, "secret.txt")
+	require.NoError(t, os.WriteFile(secret, []byte("top secret"), 0o644))
+
+	sh := NewShell(&Options{
+		WorkingDir: dir,
+		Sandbox: &SandboxConfig{
+			Enabled:     true,
+			HiddenPaths: []string{secret},
+		},
+	})
+
+	// An external command reading the hidden file sees the placeholder
+	// notice, never the real contents.
+	stdout, _, err := sh.Exec(t.Context(), "cat "+secret)
+	require.NoError(t, err)
+	require.NotContains(t, stdout, "top secret")
+	require.Contains(t, stdout, "hidden from the sandboxed shell")
 }
 
 func TestSandboxHandler_Nil(t *testing.T) {

@@ -205,6 +205,9 @@ func blockFuncs() []shell.BlockFunc {
 type BashSandboxOptions struct {
 	Mode           shell.SandboxMode
 	NetworkDefault bool
+	// HiddenPaths are files or directories hidden inside the sandbox,
+	// configured via options.sandbox.hidden_paths.
+	HiddenPaths []string
 }
 
 func NewBashTool(permissions permission.Service, workingDir string, attribution *config.Attribution, modelID string, sandboxOpts BashSandboxOptions) fantasy.AgentTool {
@@ -233,6 +236,7 @@ func NewBashTool(permissions permission.Service, workingDir string, attribution 
 				sandboxCfg = &shell.SandboxConfig{
 					Enabled:       true,
 					WritablePaths: params.SandboxWritablePaths,
+					HiddenPaths:   sandboxOpts.HiddenPaths,
 					Network:       sandboxOpts.NetworkDefault || params.SandboxNetwork,
 				}
 			}

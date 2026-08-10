@@ -79,3 +79,24 @@ func TestSandboxNetworkFromConfig(t *testing.T) {
 		}))
 	})
 }
+
+func TestSandboxHiddenPathsFromConfig(t *testing.T) {
+	t.Parallel()
+
+	t.Run("nil opts", func(t *testing.T) {
+		t.Parallel()
+		require.Nil(t, sandboxHiddenPathsFromConfig(nil))
+	})
+
+	t.Run("nil sandbox", func(t *testing.T) {
+		t.Parallel()
+		require.Nil(t, sandboxHiddenPathsFromConfig(&config.Options{}))
+	})
+
+	t.Run("paths", func(t *testing.T) {
+		t.Parallel()
+		require.Equal(t, []string{"/home/user/.aws"}, sandboxHiddenPathsFromConfig(&config.Options{
+			Sandbox: &config.SandboxOptions{HiddenPaths: []string{"/home/user/.aws"}},
+		}))
+	})
+}

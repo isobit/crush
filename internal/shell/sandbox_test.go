@@ -222,6 +222,39 @@ func TestSandboxRedirectionIsContained(t *testing.T) {
 	require.Equal(t, "ok\n", string(data))
 }
 
+func TestSandboxOpenHandlerDeniesHiddenRead(t *testing.T) {
+	t.Parallel()
+
+	cwd := t.TempDir()
+	secret := filepath.Join(t.TempDir(), "secret.txt")
+	require.NoError(t, os.WriteFile(secret, []byte("top secret"), 0o644))
+
+	cfg := &SandboxConfig{Enabled: true, HiddenPaths: []string{secret}}
+	h := sandboxOpenHandler(cwd, cfg)
+
+	// Reads of a hidden path are rejected even though reads are otherwise
+	// allowed anywhere in the sandbox. The denial returns before reaching
+	// the underlying open, so a bare context is sufficient here.
+	_, err := h(context.Background(), secret, os.O_RDONLY, 0)
+	require.ErrorIs(t, err, os.ErrPermission)
+}
+
+func TestSandboxHiddenReadIsContained(t *testing.T) {
+	t.Parallel()
+
+	cwd := t.TempDir()
+	secret := filepath.Join(t.TempDir(), "secret.txt")
+	require.NoError(t, os.WriteFile(secret, []byte("top secret"), 0o644))
+
+	cfg := &SandboxConfig{Enabled: true, HiddenPaths: []string{secret}}
+	sh := NewShell(&Options{WorkingDir: cwd, Sandbox: cfg})
+
+	// An in-process input redirection from a hidden path must fail rather
+	// than exposing the real file contents.
+	_, _, err := sh.Exec(context.Background(), "cat < "+secret)
+	require.Error(t, err)
+}
+
 func TestShouldSandbox(t *testing.T) {
 	t.Parallel()
 

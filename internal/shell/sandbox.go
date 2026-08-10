@@ -35,6 +35,11 @@ type SandboxConfig struct {
 	// read-write inside the sandbox (beyond the working directory and /tmp).
 	// These paths write directly to the real filesystem.
 	WritablePaths []string
+	// HiddenPaths are files or directories that must not be visible inside
+	// the sandbox. Each is masked by binding a placeholder over it (a notice
+	// file or, for directories, a notice-containing directory) and reads of
+	// them via the shell's own in-process I/O are rejected.
+	HiddenPaths []string
 	// Network allows network access inside the sandbox when true.
 	Network bool
 }
@@ -125,21 +130,34 @@ func BwrapAvailable() bool {
 // regardless of the sandbox.
 //
 // Reads are allowed from anywhere — the sandbox mounts the root filesystem
-// readable. Writes are permitted only inside the working directory, /tmp,
+// readable — except configured HiddenPaths, which are rejected so their real
+// contents stay hidden (bwrap masks them for external commands with a
+// placeholder). Writes are permitted only inside the working directory, /tmp,
 // /dev, /proc, and any configured WritablePaths; a write anywhere else is
 // rejected with a permission error so it cannot modify the real filesystem.
 func sandboxOpenHandler(cwd string, cfg *SandboxConfig) interp.OpenHandlerFunc {
 	def := interp.DefaultOpenHandler()
 	roots := sandboxWritableRoots(cwd, cfg)
+	hidden := sandboxHiddenRoots(cfg)
 	return func(ctx context.Context, path string, flag int, perm os.FileMode) (io.ReadWriteCloser, error) {
-		if isWriteFlag(flag) && path != "" &&
-			!(runtime.GOOS == "windows" && path == "/dev/null") {
+		if path != "" && !(runtime.GOOS == "windows" && path == "/dev/null") {
 			abs := path
 			if !filepath.IsAbs(abs) {
 				abs = filepath.Join(interp.HandlerCtx(ctx).Dir, abs)
 			}
 			abs = resolveSandboxPath(abs)
-			if !pathWithinRoots(abs, roots) {
+			// Hidden paths are neither readable nor writable in-process:
+			// bwrap masks them for external commands, but redirections and
+			// heredocs the shell opens itself would otherwise reach the real
+			// file, so reject them here too.
+			if pathWithinRoots(abs, hidden) {
+				return nil, &os.PathError{
+					Op:   "open",
+					Path: path,
+					Err:  fs.ErrPermission,
+				}
+			}
+			if isWriteFlag(flag) && !pathWithinRoots(abs, roots) {
 				return nil, &os.PathError{
 					Op:   "open",
 					Path: path,
@@ -149,6 +167,17 @@ func sandboxOpenHandler(cwd string, cfg *SandboxConfig) interp.OpenHandlerFunc {
 		}
 		return def(ctx, path, flag, perm)
 	}
+}
+
+// sandboxHiddenRoots returns the symlink-resolved roots that must be
+// hidden from the sandboxed shell's own in-process I/O. It mirrors the
+// placeholder binds buildBwrapArgs applies to external commands.
+func sandboxHiddenRoots(cfg *SandboxConfig) []string {
+	roots := make([]string, 0, len(cfg.HiddenPaths))
+	for _, p := range cfg.HiddenPaths {
+		roots = append(roots, resolveSandboxPath(p))
+	}
+	return roots
 }
 
 // sandboxWritableRoots returns the filesystem roots a sandboxed shell may

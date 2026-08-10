@@ -52,34 +52,6 @@ func TestSandboxModeFromConfig(t *testing.T) {
 	})
 }
 
-func TestSandboxNetworkFromConfig(t *testing.T) {
-	t.Parallel()
-
-	t.Run("nil opts defaults to false", func(t *testing.T) {
-		t.Parallel()
-		require.False(t, sandboxNetworkFromConfig(nil))
-	})
-
-	t.Run("nil sandbox defaults to false", func(t *testing.T) {
-		t.Parallel()
-		require.False(t, sandboxNetworkFromConfig(&config.Options{}))
-	})
-
-	t.Run("true", func(t *testing.T) {
-		t.Parallel()
-		require.True(t, sandboxNetworkFromConfig(&config.Options{
-			Sandbox: &config.SandboxOptions{Network: ptr(true)},
-		}))
-	})
-
-	t.Run("false", func(t *testing.T) {
-		t.Parallel()
-		require.False(t, sandboxNetworkFromConfig(&config.Options{
-			Sandbox: &config.SandboxOptions{Network: ptr(false)},
-		}))
-	})
-}
-
 func TestSandboxHiddenPathsFromConfig(t *testing.T) {
 	t.Parallel()
 

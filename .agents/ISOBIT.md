@@ -206,11 +206,13 @@ pulling a new upstream release, use this list to ensure nothing is lost.
   providing filesystem and network isolation via kernel namespaces.
 - Configured via `crush.json` `options.sandbox` struct:
   ```json
-  { "sandbox": { "mode": "off", "network": false, "hidden_paths": [] } }
+  { "sandbox": { "mode": "off", "hidden_paths": [] } }
   ```
 - `mode`: `"off"` (default) disables sandboxing; `"auto"` enables when
   `bwrap` is on `$PATH` and the platform is Linux; `"on"` fails loudly if
-  unavailable.
+  unavailable. `mode` is the only sandbox knob: network is always off by
+  default and there is no config gate for running unsandboxed; both are
+  requested per-command by the model and gated by action permissions.
 - The root filesystem is bind-mounted read-only (`--ro-bind / /`). Only the
   working directory, `/tmp`, `/dev`, `/proc`, and configured `WritablePaths`
   are writable, and those writes go straight to the real filesystem. There is
@@ -238,9 +240,28 @@ pulling a new upstream release, use this list to ensure nothing is lost.
   `/dev`, `/proc`, and configured `WritablePaths`, and are otherwise
   rejected with a permission error.
 - The model can request per-command escape hatches via tool params:
-  `sandbox_writable_paths` (real-disk bind mounts) and `sandbox_network`
-  (allow network). These are validated (protected paths rejected) and
+  `sandbox_writable_paths` (real-disk bind mounts), `sandbox_network`
+  (allow network), and `no_sandbox` (run outside the sandbox entirely,
+  full host access). These are validated (protected paths rejected) and
   surfaced in the permission prompt (`internal/ui/dialog/permissions.go`).
+- Posture-derived permission actions: the bash tool sends a distinct
+  permission `Action` based on the command's *effective* containment, so
+  auto-approval is expressed entirely through the existing
+  `permissions.allowed_tools` config (keyed on `tool:action`) rather than a
+  bespoke sandbox flag:
+  - **Contained** (sandbox active, no network, no extra writable paths) ->
+    action `bash:execute_sandboxed`. Allowlisting `bash:execute_sandboxed`
+    lets these run without a prompt.
+  - **Elevated** (network and/or extra writable paths) and **Unsandboxed**
+    (`no_sandbox`, or sandbox not actually active) -> action
+    `bash:execute` (historical action; still prompts by default).
+  The action reflects the posture that actually happened: `mode:"auto"`
+  with `bwrap` missing yields `bash:execute` (unsandboxed), so a
+  `bash:execute_sandboxed` allow correctly does not fire. Action constants
+  live in `internal/agent/tools/bash.go` (`BashActionExecute`,
+  `BashActionExecuteSandboxed`).
+- Read-only safe commands (`safeCommands`) still bypass the permission
+  prompt regardless of posture.
 - Non-Linux platforms get a no-op handler stub.
 
 ### Kagi Search Integration

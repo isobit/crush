@@ -474,6 +474,9 @@ func (p *Permissions) renderHeader(contentWidth int) string {
 	case tools.BashToolName:
 		if params, ok := p.permission.Params.(tools.BashPermissionsParams); ok {
 			lines = append(lines, p.renderKeyValue("Desc", params.Description, contentWidth))
+			if params.NoSandbox {
+				lines = append(lines, p.renderKeyValue("Sandbox", "DISABLED (full host access)", contentWidth))
+			}
 			if len(params.SandboxWritablePaths) > 0 {
 				lines = append(lines, p.renderKeyValue("Writable", strings.Join(params.SandboxWritablePaths, ", "), contentWidth))
 			}

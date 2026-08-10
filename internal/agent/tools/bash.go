@@ -30,6 +30,7 @@ type BashParams struct {
 	AutoBackgroundAfter  int      `json:"auto_background_after,omitempty" description:"Seconds to wait before automatically moving the command to a background job (default: 60)"`
 	SandboxWritablePaths []string `json:"sandbox_writable_paths,omitempty" description:"Additional paths (files or directories) that need write access inside the sandbox. Shown to user for approval."`
 	SandboxNetwork       bool     `json:"sandbox_network,omitempty" description:"Set to true if the command needs network access (e.g. git fetch). Shown to user for approval."`
+	NoSandbox            bool     `json:"no_sandbox,omitempty" description:"Set to true to run the command WITHOUT the sandbox (full host access). Only for commands that cannot work sandboxed. Shown to user for approval."`
 }
 
 type BashPermissionsParams struct {
@@ -40,6 +41,7 @@ type BashPermissionsParams struct {
 	AutoBackgroundAfter  int      `json:"auto_background_after"`
 	SandboxWritablePaths []string `json:"sandbox_writable_paths,omitempty"`
 	SandboxNetwork       bool     `json:"sandbox_network,omitempty"`
+	NoSandbox            bool     `json:"no_sandbox,omitempty"`
 }
 
 type BashResponseMetadata struct {
@@ -54,6 +56,17 @@ type BashResponseMetadata struct {
 
 const (
 	BashToolName = "bash"
+
+	// BashActionExecute is the permission action for commands that run
+	// with elevated sandbox privileges (network and/or extra writable
+	// paths) or entirely outside the sandbox. It is the historical,
+	// higher-risk action.
+	BashActionExecute = "execute"
+	// BashActionExecuteSandboxed is the permission action for fully
+	// contained commands: the sandbox is active with no network and no
+	// extra writable paths. Allowlisting bash:execute_sandboxed lets these
+	// run without a prompt while riskier postures still require approval.
+	BashActionExecuteSandboxed = "execute_sandboxed"
 
 	DefaultAutoBackgroundAfter = 60 // Commands taking longer automatically become background jobs
 	MaxOutputLength            = 30000
@@ -203,8 +216,7 @@ func blockFuncs() []shell.BlockFunc {
 
 // BashSandboxOptions holds resolved sandbox settings for the bash tool.
 type BashSandboxOptions struct {
-	Mode           shell.SandboxMode
-	NetworkDefault bool
+	Mode shell.SandboxMode
 	// HiddenPaths are files or directories hidden inside the sandbox,
 	// configured via options.sandbox.hidden_paths.
 	HiddenPaths []string
@@ -223,9 +235,12 @@ func NewBashTool(permissions permission.Service, workingDir string, attribution 
 			// Determine working directory
 			execWorkingDir := cmp.Or(params.WorkingDir, workingDir)
 
-			// Resolve sandbox config for this invocation.
+			// Resolve sandbox config for this invocation. The command runs
+			// contained unless the sandbox is disabled (by mode/availability
+			// or a per-command no_sandbox opt-out).
+			sandboxActive := sandboxEnabled && !params.NoSandbox
 			var sandboxCfg *shell.SandboxConfig
-			if sandboxEnabled {
+			if sandboxActive {
 				// Validate requested writable paths.
 				if len(params.SandboxWritablePaths) > 0 {
 					home, _ := os.UserHomeDir()
@@ -237,8 +252,17 @@ func NewBashTool(permissions permission.Service, workingDir string, attribution 
 					Enabled:       true,
 					WritablePaths: params.SandboxWritablePaths,
 					HiddenPaths:   sandboxOpts.HiddenPaths,
-					Network:       sandboxOpts.NetworkDefault || params.SandboxNetwork,
+					Network:       params.SandboxNetwork,
 				}
+			}
+
+			// Derive the permission action from the effective posture. A
+			// fully contained command (sandbox active, no network, no extra
+			// writable paths) uses a distinct action so it can be
+			// allowlisted independently of riskier postures.
+			action := BashActionExecute
+			if sandboxActive && !params.SandboxNetwork && len(params.SandboxWritablePaths) == 0 {
+				action = BashActionExecuteSandboxed
 			}
 
 			isSafeReadOnly := false
@@ -267,7 +291,7 @@ func NewBashTool(permissions permission.Service, workingDir string, attribution 
 						Path:        execWorkingDir,
 						ToolCallID:  call.ID,
 						ToolName:    BashToolName,
-						Action:      "execute",
+						Action:      action,
 						Description: fmt.Sprintf("Execute command: %s", params.Command),
 						Params:      BashPermissionsParams(params),
 					},

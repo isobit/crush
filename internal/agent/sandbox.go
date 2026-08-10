@@ -15,15 +15,6 @@ func sandboxModeFromConfig(opts *config.Options) shell.SandboxMode {
 	return shell.SandboxMode(*opts.Sandbox.Mode)
 }
 
-// sandboxNetworkFromConfig extracts the default sandbox network setting
-// from config options.
-func sandboxNetworkFromConfig(opts *config.Options) bool {
-	if opts == nil || opts.Sandbox == nil || opts.Sandbox.Network == nil {
-		return false
-	}
-	return *opts.Sandbox.Network
-}
-
 // sandboxHiddenPathsFromConfig extracts the paths to hide inside the
 // sandbox from config options.
 func sandboxHiddenPathsFromConfig(opts *config.Options) []string {
@@ -37,8 +28,7 @@ func sandboxHiddenPathsFromConfig(opts *config.Options) []string {
 // bash tool.
 func buildBashSandboxOptions(opts *config.Options) tools.BashSandboxOptions {
 	return tools.BashSandboxOptions{
-		Mode:           sandboxModeFromConfig(opts),
-		NetworkDefault: sandboxNetworkFromConfig(opts),
-		HiddenPaths:    sandboxHiddenPathsFromConfig(opts),
+		Mode:        sandboxModeFromConfig(opts),
+		HiddenPaths: sandboxHiddenPathsFromConfig(opts),
 	}
 }

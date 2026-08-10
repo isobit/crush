@@ -713,10 +713,15 @@
           "description": "Sandbox mode. auto enables when bwrap is available on Linux; on always enables (fails if unavailable); off disables entirely",
           "default": "off"
         },
-        "network": {
-          "type": "boolean",
-          "description": "Allow network access inside the sandbox by default. The model can still request network per-command",
-          "default": false
+        "hidden_paths": {
+          "items": {
+            "type": "string",
+            "examples": [
+              "/home/user/.aws"
+            ]
+          },
+          "type": "array",
+          "description": "Absolute files or directories to hide inside the sandbox. Each path is masked with a placeholder explaining it is hidden."
         }
       },
       "additionalProperties": false,

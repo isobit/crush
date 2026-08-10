@@ -28,18 +28,24 @@ Common shell builtins and core utils available on Windows.
 
 {{ if .SandboxEnabled }}
 <sandbox>
-Commands run inside a filesystem and network sandbox (bwrap on linux):
+Commands run inside a filesystem and network sandbox (bwrap on linux) by default:
 
 - The working directory is writable (persists to disk)
 - /tmp is writable (persists to disk)
 - Everything else is read-only
 - Network access is disabled
 
-If your command needs to write to the real filesystem outside CWD, or needs network:
+A fully contained command (no network, no extra writable paths) may run
+without asking for approval, depending on the user's configuration. The
+escape hatches below expand privileges and always require user approval, so
+only request them when a command genuinely needs them:
+
 - `sandbox_writable_paths`: array of absolute paths (files or directories) that need real disk write access (e.g. module caches, build output dirs)
 - `sandbox_network`: set true if the command needs network (e.g. git fetch, go mod download)
+- `no_sandbox`: set true to run WITHOUT the sandbox entirely (full host access). Last resort, only for commands that cannot work sandboxed.
 
-These requests are shown to the user for approval in the permission prompt. Only request what is genuinely needed.
+Prefer the contained default. Reach for `sandbox_writable_paths`/`sandbox_network`
+before `no_sandbox`, and keep each request as narrow as possible.
 </sandbox>
 {{ end }}
 

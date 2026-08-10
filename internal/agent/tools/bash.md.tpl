@@ -20,7 +20,7 @@ Common shell builtins and core utils available on Windows.
 - IMPORTANT: Use Grep/Glob/Agent tools instead of 'find'/'grep'. Use View/LS tools instead of 'cat'/'head'/'tail'/'ls'
 - Chain with ';' or '&&', avoid newlines except in quoted strings
 - Each command runs in independent shell (no state persistence between calls)
-- Prefer absolute paths over 'cd' (use 'cd' only if user explicitly requests)
+- The command already runs inside working_dir (or the current directory when working_dir is unset), so do NOT start commands with `cd` into that directory — it is redundant. To run somewhere else, set working_dir instead of prefixing `cd`. Use `cd` only when the user explicitly requests it.
 {{- if .RgAvailable }}
 - Ripgrep (`rg`) is available; prefer it over `grep` for faster, more intuitive searching
 {{- end }}
@@ -185,6 +185,7 @@ Important:
 </pull_requests>
 
 <examples>
+Good: pytest tests (with working_dir set to /foo/bar)
 Good: pytest /foo/bar/tests
 Bad: cd /foo/bar && pytest tests
 </examples>

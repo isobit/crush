@@ -1,6 +1,6 @@
 ---
 name: isobit-contrib
-description: Use when making any code change, commit, or new feature on the isobit-main branch. Ensures commits follow the [isobit] prefix convention and ISOBIT.md stays up to date.
+description: Use when making any code change, commit, or new feature in the Isobit fork. Ensures commits follow the [isobit] prefix convention and ISOBIT.md stays up to date.
 ---
 
 # Isobit Contribution Workflow
@@ -10,12 +10,12 @@ conventions documented in `.agents/ISOBIT.md`.
 
 ## Before Starting Work
 
-1. Read `.agents/ISOBIT.md` to understand existing isobit customizations.
-2. Confirm you are on the `isobit-main` branch (`git branch --show-current`).
+1. Read `.agents/ISOBIT.md` to understand existing Isobit customizations.
+2. Confirm you are in the Isobit fork (`git remote -v`).
 
 ## Commit Convention
 
-All commits on `isobit-main` MUST use this prefix format:
+All commits in the Isobit fork MUST use this prefix format:
 
 ```
 [isobit] <type>(<scope>): <description>
@@ -49,7 +49,7 @@ Include the ISOBIT.md update in the same commit as the code change.
 
 ## Checklist
 
-- [ ] Branch is `isobit-main`
+- [ ] Repository is the Isobit fork
 - [ ] Commit message has `[isobit]` prefix
 - [ ] `.agents/ISOBIT.md` is updated if the change affects an isobit customization
 - [ ] `go build ./...` passes

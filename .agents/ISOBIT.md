@@ -153,6 +153,12 @@ pulling a new upstream release, use this list to ensure nothing is lost.
   `proto.Workspace.ConfigFiles`).
 - Uses `config.WithConfigFiles` load option internally.
 
+### Commented Configuration Files
+
+- **Files**: `internal/config/load.go`, `internal/config/load_test.go`, `README.md`
+- Configuration files accept `//` line comments, `/* ... */` block comments,
+  and trailing commas through HuJSON parsing before merge and decode.
+
 ### Config Profiles (`--profile`/`-p`)
 
 - **Files**: `internal/cmd/root.go`, `internal/config/load.go`,

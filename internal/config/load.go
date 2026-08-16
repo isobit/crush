@@ -28,6 +28,7 @@ import (
 	"github.com/charmbracelet/crush/internal/home"
 	powernapConfig "github.com/charmbracelet/x/powernap/pkg/config"
 	"github.com/qjebbs/go-jsons"
+	"github.com/tailscale/hujson"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 )
@@ -117,8 +118,8 @@ func Load(workingDir, dataDir string, debug bool, opts ...LoadOption) (*ConfigSt
 
 	// Load workspace config last so it has highest priority.
 	if wsData, err := os.ReadFile(store.workspacePath); err == nil && len(wsData) > 0 {
-		if !json.Valid(wsData) {
-			return nil, fmt.Errorf("invalid JSON in config file %s", store.workspacePath)
+		if _, err := hujson.Standardize(wsData); err != nil {
+			return nil, fmt.Errorf("invalid JSON in config file %s: %w", store.workspacePath, err)
 		}
 		merged, mergeErr := loadFromBytes(append([][]byte{mustMarshalConfig(cfg)}, wsData))
 		if mergeErr == nil {
@@ -969,8 +970,8 @@ func loadFromConfigPaths(configPaths []string) (*Config, []string, error) {
 		if len(data) == 0 {
 			continue
 		}
-		if !json.Valid(data) {
-			return nil, nil, fmt.Errorf("invalid JSON in config file %s", path)
+		if _, err := hujson.Standardize(data); err != nil {
+			return nil, nil, fmt.Errorf("invalid JSON in config file %s: %w", path, err)
 		}
 		configs = append(configs, data)
 		loaded = append(loaded, path)
@@ -988,7 +989,16 @@ func loadFromBytes(configs [][]byte) (*Config, error) {
 		return &Config{}, nil
 	}
 
-	data, err := jsons.Merge(configs)
+	standardizedConfigs := make([][]byte, 0, len(configs))
+	for _, config := range configs {
+		standardized, err := hujson.Standardize(config)
+		if err != nil {
+			return nil, err
+		}
+		standardizedConfigs = append(standardizedConfigs, standardized)
+	}
+
+	data, err := jsons.Merge(standardizedConfigs)
 	if err != nil {
 		return nil, err
 	}

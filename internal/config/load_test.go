@@ -42,6 +42,31 @@ func TestConfig_LoadFromBytes(t *testing.T) {
 	require.Equal(t, "https://api.openai.com/v2", pc.BaseURL)
 }
 
+func TestConfig_LoadFromBytesHuJSON(t *testing.T) {
+	data := []byte(`{
+		// Primary provider.
+		"providers": {
+			"openai": {
+				"api_key": "key",
+			},
+		},
+		/* Enable compact mode. */
+		"options": {
+			"tui": {
+				"compact_mode": true,
+			},
+		},
+	}`)
+
+	loadedConfig, err := loadFromBytes([][]byte{data})
+
+	require.NoError(t, err)
+	pc, ok := loadedConfig.Providers.Get("openai")
+	require.True(t, ok)
+	require.Equal(t, "key", pc.APIKey)
+	require.True(t, loadedConfig.Options.TUI.CompactMode)
+}
+
 func TestLookupConfigs_BoundedByProject(t *testing.T) {
 	// Force GlobalConfig and GlobalConfigData to point at locations we
 	// control so they can be present in the result without polluting

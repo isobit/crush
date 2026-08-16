@@ -252,12 +252,14 @@ or globally, with the following priority:
 2. `crush.json`
 3. `$HOME/.config/crush/crush.json`
 
-Configuration itself is stored as a JSON object:
+Configuration is stored as a JSON object. It also supports `//` line comments,
+`/* ... */` block comments, and trailing commas:
 
-```json
+```jsonc
 {
+  // Explain settings for future readers.
   "this-setting": { "this": "that" },
-  "that-setting": ["ceci", "cela"]
+  "that-setting": ["ceci", "cela"],
 }
 ```
 

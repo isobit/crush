@@ -1,34 +1,45 @@
 ---
 name: isobit-merge
-description: Use when the user asks to merge upstream, pull the latest release, update from origin/main, or resolve merge conflicts on the isobit-main branch.
+description: Use when the user asks to merge Charmbracelet upstream changes into an Isobit fork or resolve resulting merge conflicts.
 ---
 
 # Isobit Upstream Merge Procedure
 
-This skill merges the latest upstream release tag into `isobit-main` while
-preserving all isobit-specific customizations.
+This skill merges a Charmbracelet upstream release into the current branch of
+an Isobit fork while preserving Isobit-specific customizations.
 
 ## Before You Start
 
-1. Read `.agents/ISOBIT.md` — it lists every isobit customization, the files
+1. Read `.agents/ISOBIT.md` — it lists every Isobit customization, the files
    involved, and known gotchas.
-2. Confirm you are on `isobit-main`: `git branch --show-current`
+2. Identify the remotes and confirm which points to each repository:
+
+   ```bash
+   git remote -v
+   ```
+
+   Refer to the fork remote as `<isobit-remote>` and the Charmbracelet remote
+   as `<upstream-remote>` below. Their names and the local branch name are not
+   prescribed.
 3. Confirm the working tree is clean: `git status --short`
 
 ## Step 1 — Fetch and Identify the Latest Release
 
 ```bash
-git fetch origin
+git fetch <upstream-remote> --tags
 git tag --sort=-v:refname | head -5
 ```
 
-Pick the newest `vX.Y.Z` tag. Confirm it is on `origin/main`:
+Pick the newest `vX.Y.Z` tag. Confirm it is reachable from the upstream main
+branch:
 
 ```bash
-git branch -r --contains <tag>
+git branch -r --contains <tag> | grep '<upstream-remote>/main'
 ```
 
 ## Step 2 — Merge
+
+Merge the upstream tag into the checked-out branch of the Isobit fork:
 
 ```bash
 git merge <tag>
@@ -40,14 +51,14 @@ If there are no conflicts, skip to Step 5.
 
 For each conflicted file (`git diff --name-only --diff-filter=U`):
 
-1. **Read `.agents/ISOBIT.md`** to check whether the file has isobit
+1. **Read `.agents/ISOBIT.md`** to check whether the file has Isobit
    customizations.
 2. Choose a strategy:
-   - **File has NO isobit changes**: take upstream entirely
+   - **File has no Isobit changes**: take upstream entirely
      (`git show <tag>:<file> > <file>`).
-   - **File has isobit changes**: take upstream as the base, then re-apply
-     isobit customizations on top. Verify by diffing against the pre-merge
-     isobit version (`git show HEAD:<file>`).
+   - **File has Isobit changes**: take upstream as the base, then re-apply
+     Isobit customizations on top. Verify by diffing against the pre-merge
+     Isobit version (`git show HEAD:<file>`).
    - **Styles/themes**: if upstream refactored the `Styles` struct or
      `quickStyle`, update `IsobitStyles()` in `isobit.go` to match the
      new API. Ensure `ThemeForProvider()` still returns `IsobitStyles()`.

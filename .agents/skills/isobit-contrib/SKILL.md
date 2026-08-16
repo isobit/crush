@@ -5,13 +5,20 @@ description: Use when making any code change, commit, or new feature in the Isob
 
 # Isobit Contribution Workflow
 
-This skill ensures that work on the `isobit-main` branch follows the project
-conventions documented in `.agents/ISOBIT.md`.
+This skill ensures that work in an Isobit fork follows the project conventions
+documented in `.agents/ISOBIT.md`.
 
 ## Before Starting Work
 
 1. Read `.agents/ISOBIT.md` to understand existing Isobit customizations.
-2. Confirm you are in the Isobit fork (`git remote -v`).
+2. Confirm the repository has an Isobit fork remote and a Charmbracelet
+   upstream remote:
+
+   ```bash
+   git remote -v
+   ```
+
+   Remote names and the local branch name are not prescribed.
 
 ## Commit Convention
 

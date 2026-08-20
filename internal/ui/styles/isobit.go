@@ -45,8 +45,11 @@ func IsobitStyles() Styles {
 	})
 
 	s.TextSelection = lipgloss.NewStyle().Foreground(charmtone.Salt).Background(blue)
+	s.TextInput.Cursor.Color = charmtone.Salt
 	s.TextInput.Cursor.Shape = tea.CursorBar
+	s.Editor.Textarea.Cursor.Color = charmtone.Salt
 	s.Editor.Textarea.Cursor.Shape = tea.CursorBar
+	s.Editor.QuestionCursorBar = lipgloss.NewStyle().Foreground(charmtone.Salt)
 
 	return s
 }

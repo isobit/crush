@@ -19,7 +19,7 @@ pulling a new upstream release, use this list to ensure nothing is lost.
 
 - **Files**: `internal/ui/styles/isobit.go`, `internal/ui/styles/themes.go`
 - `IsobitStyles()` builds on `quickStyle()` with pure-black background
-  (`#000`), blue accent (`#2475f4`), bar-shaped cursors, and custom text
+  (`#000`), blue accent (`#2475f4`), white bar-shaped cursors, and custom text
   selection colors.
 - `ThemeForProvider()` always returns `IsobitStyles()` so the theme is never
   reset when switching models or providers.

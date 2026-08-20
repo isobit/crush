@@ -2,6 +2,7 @@ package model
 
 import (
 	"strings"
+	"unicode"
 
 	tea "charm.land/bubbletea/v2"
 )
@@ -92,6 +93,8 @@ func (m *UI) viHandleNormalKey(msg tea.KeyPressMsg) (consumed bool, cmd tea.Cmd)
 		m.viDeleteCharForward()
 	case k == "d":
 		m.vi.pending = "d"
+	case k == "c":
+		m.vi.pending = "c"
 	case k == "C":
 		m.viDeleteToEnd()
 		m.viEnterInsert()
@@ -129,6 +132,32 @@ func (m *UI) viHandlePending(k string) (bool, tea.Cmd) {
 			m.viDeleteToStart()
 		default:
 			return true, nil
+		}
+	case "c":
+		switch k {
+		case "c":
+			m.viChangeLine()
+		case "w":
+			m.viChangeWord(false)
+		case "W":
+			m.viChangeWord(true)
+		case "$":
+			m.viDeleteToEnd()
+			m.viEnterInsert()
+		case "0":
+			m.viDeleteToStart()
+			m.viEnterInsert()
+		case "i", "a":
+			m.vi.pending = "c" + k
+			return true, nil
+		}
+	case "ci":
+		if k == "w" {
+			m.viChangeInnerWord()
+		}
+	case "ca":
+		if k == "w" {
+			m.viChangeAroundWord()
 		}
 	case "g":
 		switch k {
@@ -197,6 +226,120 @@ func (m *UI) viWordBackward() {
 // viWordEnd moves cursor to end of current/next word.
 func (m *UI) viWordEnd() {
 	m.viWordForward()
+}
+
+func (m *UI) viReplaceRange(start, end int) {
+	lines := strings.Split(m.textarea.Value(), "\n")
+	row := m.textarea.Line()
+	if row >= len(lines) {
+		return
+	}
+
+	runes := []rune(lines[row])
+	start = min(max(start, 0), len(runes))
+	end = min(max(end, start), len(runes))
+	lines[row] = string(append(runes[:start], runes[end:]...))
+	m.textarea.SetValue(strings.Join(lines, "\n"))
+	m.textarea.MoveToBegin()
+	for range row {
+		m.textarea.CursorDown()
+	}
+	m.textarea.SetCursorColumn(start)
+}
+
+func (m *UI) viChangeWord(blankDelimited bool) {
+	lines := strings.Split(m.textarea.Value(), "\n")
+	row := m.textarea.Line()
+	if row >= len(lines) {
+		return
+	}
+
+	runes := []rune(lines[row])
+	start := min(m.textarea.Column(), len(runes))
+	end := start
+	for end < len(runes) && (isViWordRune(runes[end]) || (blankDelimited && !unicode.IsSpace(runes[end]))) {
+		end++
+	}
+	if end == start {
+		for end < len(runes) && unicode.IsSpace(runes[end]) {
+			end++
+		}
+		start = end
+		for end < len(runes) && (isViWordRune(runes[end]) || (blankDelimited && !unicode.IsSpace(runes[end]))) {
+			end++
+		}
+	}
+	m.viReplaceRange(start, end)
+	m.viEnterInsert()
+}
+
+func (m *UI) viChangeInnerWord() {
+	lines := strings.Split(m.textarea.Value(), "\n")
+	row := m.textarea.Line()
+	if row >= len(lines) {
+		return
+	}
+
+	runes := []rune(lines[row])
+	cursor := min(m.textarea.Column(), len(runes))
+	for cursor < len(runes) && !isViWordRune(runes[cursor]) {
+		cursor++
+	}
+	start := cursor
+	for start > 0 && isViWordRune(runes[start-1]) {
+		start--
+	}
+	end := cursor
+	for end < len(runes) && isViWordRune(runes[end]) {
+		end++
+	}
+	m.viReplaceRange(start, end)
+	m.viEnterInsert()
+}
+
+func (m *UI) viChangeAroundWord() {
+	lines := strings.Split(m.textarea.Value(), "\n")
+	row := m.textarea.Line()
+	if row >= len(lines) {
+		return
+	}
+
+	runes := []rune(lines[row])
+	cursor := min(m.textarea.Column(), len(runes))
+	for cursor < len(runes) && !isViWordRune(runes[cursor]) {
+		cursor++
+	}
+	start := cursor
+	for start > 0 && isViWordRune(runes[start-1]) {
+		start--
+	}
+	end := cursor
+	for end < len(runes) && isViWordRune(runes[end]) {
+		end++
+	}
+	for end < len(runes) && unicode.IsSpace(runes[end]) {
+		end++
+	}
+	if end == cursor {
+		return
+	}
+	m.viReplaceRange(start, end)
+	m.viEnterInsert()
+}
+
+func (m *UI) viChangeLine() {
+	lines := strings.Split(m.textarea.Value(), "\n")
+	row := m.textarea.Line()
+	if row >= len(lines) {
+		return
+	}
+
+	m.viReplaceRange(0, len([]rune(lines[row])))
+	m.viEnterInsert()
+}
+
+func isViWordRune(r rune) bool {
+	return unicode.IsLetter(r) || unicode.IsDigit(r) || r == '_'
 }
 
 // viDeleteCharForward deletes the character under the cursor.

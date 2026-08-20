@@ -61,7 +61,8 @@ pulling a new upstream release, use this list to ensure nothing is lost.
   `internal/ui/model/vi_test.go`
 - With `options.tui.vi_mode` enabled, the text editor starts in insert mode;
   Escape returns to normal mode, and normal-mode keys are intercepted before
-  editor history, completions, and text insertion.
+  editor history, completions, and text insertion. Standard prompt-editor
+  changes include `cc`, `cw`, `cW`, `c$`, `c0`, `ciw`, and `caw`.
 
 ### Hashline Edit Tool
 

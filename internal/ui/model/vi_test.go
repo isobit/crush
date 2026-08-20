@@ -95,21 +95,60 @@ func TestViKeyMsg(t *testing.T) {
 func TestViNormalModeRoutesEditorKeys(t *testing.T) {
 	t.Parallel()
 
-	ta := textarea.New()
-	ta.Focus()
-	ta.SetValue("hello")
-	ta.MoveToEnd()
-	ui := &UI{
-		dialog:   dialog.NewOverlay(),
-		focus:    uiFocusEditor,
-		state:    uiLanding,
-		textarea: ta,
-		vi:       viState{enabled: true, mode: viNormal},
-	}
+	ui := newViTestUI("hello")
+	ui.textarea.MoveToEnd()
 
 	ui.handleKeyPressMsg(tea.KeyPressMsg{Code: 'h'})
 	require.Equal(t, 4, ui.textarea.Column())
 
 	ui.handleKeyPressMsg(tea.KeyPressMsg{Code: 'z'})
 	require.Equal(t, "hello", ui.textarea.Value())
+}
+
+func TestViChangeMotions(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		value  string
+		column int
+		keys   string
+		want   string
+	}{
+		{name: "change inner word", value: "hello world", column: 1, keys: "ciw", want: " world"},
+		{name: "change around word", value: "hello world", column: 1, keys: "caw", want: "world"},
+		{name: "change word", value: "hello world", column: 1, keys: "cw", want: "h world"},
+		{name: "change WORD", value: "hello-world next", column: 1, keys: "cW", want: "h next"},
+		{name: "change to end", value: "hello world", column: 3, keys: "c$", want: "hel"},
+		{name: "change to start", value: "hello world", column: 3, keys: "c0", want: "lo world"},
+		{name: "change line", value: "hello\nworld", column: 2, keys: "cc", want: "\nworld"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ui := newViTestUI(tt.value)
+			ui.textarea.SetCursorColumn(tt.column)
+			for _, k := range tt.keys {
+				ui.handleKeyPressMsg(tea.KeyPressMsg{Code: k})
+			}
+
+			require.Equal(t, tt.want, ui.textarea.Value())
+			require.Equal(t, viInsert, ui.vi.mode)
+		})
+	}
+}
+
+func newViTestUI(value string) *UI {
+	ta := textarea.New()
+	ta.Focus()
+	ta.SetValue(value)
+	ta.MoveToBegin()
+	return &UI{
+		dialog:   dialog.NewOverlay(),
+		focus:    uiFocusEditor,
+		state:    uiLanding,
+		textarea: ta,
+		vi:       viState{enabled: true, mode: viNormal},
+	}
 }

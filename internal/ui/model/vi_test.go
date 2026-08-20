@@ -3,7 +3,9 @@ package model
 import (
 	"testing"
 
+	"charm.land/bubbles/v2/textarea"
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/crush/internal/ui/dialog"
 	"github.com/stretchr/testify/require"
 )
 
@@ -88,4 +90,26 @@ func TestViKeyMsg(t *testing.T) {
 	msg = viKeyMsg(tea.KeyRight, tea.ModAlt)
 	require.Equal(t, tea.KeyRight, msg.Code)
 	require.Equal(t, tea.ModAlt, msg.Mod)
+}
+
+func TestViNormalModeRoutesEditorKeys(t *testing.T) {
+	t.Parallel()
+
+	ta := textarea.New()
+	ta.Focus()
+	ta.SetValue("hello")
+	ta.MoveToEnd()
+	ui := &UI{
+		dialog:   dialog.NewOverlay(),
+		focus:    uiFocusEditor,
+		state:    uiLanding,
+		textarea: ta,
+		vi:       viState{enabled: true, mode: viNormal},
+	}
+
+	ui.handleKeyPressMsg(tea.KeyPressMsg{Code: 'h'})
+	require.Equal(t, 4, ui.textarea.Column())
+
+	ui.handleKeyPressMsg(tea.KeyPressMsg{Code: 'z'})
+	require.Equal(t, "hello", ui.textarea.Value())
 }

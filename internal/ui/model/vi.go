@@ -3,7 +3,6 @@ package model
 import (
 	"strings"
 
-	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 )
 
@@ -106,7 +105,7 @@ func (m *UI) viHandleNormalKey(msg tea.KeyPressMsg) (consumed bool, cmd tea.Cmd)
 		m.viEnterInsert()
 
 	default:
-		return false, nil
+		return true, nil
 	}
 
 	return true, nil
@@ -266,10 +265,4 @@ func (m *UI) viModeIndicator() string {
 		return "NORMAL"
 	}
 	return "INSERT"
-}
-
-// viShouldInterceptKey returns whether the vi normal mode should consume
-// the given key instead of passing it to the textarea.
-func (m *UI) viShouldInterceptKey(_ key.Binding) bool {
-	return m.viIsNormal()
 }

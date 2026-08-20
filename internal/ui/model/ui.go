@@ -441,6 +441,11 @@ func New(com *common.Common, initialSessionID string, continueLast bool) *UI {
 		initialSessionID:    initialSessionID,
 		continueLastSession: continueLast,
 		skillStates:         skills.GetLatestStates(),
+		vi: viState{
+			enabled:         com.Config().Options.TUI.ViMode,
+			mode:            viInsert,
+			baseCursorShape: ta.Styles().Cursor.Shape,
+		},
 	}
 
 	status := NewStatus(com, ui)
@@ -2348,6 +2353,20 @@ func (m *UI) handleKeyPressMsg(msg tea.KeyPressMsg) tea.Cmd {
 	case uiChat, uiLanding:
 		switch m.focus {
 		case uiFocusEditor:
+			if m.viEnabled() && key.Matches(msg, m.keyMap.Editor.Escape) {
+				m.closeCompletions()
+				m.viEnterNormal()
+				return tea.Batch(cmds...)
+			}
+			if m.viIsNormal() {
+				if consumed, cmd := m.viHandleNormalKey(msg); consumed {
+					if cmd != nil {
+						cmds = append(cmds, cmd)
+					}
+					return tea.Batch(cmds...)
+				}
+			}
+
 			// Handle completions if open.
 			if m.completionsOpen {
 				if msg, ok := m.completions.Update(msg); ok {

@@ -57,9 +57,11 @@ pulling a new upstream release, use this list to ensure nothing is lost.
 
 ### Vi-Style Editor Keybindings
 
-- **Files**: `internal/ui/model/vi.go`
-- The text editor supports vi-style navigation (normal/insert mode toggle,
-  `hjkl` movement, etc.).
+- **Files**: `internal/ui/model/vi.go`, `internal/ui/model/ui.go`,
+  `internal/ui/model/vi_test.go`
+- With `options.tui.vi_mode` enabled, the text editor starts in insert mode;
+  Escape returns to normal mode, and normal-mode keys are intercepted before
+  editor history, completions, and text insertion.
 
 ### Hashline Edit Tool
 

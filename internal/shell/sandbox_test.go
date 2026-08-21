@@ -169,11 +169,19 @@ func TestResolveWritablePaths(t *testing.T) {
 	require.Equal(t, []string{"/home/user/go/pkg/mod", "/tmp/crush-cache"}, paths)
 }
 
+func TestResolveHiddenPaths(t *testing.T) {
+	t.Parallel()
+
+	paths, err := ResolveHiddenPaths([]string{"~/.aws", "/etc/ssl"}, "/home/user")
+	require.NoError(t, err)
+	require.Equal(t, []string{"/home/user/.aws", "/etc/ssl"}, paths)
+}
+
 func TestValidateHiddenPaths(t *testing.T) {
 	t.Parallel()
 
-	require.NoError(t, ValidateHiddenPaths([]string{"/home/user/.aws"}))
-	require.ErrorContains(t, ValidateHiddenPaths([]string{".aws"}), "must be an absolute path")
+	require.NoError(t, ValidateHiddenPaths([]string{"/home/user/.aws", "~/.ssh"}, "/home/user"))
+	require.ErrorContains(t, ValidateHiddenPaths([]string{".aws"}, "/home/user"), "must be an absolute path")
 }
 
 func TestSandboxWritablePolicy(t *testing.T) {

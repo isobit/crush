@@ -29,6 +29,17 @@ func TestValidateSandbox(t *testing.T) {
 		require.Equal(t, []string{home + "/.cache/crush"}, cfg.Options.Sandbox.WritablePaths)
 	})
 
+	t.Run("expands home hidden path", func(t *testing.T) {
+		t.Parallel()
+		home, err := os.UserHomeDir()
+		require.NoError(t, err)
+		cfg := &Config{Options: &Options{
+			Sandbox: &SandboxOptions{HiddenPaths: []string{"~/.aws"}},
+		}}
+		require.NoError(t, cfg.ValidateSandbox())
+		require.Equal(t, []string{home + "/.aws"}, cfg.Options.Sandbox.HiddenPaths)
+	})
+
 	t.Run("rejects protected writable path", func(t *testing.T) {
 		t.Parallel()
 		cfg := &Config{Options: &Options{

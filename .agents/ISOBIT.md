@@ -242,8 +242,9 @@ pulling a new upstream release, use this list to ensure nothing is lost.
   system and credential path policy, and make every sandboxed bash call use
   the elevated `bash:execute` action. Per-command `sandbox_writable_paths`
   are combined with these defaults.
-- `hidden_paths`: absolute files/dirs to hide from the sandbox. Each is
-  masked by binding a placeholder over it (`--ro-bind <placeholder> <path>`):
+- `hidden_paths`: absolute files/dirs, or paths beginning with `~/`, to hide
+  from the sandbox. Each is resolved and masked by binding a placeholder over
+  it (`--ro-bind <placeholder> <path>`):
   a notice file for files, a notice-containing directory for directories
   (bind source/dest types must match). The placeholder explains the path is
   hidden. Hidden binds are appended after the writable binds so they win when

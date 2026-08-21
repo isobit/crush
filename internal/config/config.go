@@ -333,10 +333,10 @@ type Options struct {
 type SandboxOptions struct {
 	Mode          *string  `json:"mode,omitempty" jsonschema:"description=Sandbox mode. auto enables when bwrap is available on Linux; on always enables (fails if unavailable); off disables entirely,enum=auto,enum=on,enum=off,default=off"`
 	WritablePaths []string `json:"writable_paths,omitempty" jsonschema:"description=Absolute files or directories or paths beginning with ~/ are writable inside the sandbox by default. Relative paths plus protected system and credential paths are rejected.,example=~/.cache"`
-	// HiddenPaths are absolute files or directories that should not be
-	// visible inside the sandbox. Each is masked with a placeholder that
-	// explains the path is hidden.
-	HiddenPaths []string `json:"hidden_paths,omitempty" jsonschema:"description=Absolute files or directories to hide inside the sandbox. Each path is masked with a placeholder explaining it is hidden.,example=/home/user/.aws"`
+	// HiddenPaths are absolute files or directories, or paths beginning with
+	// ~/, that should not be visible inside the sandbox. Each is masked with
+	// a placeholder that explains the path is hidden.
+	HiddenPaths []string `json:"hidden_paths,omitempty" jsonschema:"description=Absolute files or directories or paths beginning with ~/ to hide inside the sandbox. Each path is masked with a placeholder explaining it is hidden.,example=~/.aws"`
 }
 
 type MCPs map[string]MCPConfig

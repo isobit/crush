@@ -727,11 +727,11 @@
           "items": {
             "type": "string",
             "examples": [
-              "/home/user/.aws"
+              "~/.aws"
             ]
           },
           "type": "array",
-          "description": "Absolute files or directories to hide inside the sandbox. Each path is masked with a placeholder explaining it is hidden."
+          "description": "Absolute files or directories or paths beginning with ~/ to hide inside the sandbox. Each path is masked with a placeholder explaining it is hidden."
         }
       },
       "additionalProperties": false,

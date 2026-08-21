@@ -68,34 +68,55 @@ var protectedHomeDirs = []string{
 	".config/crush",
 }
 
+// resolveSandboxPaths expands a leading home-directory marker and rejects
+// relative paths. It returns cleaned absolute paths for sandbox use.
+func resolveSandboxPaths(paths []string, home string, invalidPath func(string) error) ([]string, error) {
+	resolvedPaths := make([]string, 0, len(paths))
+	for _, path := range paths {
+		resolved := path
+		if path == "~" || strings.HasPrefix(path, "~/") {
+			resolved = filepath.Join(home, strings.TrimPrefix(path, "~/"))
+		}
+		if !filepath.IsAbs(resolved) {
+			return nil, invalidPath(path)
+		}
+		resolvedPaths = append(resolvedPaths, filepath.Clean(resolved))
+	}
+	return resolvedPaths, nil
+}
+
 // ResolveWritablePaths expands a leading home-directory marker and validates
 // requested writable paths. Relative paths remain invalid. It returns the
 // cleaned absolute paths that must be passed to the sandbox.
 func ResolveWritablePaths(dirs []string, home string) ([]string, error) {
-	paths := make([]string, 0, len(dirs))
-	for _, dir := range dirs {
-		resolved := dir
-		if dir == "~" || strings.HasPrefix(dir, "~/") {
-			resolved = filepath.Join(home, strings.TrimPrefix(dir, "~/"))
-		}
-		if !filepath.IsAbs(resolved) {
-			return nil, &InvalidSandboxPathError{Path: dir, Reason: "must be an absolute path"}
-		}
-		cleaned := filepath.Clean(resolved)
-		if slices.Contains(protectedPaths, cleaned) {
-			return nil, &InvalidSandboxPathError{Path: dir, Reason: "protected system path"}
+	paths, err := resolveSandboxPaths(dirs, home, func(path string) error {
+		return &InvalidSandboxPathError{Path: path, Reason: "must be an absolute path"}
+	})
+	if err != nil {
+		return nil, err
+	}
+	for i, path := range paths {
+		if slices.Contains(protectedPaths, path) {
+			return nil, &InvalidSandboxPathError{Path: dirs[i], Reason: "protected system path"}
 		}
 		if home != "" {
 			for _, sub := range protectedHomeDirs {
 				protected := filepath.Join(home, sub)
-				if cleaned == protected || strings.HasPrefix(cleaned, protected+"/") {
-					return nil, &InvalidSandboxPathError{Path: dir, Reason: "protected home directory"}
+				if path == protected || strings.HasPrefix(path, protected+"/") {
+					return nil, &InvalidSandboxPathError{Path: dirs[i], Reason: "protected home directory"}
 				}
 			}
 		}
-		paths = append(paths, cleaned)
 	}
 	return paths, nil
+}
+
+// ResolveHiddenPaths expands a leading home-directory marker and rejects
+// relative paths. It returns the cleaned absolute paths to hide.
+func ResolveHiddenPaths(paths []string, home string) ([]string, error) {
+	return resolveSandboxPaths(paths, home, func(path string) error {
+		return &InvalidSandboxHiddenPathError{Path: path}
+	})
 }
 
 // ValidateWritablePaths checks that requested writable paths are safe.
@@ -105,13 +126,9 @@ func ValidateWritablePaths(dirs []string, home string) error {
 	return err
 }
 
-func ValidateHiddenPaths(paths []string) error {
-	for _, path := range paths {
-		if !filepath.IsAbs(path) {
-			return &InvalidSandboxHiddenPathError{Path: path}
-		}
-	}
-	return nil
+func ValidateHiddenPaths(paths []string, home string) error {
+	_, err := ResolveHiddenPaths(paths, home)
+	return err
 }
 
 // InvalidSandboxPathError is returned when a requested writable path is

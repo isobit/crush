@@ -1377,12 +1377,17 @@ func (c *Config) ValidateSandbox() error {
 		return nil
 	}
 	home, _ := os.UserHomeDir()
-	paths, err := shell.ResolveWritablePaths(c.Options.Sandbox.WritablePaths, home)
+	writablePaths, err := shell.ResolveWritablePaths(c.Options.Sandbox.WritablePaths, home)
 	if err != nil {
 		return err
 	}
-	c.Options.Sandbox.WritablePaths = paths
-	return shell.ValidateHiddenPaths(c.Options.Sandbox.HiddenPaths)
+	hiddenPaths, err := shell.ResolveHiddenPaths(c.Options.Sandbox.HiddenPaths, home)
+	if err != nil {
+		return err
+	}
+	c.Options.Sandbox.WritablePaths = writablePaths
+	c.Options.Sandbox.HiddenPaths = hiddenPaths
+	return nil
 }
 
 // ValidateHooks normalizes event names and checks that every configured

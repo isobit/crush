@@ -526,8 +526,8 @@ You can also skip all permission prompts entirely by running Crush with the
 On Linux, Bash commands can run inside a bubblewrap sandbox. Configure
 `options.sandbox.writable_paths` to grant default write access outside the
 working directory and `/tmp`, and `hidden_paths` to mask sensitive paths.
-Writable paths may be absolute or start with `~/`; hidden paths must be
-absolute. Protected system and credential paths cannot be writable.
+Writable and hidden paths may be absolute or start with `~/`. Protected system
+and credential paths cannot be writable.
 
 ```json
 {

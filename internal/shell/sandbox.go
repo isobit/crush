@@ -91,6 +91,15 @@ func ValidateWritablePaths(dirs []string, home string) error {
 	return nil
 }
 
+func ValidateHiddenPaths(paths []string) error {
+	for _, path := range paths {
+		if !filepath.IsAbs(path) {
+			return &InvalidSandboxHiddenPathError{Path: path}
+		}
+	}
+	return nil
+}
+
 // InvalidSandboxPathError is returned when a requested writable path is
 // not allowed.
 type InvalidSandboxPathError struct {
@@ -100,6 +109,14 @@ type InvalidSandboxPathError struct {
 
 func (e *InvalidSandboxPathError) Error() string {
 	return "invalid sandbox writable path " + e.Path + ": " + e.Reason
+}
+
+type InvalidSandboxHiddenPathError struct {
+	Path string
+}
+
+func (e *InvalidSandboxHiddenPathError) Error() string {
+	return "invalid sandbox hidden path " + e.Path + ": must be an absolute path"
 }
 
 var (

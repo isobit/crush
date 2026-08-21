@@ -24,11 +24,19 @@ func sandboxHiddenPathsFromConfig(opts *config.Options) []string {
 	return opts.Sandbox.HiddenPaths
 }
 
+func sandboxWritablePathsFromConfig(opts *config.Options) []string {
+	if opts == nil || opts.Sandbox == nil {
+		return nil
+	}
+	return opts.Sandbox.WritablePaths
+}
+
 // buildBashSandboxOptions constructs sandbox options from config for the
 // bash tool.
 func buildBashSandboxOptions(opts *config.Options) tools.BashSandboxOptions {
 	return tools.BashSandboxOptions{
-		Mode:        sandboxModeFromConfig(opts),
-		HiddenPaths: sandboxHiddenPathsFromConfig(opts),
+		Mode:          sandboxModeFromConfig(opts),
+		WritablePaths: sandboxWritablePathsFromConfig(opts),
+		HiddenPaths:   sandboxHiddenPathsFromConfig(opts),
 	}
 }

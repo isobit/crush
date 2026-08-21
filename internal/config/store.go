@@ -1047,6 +1047,9 @@ func (s *ConfigStore) reloadFromDiskLocked(ctx context.Context) error {
 	if err := cfg.ValidateHooks(); err != nil {
 		return fmt.Errorf("invalid hook configuration on reload: %w", err)
 	}
+	if err := cfg.ValidateSandbox(); err != nil {
+		return fmt.Errorf("invalid sandbox configuration on reload: %w", err)
+	}
 
 	// Preserve runtime overrides
 	overrides := s.overrides

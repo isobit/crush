@@ -217,23 +217,30 @@ pulling a new upstream release, use this list to ensure nothing is lost.
   `internal/agent/sandbox_test.go`, `internal/agent/tools/bash.go`,
   `internal/agent/tools/bash.tpl`, `internal/shell/shell.go`,
   `internal/shell/background.go`, `internal/config/config.go`,
+  `internal/config/load.go`, `internal/config/store.go`,
+  `internal/config/sandbox_test.go`, `README.md`,
   `internal/ui/dialog/permissions.go`
 - On Linux, bash commands can run inside a bubblewrap (`bwrap`) sandbox
   providing filesystem and network isolation via kernel namespaces.
 - Configured via `crush.json` `options.sandbox` struct:
   ```json
-  { "sandbox": { "mode": "off", "hidden_paths": [] } }
+  { "sandbox": { "mode": "off", "writable_paths": [], "hidden_paths": [] } }
   ```
 - `mode`: `"off"` (default) disables sandboxing; `"auto"` enables when
   `bwrap` is on `$PATH` and the platform is Linux; `"on"` fails loudly if
-  unavailable. `mode` is the only sandbox knob: network is always off by
-  default and there is no config gate for running unsandboxed; both are
-  requested per-command by the model and gated by action permissions.
+  unavailable. Network is always off by default and there is no config gate
+  for running unsandboxed; both are requested per-command by the model and
+  gated by action permissions.
 - The root filesystem is bind-mounted read-only (`--ro-bind / /`). Only the
   working directory, `/tmp`, `/dev`, `/proc`, and configured `WritablePaths`
   are writable, and those writes go straight to the real filesystem. There is
   no overlay: writes outside the writable roots fail rather than being
   discarded or accumulated.
+- `writable_paths`: absolute files/dirs that are writable by default, in
+  addition to the working directory and `/tmp`. They are validated during
+  config loading against the protected system and credential path policy, and
+  make every sandboxed bash call use the elevated `bash:execute` action.
+  Per-command `sandbox_writable_paths` are combined with these defaults.
 - `hidden_paths`: absolute files/dirs to hide from the sandbox. Each is
   masked by binding a placeholder over it (`--ro-bind <placeholder> <path>`):
   a notice file for files, a notice-containing directory for directories

@@ -72,3 +72,40 @@ func TestSandboxHiddenPathsFromConfig(t *testing.T) {
 		}))
 	})
 }
+
+func TestSandboxWritablePathsFromConfig(t *testing.T) {
+	t.Parallel()
+
+	t.Run("nil opts", func(t *testing.T) {
+		t.Parallel()
+		require.Nil(t, sandboxWritablePathsFromConfig(nil))
+	})
+
+	t.Run("nil sandbox", func(t *testing.T) {
+		t.Parallel()
+		require.Nil(t, sandboxWritablePathsFromConfig(&config.Options{}))
+	})
+
+	t.Run("paths", func(t *testing.T) {
+		t.Parallel()
+		require.Equal(t, []string{"/home/user/.cache"}, sandboxWritablePathsFromConfig(&config.Options{
+			Sandbox: &config.SandboxOptions{WritablePaths: []string{"/home/user/.cache"}},
+		}))
+	})
+}
+
+func TestBuildBashSandboxOptions(t *testing.T) {
+	t.Parallel()
+
+	opts := buildBashSandboxOptions(&config.Options{
+		Sandbox: &config.SandboxOptions{
+			Mode:          ptr("on"),
+			WritablePaths: []string{"/home/user/.cache"},
+			HiddenPaths:   []string{"/home/user/.aws"},
+		},
+	})
+
+	require.Equal(t, shell.SandboxModeOn, opts.Mode)
+	require.Equal(t, []string{"/home/user/.cache"}, opts.WritablePaths)
+	require.Equal(t, []string{"/home/user/.aws"}, opts.HiddenPaths)
+}

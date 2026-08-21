@@ -26,6 +26,7 @@ import (
 	"github.com/charmbracelet/crush/internal/filepathext"
 	"github.com/charmbracelet/crush/internal/fsext"
 	"github.com/charmbracelet/crush/internal/home"
+	"github.com/charmbracelet/crush/internal/shell"
 	powernapConfig "github.com/charmbracelet/x/powernap/pkg/config"
 	"github.com/qjebbs/go-jsons"
 	"github.com/tailscale/hujson"
@@ -136,6 +137,9 @@ func Load(workingDir, dataDir string, debug bool, opts ...LoadOption) (*ConfigSt
 	// hooks also get their matcher regexes compiled.
 	if err := cfg.ValidateHooks(); err != nil {
 		return nil, fmt.Errorf("invalid hook configuration: %w", err)
+	}
+	if err := cfg.ValidateSandbox(); err != nil {
+		return nil, fmt.Errorf("invalid sandbox configuration: %w", err)
 	}
 
 	if !isInsideWorktree() {
@@ -1366,6 +1370,17 @@ func normalizeHookEvent(name string) string {
 	default:
 		return name
 	}
+}
+
+func (c *Config) ValidateSandbox() error {
+	if c.Options == nil || c.Options.Sandbox == nil {
+		return nil
+	}
+	home, _ := os.UserHomeDir()
+	if err := shell.ValidateWritablePaths(c.Options.Sandbox.WritablePaths, home); err != nil {
+		return err
+	}
+	return shell.ValidateHiddenPaths(c.Options.Sandbox.HiddenPaths)
 }
 
 // ValidateHooks normalizes event names and checks that every configured

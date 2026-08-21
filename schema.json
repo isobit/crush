@@ -713,6 +713,16 @@
           "description": "Sandbox mode. auto enables when bwrap is available on Linux; on always enables (fails if unavailable); off disables entirely",
           "default": "off"
         },
+        "writable_paths": {
+          "items": {
+            "type": "string",
+            "examples": [
+              "/home/user/.cache"
+            ]
+          },
+          "type": "array",
+          "description": "Absolute files or directories to make writable inside the sandbox by default. Protected system and credential paths are rejected."
+        },
         "hidden_paths": {
           "items": {
             "type": "string",

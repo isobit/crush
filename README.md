@@ -521,6 +521,31 @@ permissions. Use this with care.
 You can also skip all permission prompts entirely by running Crush with the
 `--yolo` flag. Be very, very careful with this feature.
 
+### Bash Sandbox
+
+On Linux, Bash commands can run inside a bubblewrap sandbox. Configure
+`options.sandbox.writable_paths` to grant default write access outside the
+working directory and `/tmp`, and `hidden_paths` to mask sensitive paths.
+Both lists require absolute paths. Protected system and credential paths cannot
+be writable.
+
+```json
+{
+  "$schema": "https://charm.land/crush.json",
+  "options": {
+    "sandbox": {
+      "mode": "auto",
+      "writable_paths": ["/home/user/.cache"],
+      "hidden_paths": ["/home/user/.aws", "/home/user/.ssh"]
+    }
+  }
+}
+```
+
+Configured writable paths are persistent real-filesystem writes and therefore
+use the elevated `bash:execute` permission action. Hidden paths cannot be read
+inside the sandbox, including through shell redirections.
+
 ### Disabling Built-In Tools
 
 If you'd like to prevent Crush from using certain built-in tools entirely, you

@@ -59,6 +59,18 @@ func (m *mockBashPermissionService) ListSessionPermissions(sessionID string) []p
 }
 func (m *mockBashPermissionService) DeleteSessionPermission(sessionID string, permissionID string) {}
 
+func TestMergeWritablePaths(t *testing.T) {
+	t.Parallel()
+
+	require.Equal(t,
+		[]string{"/home/user/.cache", "/home/user/go"},
+		mergeWritablePaths(
+			[]string{"/home/user/.cache"},
+			[]string{"/home/user/.cache", "/home/user/go"},
+		),
+	)
+}
+
 func TestBashTool_DefaultAutoBackgroundThreshold(t *testing.T) {
 	workingDir := t.TempDir()
 	tool := newBashToolForTest(workingDir)

@@ -150,6 +150,13 @@ func TestValidateWritablePaths(t *testing.T) {
 	}
 }
 
+func TestValidateHiddenPaths(t *testing.T) {
+	t.Parallel()
+
+	require.NoError(t, ValidateHiddenPaths([]string{"/home/user/.aws"}))
+	require.ErrorContains(t, ValidateHiddenPaths([]string{".aws"}), "must be an absolute path")
+}
+
 func TestSandboxWritablePolicy(t *testing.T) {
 	t.Parallel()
 

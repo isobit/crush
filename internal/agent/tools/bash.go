@@ -216,10 +216,24 @@ func blockFuncs() []shell.BlockFunc {
 
 // BashSandboxOptions holds resolved sandbox settings for the bash tool.
 type BashSandboxOptions struct {
-	Mode shell.SandboxMode
+	Mode          shell.SandboxMode
+	WritablePaths []string
 	// HiddenPaths are files or directories hidden inside the sandbox,
 	// configured via options.sandbox.hidden_paths.
 	HiddenPaths []string
+}
+
+func mergeWritablePaths(defaults, requested []string) []string {
+	paths := make([]string, 0, len(defaults)+len(requested))
+	seen := make(map[string]struct{}, len(defaults)+len(requested))
+	for _, path := range append(defaults, requested...) {
+		if _, ok := seen[path]; ok {
+			continue
+		}
+		seen[path] = struct{}{}
+		paths = append(paths, path)
+	}
+	return paths
 }
 
 func NewBashTool(permissions permission.Service, workingDir string, attribution *config.Attribution, modelID string, sandboxOpts BashSandboxOptions) fantasy.AgentTool {
@@ -240,6 +254,7 @@ func NewBashTool(permissions permission.Service, workingDir string, attribution 
 			// or a per-command no_sandbox opt-out).
 			sandboxActive := sandboxEnabled && !params.NoSandbox
 			var sandboxCfg *shell.SandboxConfig
+			writablePaths := mergeWritablePaths(sandboxOpts.WritablePaths, params.SandboxWritablePaths)
 			if sandboxActive {
 				// Validate requested writable paths.
 				if len(params.SandboxWritablePaths) > 0 {
@@ -250,7 +265,7 @@ func NewBashTool(permissions permission.Service, workingDir string, attribution 
 				}
 				sandboxCfg = &shell.SandboxConfig{
 					Enabled:       true,
-					WritablePaths: params.SandboxWritablePaths,
+					WritablePaths: writablePaths,
 					HiddenPaths:   sandboxOpts.HiddenPaths,
 					Network:       params.SandboxNetwork,
 				}
@@ -261,7 +276,7 @@ func NewBashTool(permissions permission.Service, workingDir string, attribution 
 			// writable paths) uses a distinct action so it can be
 			// allowlisted independently of riskier postures.
 			action := BashActionExecute
-			if sandboxActive && !params.SandboxNetwork && len(params.SandboxWritablePaths) == 0 {
+			if sandboxActive && !params.SandboxNetwork && len(writablePaths) == 0 {
 				action = BashActionExecuteSandboxed
 			}
 

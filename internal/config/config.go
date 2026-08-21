@@ -332,7 +332,7 @@ type Options struct {
 // SandboxOptions configures OS-level isolation for bash commands.
 type SandboxOptions struct {
 	Mode          *string  `json:"mode,omitempty" jsonschema:"description=Sandbox mode. auto enables when bwrap is available on Linux; on always enables (fails if unavailable); off disables entirely,enum=auto,enum=on,enum=off,default=off"`
-	WritablePaths []string `json:"writable_paths,omitempty" jsonschema:"description=Absolute files or directories to make writable inside the sandbox by default. Protected system and credential paths are rejected.,example=/home/user/.cache"`
+	WritablePaths []string `json:"writable_paths,omitempty" jsonschema:"description=Absolute files or directories or paths beginning with ~/ are writable inside the sandbox by default. Relative paths plus protected system and credential paths are rejected.,example=~/.cache"`
 	// HiddenPaths are absolute files or directories that should not be
 	// visible inside the sandbox. Each is masked with a placeholder that
 	// explains the path is hidden.

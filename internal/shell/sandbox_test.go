@@ -24,9 +24,20 @@ func TestValidateWritablePaths(t *testing.T) {
 			home: "/home/user",
 		},
 		{
+			name: "home paths expanded",
+			dirs: []string{"~/go/pkg/mod", "~/.cache/pip"},
+			home: "/home/user",
+		},
+		{
 			name:    "relative path rejected",
 			dirs:    []string{"./relative/path"},
 			home:    "/home/user",
+			wantErr: "must be an absolute path",
+		},
+		{
+			name:    "unresolved home path rejected",
+			dirs:    []string{"~/go/pkg/mod"},
+			home:    "",
 			wantErr: "must be an absolute path",
 		},
 		{
@@ -148,6 +159,14 @@ func TestValidateWritablePaths(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestResolveWritablePaths(t *testing.T) {
+	t.Parallel()
+
+	paths, err := ResolveWritablePaths([]string{"~/go/pkg/mod", "/tmp/crush-cache"}, "/home/user")
+	require.NoError(t, err)
+	require.Equal(t, []string{"/home/user/go/pkg/mod", "/tmp/crush-cache"}, paths)
 }
 
 func TestValidateHiddenPaths(t *testing.T) {

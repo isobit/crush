@@ -236,11 +236,12 @@ pulling a new upstream release, use this list to ensure nothing is lost.
   are writable, and those writes go straight to the real filesystem. There is
   no overlay: writes outside the writable roots fail rather than being
   discarded or accumulated.
-- `writable_paths`: absolute files/dirs that are writable by default, in
-  addition to the working directory and `/tmp`. They are validated during
-  config loading against the protected system and credential path policy, and
-  make every sandboxed bash call use the elevated `bash:execute` action.
-  Per-command `sandbox_writable_paths` are combined with these defaults.
+- `writable_paths`: absolute files/dirs, or paths beginning with `~/`, that
+  are writable by default, in addition to the working directory and `/tmp`.
+  They are resolved and validated during config loading against the protected
+  system and credential path policy, and make every sandboxed bash call use
+  the elevated `bash:execute` action. Per-command `sandbox_writable_paths`
+  are combined with these defaults.
 - `hidden_paths`: absolute files/dirs to hide from the sandbox. Each is
   masked by binding a placeholder over it (`--ro-bind <placeholder> <path>`):
   a notice file for files, a notice-containing directory for directories

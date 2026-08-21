@@ -1377,9 +1377,11 @@ func (c *Config) ValidateSandbox() error {
 		return nil
 	}
 	home, _ := os.UserHomeDir()
-	if err := shell.ValidateWritablePaths(c.Options.Sandbox.WritablePaths, home); err != nil {
+	paths, err := shell.ResolveWritablePaths(c.Options.Sandbox.WritablePaths, home)
+	if err != nil {
 		return err
 	}
+	c.Options.Sandbox.WritablePaths = paths
 	return shell.ValidateHiddenPaths(c.Options.Sandbox.HiddenPaths)
 }
 

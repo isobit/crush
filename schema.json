@@ -717,11 +717,11 @@
           "items": {
             "type": "string",
             "examples": [
-              "/home/user/.cache"
+              "~/.cache"
             ]
           },
           "type": "array",
-          "description": "Absolute files or directories to make writable inside the sandbox by default. Protected system and credential paths are rejected."
+          "description": "Absolute files or directories or paths beginning with ~/ are writable inside the sandbox by default. Relative paths plus protected system and credential paths are rejected."
         },
         "hidden_paths": {
           "items": {

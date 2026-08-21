@@ -68,27 +68,41 @@ var protectedHomeDirs = []string{
 	".config/crush",
 }
 
-// ValidateWritablePaths checks that requested writable paths are safe.
-// Returns an error describing the first invalid path found.
-func ValidateWritablePaths(dirs []string, home string) error {
+// ResolveWritablePaths expands a leading home-directory marker and validates
+// requested writable paths. Relative paths remain invalid. It returns the
+// cleaned absolute paths that must be passed to the sandbox.
+func ResolveWritablePaths(dirs []string, home string) ([]string, error) {
+	paths := make([]string, 0, len(dirs))
 	for _, dir := range dirs {
-		if !filepath.IsAbs(dir) {
-			return &InvalidSandboxPathError{Path: dir, Reason: "must be an absolute path"}
+		resolved := dir
+		if dir == "~" || strings.HasPrefix(dir, "~/") {
+			resolved = filepath.Join(home, strings.TrimPrefix(dir, "~/"))
 		}
-		cleaned := filepath.Clean(dir)
+		if !filepath.IsAbs(resolved) {
+			return nil, &InvalidSandboxPathError{Path: dir, Reason: "must be an absolute path"}
+		}
+		cleaned := filepath.Clean(resolved)
 		if slices.Contains(protectedPaths, cleaned) {
-			return &InvalidSandboxPathError{Path: dir, Reason: "protected system path"}
+			return nil, &InvalidSandboxPathError{Path: dir, Reason: "protected system path"}
 		}
 		if home != "" {
 			for _, sub := range protectedHomeDirs {
 				protected := filepath.Join(home, sub)
 				if cleaned == protected || strings.HasPrefix(cleaned, protected+"/") {
-					return &InvalidSandboxPathError{Path: dir, Reason: "protected home directory"}
+					return nil, &InvalidSandboxPathError{Path: dir, Reason: "protected home directory"}
 				}
 			}
 		}
+		paths = append(paths, cleaned)
 	}
-	return nil
+	return paths, nil
+}
+
+// ValidateWritablePaths checks that requested writable paths are safe.
+// Returns an error describing the first invalid path found.
+func ValidateWritablePaths(dirs []string, home string) error {
+	_, err := ResolveWritablePaths(dirs, home)
+	return err
 }
 
 func ValidateHiddenPaths(paths []string) error {

@@ -254,15 +254,19 @@ func NewBashTool(permissions permission.Service, workingDir string, attribution 
 			// or a per-command no_sandbox opt-out).
 			sandboxActive := sandboxEnabled && !params.NoSandbox
 			var sandboxCfg *shell.SandboxConfig
-			writablePaths := mergeWritablePaths(sandboxOpts.WritablePaths, params.SandboxWritablePaths)
+			writablePaths := sandboxOpts.WritablePaths
 			if sandboxActive {
-				// Validate requested writable paths.
-				if len(params.SandboxWritablePaths) > 0 {
+				// Resolve and validate requested writable paths.
+				requestedPaths := params.SandboxWritablePaths
+				if len(requestedPaths) > 0 {
 					home, _ := os.UserHomeDir()
-					if err := shell.ValidateWritablePaths(params.SandboxWritablePaths, home); err != nil {
+					var err error
+					requestedPaths, err = shell.ResolveWritablePaths(requestedPaths, home)
+					if err != nil {
 						return fantasy.NewTextErrorResponse(err.Error()), nil
 					}
 				}
+				writablePaths = mergeWritablePaths(sandboxOpts.WritablePaths, requestedPaths)
 				sandboxCfg = &shell.SandboxConfig{
 					Enabled:       true,
 					WritablePaths: writablePaths,

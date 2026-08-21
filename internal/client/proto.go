@@ -755,6 +755,21 @@ func (c *Client) DeleteSession(ctx context.Context, id string, sessionID string)
 	return nil
 }
 
+func (c *Client) RetryMessage(ctx context.Context, id, sessionID, messageID string) error {
+	rsp, err := c.post(ctx, fmt.Sprintf("/workspaces/%s/agent/retry", id), nil, jsonBody(struct {
+		SessionID string `json:"session_id"`
+		MessageID string `json:"message_id"`
+	}{SessionID: sessionID, MessageID: messageID}), http.Header{"Content-Type": []string{"application/json"}})
+	if err != nil {
+		return fmt.Errorf("failed to retry message: %w", err)
+	}
+	defer rsp.Body.Close()
+	if rsp.StatusCode != http.StatusAccepted {
+		return fmt.Errorf("failed to retry message: status code %d", rsp.StatusCode)
+	}
+	return nil
+}
+
 // ListUserMessages retrieves user-role messages for a session as proto types.
 func (c *Client) ListUserMessages(ctx context.Context, id string, sessionID string) ([]proto.Message, error) {
 	rsp, err := c.get(ctx, fmt.Sprintf("/workspaces/%s/sessions/%s/messages/user", id, sessionID), nil, nil)

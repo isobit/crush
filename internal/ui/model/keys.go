@@ -46,6 +46,7 @@ type KeyMap struct {
 		Copy           key.Binding
 		ClearHighlight key.Binding
 		Expand         key.Binding
+		Retry          key.Binding
 		DeleteMessage  key.Binding
 		ScrollLeft     key.Binding
 		ScrollRight    key.Binding
@@ -249,6 +250,10 @@ func DefaultKeyMap() KeyMap {
 	km.Chat.Expand = key.NewBinding(
 		key.WithKeys("space"),
 		key.WithHelp("space", "expand/collapse"),
+	)
+	km.Chat.Retry = key.NewBinding(
+		key.WithKeys("r"),
+		key.WithHelp("r", "retry"),
 	)
 	km.Chat.DeleteMessage = key.NewBinding(
 		key.WithKeys("d"),

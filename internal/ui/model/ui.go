@@ -170,6 +170,10 @@ type (
 		messageID string
 	}
 
+	retryMessageMsg struct {
+		err error
+	}
+
 	// sessionFilesUpdatesMsg is sent when the files for this session have been updated
 	sessionFilesUpdatesMsg struct {
 		sessionFiles []SessionFile
@@ -220,6 +224,7 @@ type UI struct {
 
 	// isCanceling tracks whether the user has pressed escape once to cancel.
 	isCanceling bool
+	retrying    bool
 
 	// bangMode tracks whether the editor is in bang (!) shell mode.
 	bangMode     bool
@@ -770,6 +775,12 @@ func (m *UI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case sendMessageMsg:
 		cmds = append(cmds, m.sendMessage(msg.Content, msg.Attachments...))
+
+	case retryMessageMsg:
+		m.retrying = false
+		if msg.err != nil {
+			cmds = append(cmds, util.ReportError(msg.err))
+		}
 
 	case userCommandsLoadedMsg:
 		m.customCommands = msg.Commands
@@ -2680,6 +2691,11 @@ func (m *UI) handleKeyPressMsg(msg tea.KeyPressMsg) tea.Cmd {
 					cmds = append(cmds, cmd)
 				}
 				m.chat.SelectLast()
+			case key.Matches(msg, m.keyMap.Chat.Retry):
+				if id := m.chat.SelectedMessageID(); id != "" && m.session != nil && !m.retrying && !m.isAgentBusy() {
+					m.retrying = true
+					cmds = append(cmds, m.retryMessage(m.session.ID, id))
+				}
 			case key.Matches(msg, m.keyMap.Chat.DeleteMessage):
 				if id := m.chat.SelectedMessageID(); id != "" {
 					cmds = append(cmds, func() tea.Msg {
@@ -3167,6 +3183,7 @@ func (m *UI) FullHelp() [][]key.Binding {
 				[]key.Binding{
 					k.Chat.Copy,
 					k.Chat.ClearHighlight,
+					k.Chat.Retry,
 				},
 			)
 			if m.pillsExpanded && hasIncompleteTodos(m.session.Todos) && m.promptQueue > 0 {
@@ -4009,6 +4026,12 @@ func (m *UI) sendMessage(content string, attachments ...message.Attachment) tea.
 		return agentRunSubmittedMsg{}
 	})
 	return tea.Batch(cmds...)
+}
+
+func (m *UI) retryMessage(sessionID, messageID string) tea.Cmd {
+	return func() tea.Msg {
+		return retryMessageMsg{err: m.com.Workspace.AgentRetry(context.Background(), sessionID, messageID)}
+	}
 }
 
 // runShellCommand executes a shell command server-side without triggering

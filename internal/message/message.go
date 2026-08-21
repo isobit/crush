@@ -4,7 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -26,6 +29,11 @@ type CreateMessageParams struct {
 	Model            string
 	Provider         string
 	IsSummaryMessage bool
+}
+
+type Retry struct {
+	Content     string
+	Attachments []Attachment
 }
 
 // Service is the public interface to the message store.
@@ -52,6 +60,7 @@ type Service interface {
 	ListUserMessages(ctx context.Context, sessionID string) ([]Message, error)
 	ListAllUserMessages(ctx context.Context) ([]Message, error)
 	Delete(ctx context.Context, id string) error
+	Retry(ctx context.Context, sessionID, messageID string) (Retry, error)
 	DeleteSessionMessages(ctx context.Context, sessionID string) error
 
 	// Flush synchronously drains any pending debounced state for the
@@ -102,6 +111,7 @@ type pendingState struct {
 
 type service struct {
 	*pubsub.Broker[Message]
+	db       *sql.DB
 	q        db.Querier
 	debounce time.Duration
 
@@ -121,6 +131,12 @@ func WithDebounce(d time.Duration) ServiceOption {
 	}
 }
 
+func WithDatabase(database *sql.DB) ServiceOption {
+	return func(s *service) {
+		s.db = database
+	}
+}
+
 func NewService(q db.Querier, opts ...ServiceOption) Service {
 	s := &service{
 		Broker:   pubsub.NewBroker[Message](),
@@ -132,6 +148,58 @@ func NewService(q db.Querier, opts ...ServiceOption) Service {
 		opt(s)
 	}
 	return s
+}
+
+func (s *service) Retry(ctx context.Context, sessionID, messageID string) (Retry, error) {
+	if err := s.FlushAll(ctx); err != nil {
+		return Retry{}, err
+	}
+	// Retry currently loads the session to identify the user-turn boundary.
+	// Revisit this if large sessions make retries noticeably slow.
+	messages, err := s.List(ctx, sessionID)
+	if err != nil {
+		return Retry{}, err
+	}
+	for assistantIndex, assistantMessage := range messages {
+		if assistantMessage.ID != messageID || assistantMessage.Role != Assistant || assistantMessage.FinishReason() != FinishReasonError {
+			continue
+		}
+		for userIndex := assistantIndex - 1; userIndex >= 0; userIndex-- {
+			userMessage := messages[userIndex]
+			if userMessage.Role != User {
+				continue
+			}
+			if s.db == nil {
+				return Retry{}, errors.New("message retries require a database connection")
+			}
+			tx, err := s.db.BeginTx(ctx, nil)
+			if err != nil {
+				return Retry{}, fmt.Errorf("beginning retry transaction: %w", err)
+			}
+			defer tx.Rollback() //nolint:errcheck
+			qtx := db.New(tx)
+			for index := userIndex; index <= assistantIndex; index++ {
+				if err := qtx.DeleteMessage(ctx, messages[index].ID); err != nil {
+					return Retry{}, err
+				}
+			}
+			if err := tx.Commit(); err != nil {
+				return Retry{}, fmt.Errorf("committing retry transaction: %w", err)
+			}
+			for index := userIndex; index <= assistantIndex; index++ {
+				s.Publish(pubsub.DeletedEvent, messages[index].Clone())
+			}
+			attachments := make([]Attachment, 0)
+			for _, binaryContent := range userMessage.BinaryContent() {
+				if strings.HasPrefix(binaryContent.MIMEType, "text/") {
+					continue
+				}
+				attachments = append(attachments, Attachment{FilePath: binaryContent.Path, FileName: filepath.Base(binaryContent.Path), MimeType: binaryContent.MIMEType, Content: binaryContent.Data})
+			}
+			return Retry{Content: userMessage.Content().Text, Attachments: attachments}, nil
+		}
+	}
+	return Retry{}, errors.New("failed message has no preceding user message")
 }
 
 func (s *service) Delete(ctx context.Context, id string) error {

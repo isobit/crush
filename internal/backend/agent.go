@@ -27,6 +27,18 @@ import (
 // agent.ValidateCall (ErrEmptyPrompt, ErrSessionMissing) when the prompt
 // or session is missing, and ErrWorkspaceClosing if the workspace is
 // being torn down.
+func (b *Backend) RetryMessage(ctx context.Context, workspaceID, sessionID, messageID string) error {
+	ws, err := b.GetWorkspace(workspaceID)
+	if err != nil {
+		return err
+	}
+	retry, err := ws.Messages.Retry(ctx, sessionID, messageID)
+	if err != nil {
+		return err
+	}
+	return b.SendMessage(workspaceID, proto.AgentMessage{SessionID: sessionID, Prompt: retry.Content, Attachments: proto.AttachmentsFromMessage(retry.Attachments)})
+}
+
 func (b *Backend) SendMessage(workspaceID string, msg proto.AgentMessage) error {
 	ws, err := b.GetWorkspace(workspaceID)
 	if err != nil {

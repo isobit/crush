@@ -55,6 +55,13 @@ pulling a new upstream release, use this list to ensure nothing is lost.
 - Pressing the `DeleteMessage` key binding on a selected chat message
   deletes it from the session.
 
+### Chat — Retry Failed Messages
+
+- **Files**: `internal/ui/model/ui.go`, `internal/ui/model/keys.go`,
+  `internal/message/message.go`, `internal/backend/agent.go`
+- Pressing `r` invokes a transactional server-side history rewrite that removes
+  the failed turn, then resubmits its original prompt and binary attachments.
+
 ### Vi-Style Editor Keybindings
 
 - **Files**: `internal/ui/model/vi.go`, `internal/ui/model/ui.go`,

@@ -101,6 +101,7 @@ type Workspace interface {
 
 	// Agent
 	AgentRun(ctx context.Context, sessionID, prompt string, attachments ...message.Attachment) error
+	AgentRetry(ctx context.Context, sessionID, messageID string) error
 	AgentRunShellCommand(ctx context.Context, sessionID, command string, termWidth int, onProgress func(string), isFirstMessage bool) (proto.ShellCommandResponse, error)
 	AgentCancel(sessionID string)
 	AgentIsBusy() bool

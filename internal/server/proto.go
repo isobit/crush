@@ -775,6 +775,22 @@ func (c *controllerV1) handlePostWorkspaceAgent(w http.ResponseWriter, r *http.R
 	w.WriteHeader(http.StatusAccepted)
 }
 
+func (c *controllerV1) handlePostWorkspaceAgentRetry(w http.ResponseWriter, r *http.Request) {
+	var request struct {
+		SessionID string `json:"session_id"`
+		MessageID string `json:"message_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		jsonError(w, http.StatusBadRequest, "failed to decode request")
+		return
+	}
+	if err := c.backend.RetryMessage(r.Context(), r.PathValue("id"), request.SessionID, request.MessageID); err != nil {
+		c.handleError(w, r, err)
+		return
+	}
+	w.WriteHeader(http.StatusAccepted)
+}
+
 // handlePostWorkspaceAgentInit initializes the agent for a workspace.
 //
 //	@Summary		Initialize agent

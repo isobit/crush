@@ -116,6 +116,18 @@ func (w *AppWorkspace) AgentRun(ctx context.Context, sessionID, prompt string, a
 	return err
 }
 
+func (w *AppWorkspace) AgentRetry(ctx context.Context, sessionID, messageID string) error {
+	if w.app.AgentCoordinator == nil {
+		return errors.New("agent coordinator not initialized")
+	}
+	retry, err := w.app.Messages.Retry(ctx, sessionID, messageID)
+	if err != nil {
+		return err
+	}
+	_, err = w.app.AgentCoordinator.Run(ctx, sessionID, retry.Content, retry.Attachments...)
+	return err
+}
+
 func (w *AppWorkspace) AgentRunShellCommand(ctx context.Context, sessionID, command string, termWidth int, onProgress func(string), isFirstMessage bool) (proto.ShellCommandResponse, error) {
 	var persist shell.PersistFunc
 	if sessionID != "" {

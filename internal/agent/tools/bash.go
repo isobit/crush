@@ -164,8 +164,21 @@ var bannedCommands = []string{
 	"ufw",
 }
 
-func bashDescription(attribution *config.Attribution, modelID string, sandboxEnabled bool) string {
-	bannedCommandsStr := strings.Join(bannedCommands, ", ")
+func bashDescription(attribution *config.Attribution, modelID string, sandboxEnabled bool, bashCfg config.ToolBash) string {
+	banned := append([]string(nil), bannedCommands...)
+	banned = append(banned, bashCfg.BlockedCommands...)
+	for _, rule := range bashCfg.BlockedArguments {
+		pattern := rule.Command
+		if len(rule.Arguments) > 0 {
+			pattern += " " + strings.Join(rule.Arguments, " ")
+		}
+		if len(rule.Flags) > 0 {
+			pattern += " [" + strings.Join(rule.Flags, " ") + "]"
+		}
+		banned = append(banned, pattern)
+	}
+
+	bannedCommandsStr := strings.Join(banned, ", ")
 	var out bytes.Buffer
 	if err := bashDescriptionTpl.Execute(&out, bashDescriptionData{
 		BannedCommands:  bannedCommandsStr,
@@ -182,10 +195,16 @@ func bashDescription(attribution *config.Attribution, modelID string, sandboxEna
 	return out.String()
 }
 
-func blockFuncs() []shell.BlockFunc {
-	return []shell.BlockFunc{
-		shell.CommandsBlocker(bannedCommands),
+func blockFuncs(opts BashSandboxOptions) []shell.BlockFunc {
+	blockedCommands := append([]string(nil), bannedCommands...)
+	blockedCommands = append(blockedCommands, opts.BlockedCommands...)
+	blockers := []shell.BlockFunc{shell.CommandsBlocker(blockedCommands)}
 
+	for _, rule := range opts.BlockedArguments {
+		blockers = append(blockers, shell.ArgumentsBlocker(rule.Command, rule.Arguments, rule.Flags))
+	}
+
+	return append(blockers,
 		// System package managers
 		shell.ArgumentsBlocker("apk", []string{"add"}, nil),
 		shell.ArgumentsBlocker("apt", []string{"install"}, nil),
@@ -211,13 +230,15 @@ func blockFuncs() []shell.BlockFunc {
 
 		// `go test -exec` can run arbitrary commands
 		shell.ArgumentsBlocker("go", []string{"test"}, []string{"-exec"}),
-	}
+	)
 }
 
 // BashSandboxOptions holds resolved sandbox settings for the bash tool.
 type BashSandboxOptions struct {
-	Mode          shell.SandboxMode
-	WritablePaths []string
+	Mode             shell.SandboxMode
+	WritablePaths    []string
+	BlockedCommands  []string
+	BlockedArguments []config.ToolBashArguments
 	// HiddenPaths are files or directories hidden inside the sandbox,
 	// configured via options.sandbox.hidden_paths.
 	HiddenPaths []string
@@ -240,7 +261,10 @@ func NewBashTool(permissions permission.Service, workingDir string, attribution 
 	sandboxEnabled := shell.ShouldSandbox(sandboxOpts.Mode)
 	return fantasy.NewAgentTool(
 		BashToolName,
-		string(bashDescription(attribution, modelID, sandboxEnabled)),
+		string(bashDescription(attribution, modelID, sandboxEnabled, config.ToolBash{
+			BlockedCommands:  sandboxOpts.BlockedCommands,
+			BlockedArguments: sandboxOpts.BlockedArguments,
+		})),
 		func(ctx context.Context, params BashParams, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			if params.Command == "" {
 				return fantasy.NewTextErrorResponse("missing command"), nil
@@ -329,7 +353,7 @@ func NewBashTool(permissions permission.Service, workingDir string, attribution 
 				bgManager := shell.GetBackgroundShellManager()
 				bgManager.Cleanup()
 				// Use background context so it continues after tool returns
-				bgShell, err := bgManager.Start(context.Background(), execWorkingDir, blockFuncs(), params.Command, params.Description, sandboxCfg)
+				bgShell, err := bgManager.Start(context.Background(), execWorkingDir, blockFuncs(sandboxOpts), params.Command, params.Description, sandboxCfg)
 				if err != nil {
 					return fantasy.ToolResponse{}, fmt.Errorf("error starting background shell: %w", err)
 				}
@@ -384,7 +408,7 @@ func NewBashTool(permissions permission.Service, workingDir string, attribution 
 			// Start with detached context so it can survive if moved to background
 			bgManager := shell.GetBackgroundShellManager()
 			bgManager.Cleanup()
-			bgShell, err := bgManager.Start(context.Background(), execWorkingDir, blockFuncs(), params.Command, params.Description, sandboxCfg)
+			bgShell, err := bgManager.Start(context.Background(), execWorkingDir, blockFuncs(sandboxOpts), params.Command, params.Description, sandboxCfg)
 			if err != nil {
 				return fantasy.ToolResponse{}, fmt.Errorf("error starting shell: %w", err)
 			}

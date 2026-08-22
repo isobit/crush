@@ -209,6 +209,19 @@ pulling a new upstream release, use this list to ensure nothing is lost.
 - On file-write failure, a warning is logged via `slog.Warn` and the
   content falls back to inline delivery.
 
+### Configurable Bash Command Blockers
+
+- **Files**: `internal/config/config.go`, `internal/config/load_test.go`,
+  `internal/agent/sandbox.go`, `internal/agent/sandbox_test.go`,
+  `internal/agent/tools/bash.go`, `internal/agent/tools/bash_test.go`,
+  `internal/agent/coordinator.go`, `schema.json`, `README.md`
+- `tools.bash.blocked_commands` adds exact executable-name matches to the
+  built-in Bash deny list.
+- `tools.bash.blocked_arguments` adds executable, positional-argument-prefix,
+  and required-flag rules using the existing argument blocker semantics.
+- User-defined rules are additive, apply to foreground and background Bash
+  execution, and are included in the Bash tool description shown to the model.
+
 ### Bash Sandbox (bubblewrap)
 
 - **Files**: `internal/shell/sandbox.go`, `internal/shell/sandbox_linux.go`,

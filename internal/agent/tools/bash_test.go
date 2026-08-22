@@ -173,6 +173,42 @@ func newBashToolWithRecordingPerms(workingDir string, allow bool) (fantasy.Agent
 	return NewBashTool(perms, workingDir, attribution, "test-model", BashSandboxOptions{}), perms
 }
 
+func newBashToolWithBlockers(workingDir string, bashCfg config.ToolBash) fantasy.AgentTool {
+	permissions := &mockBashPermissionService{Broker: pubsub.NewBroker[permission.PermissionRequest]()}
+	attribution := &config.Attribution{TrailerStyle: config.TrailerStyleNone}
+	return NewBashTool(permissions, workingDir, attribution, "test-model", BashSandboxOptions{
+		BlockedCommands:  bashCfg.BlockedCommands,
+		BlockedArguments: bashCfg.BlockedArguments,
+	})
+}
+
+func TestBashTool_ConfiguredBlockers(t *testing.T) {
+	workingDir := t.TempDir()
+	ctx := context.WithValue(context.Background(), SessionIDContextKey, "test-session")
+	tool := newBashToolWithBlockers(workingDir, config.ToolBash{
+		BlockedCommands: []string{"git"},
+		BlockedArguments: []config.ToolBashArguments{
+			{Command: "go", Arguments: []string{"test"}, Flags: []string{"-run"}},
+		},
+	})
+
+	for _, command := range []string{"git status", "go test -run TestBashTool_ConfiguredBlockers"} {
+		resp := runBashTool(t, tool, ctx, BashParams{
+			Description: "configured blocker",
+			Command:     command,
+		})
+		require.Contains(t, resp.Content, "not allowed for security reasons")
+	}
+
+	resp := runBashTool(t, tool, ctx, BashParams{
+		Description: "configured blocker allow",
+		Command:     "echo allowed",
+	})
+	require.Contains(t, resp.Content, "allowed")
+	require.Contains(t, tool.Info().Description, "git")
+	require.Contains(t, tool.Info().Description, "go test [-run]")
+}
+
 func TestBashTool_ChainedCommandsRequirePermission(t *testing.T) {
 	workingDir := t.TempDir()
 	tool, perms := newBashToolWithRecordingPerms(workingDir, true)

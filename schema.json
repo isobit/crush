@@ -895,6 +895,66 @@
         "expires_at"
       ]
     },
+    "ToolBash": {
+      "properties": {
+        "blocked_commands": {
+          "items": {
+            "type": "string",
+            "examples": [
+              "terraform",
+              "docker"
+            ]
+          },
+          "type": "array",
+          "description": "Additional commands to block from the bash tool"
+        },
+        "blocked_arguments": {
+          "items": {
+            "$ref": "#/$defs/ToolBashArguments"
+          },
+          "type": "array",
+          "description": "Additional bash command and argument patterns to block"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "ToolBashArguments": {
+      "properties": {
+        "command": {
+          "type": "string",
+          "description": "Executable command to block",
+          "examples": [
+            "git"
+          ]
+        },
+        "arguments": {
+          "items": {
+            "type": "string",
+            "examples": [
+              "push"
+            ]
+          },
+          "type": "array",
+          "description": "Positional argument prefix that must match"
+        },
+        "flags": {
+          "items": {
+            "type": "string",
+            "examples": [
+              "--force"
+            ]
+          },
+          "type": "array",
+          "description": "Flags that must be present anywhere in the command"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "command"
+      ]
+    },
     "ToolGlob": {
       "properties": {
         "timeout": {
@@ -966,6 +1026,9 @@
     },
     "Tools": {
       "properties": {
+        "bash": {
+          "$ref": "#/$defs/ToolBash"
+        },
         "ls": {
           "$ref": "#/$defs/ToolLs"
         },

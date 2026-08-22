@@ -67,6 +67,29 @@ func TestConfig_LoadFromBytesHuJSON(t *testing.T) {
 	require.True(t, loadedConfig.Options.TUI.CompactMode)
 }
 
+func TestConfig_LoadBashBlockers(t *testing.T) {
+	data := []byte(`{
+		"tools": {
+			"bash": {
+				"blocked_commands": ["terraform"],
+				"blocked_arguments": [{
+					"command": "git",
+					"arguments": ["push"],
+					"flags": ["--force"]
+				}]
+			}
+		}
+	}`)
+
+	loadedConfig, err := loadFromBytes([][]byte{data})
+
+	require.NoError(t, err)
+	require.Equal(t, []string{"terraform"}, loadedConfig.Tools.Bash.BlockedCommands)
+	require.Equal(t, []ToolBashArguments{
+		{Command: "git", Arguments: []string{"push"}, Flags: []string{"--force"}},
+	}, loadedConfig.Tools.Bash.BlockedArguments)
+}
+
 func TestLookupConfigs_BoundedByProject(t *testing.T) {
 	// Force GlobalConfig and GlobalConfigData to point at locations we
 	// control so they can be present in the result without polluting

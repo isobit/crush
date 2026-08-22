@@ -563,6 +563,35 @@ completely hidden from the agent.
 
 To disable tools from MCP servers, see the [MCP config section](#mcps).
 
+### Blocking Bash Commands
+
+The built-in Bash safety rules always remain active. You can add commands and
+argument patterns under `tools.bash`:
+
+```json
+{
+  "$schema": "https://charm.land/crush.json",
+  "tools": {
+    "bash": {
+      "blocked_commands": ["terraform", "docker"],
+      "blocked_arguments": [
+        {
+          "command": "git",
+          "arguments": ["push"],
+          "flags": ["--force"]
+        }
+      ]
+    }
+  }
+}
+```
+
+`blocked_commands` matches an executable exactly. Each `blocked_arguments` rule
+matches an executable, a positional-argument prefix, and required flags. Flags
+may appear anywhere, and `--flag=value` matches `--flag`. These rules apply to
+foreground and background Bash commands and cannot be bypassed by permission
+allowlists or `--yolo`.
+
 ### Disabling Skills
 
 If you'd like to prevent Crush from using certain skills entirely, you can

@@ -573,10 +573,22 @@ type Agent struct {
 }
 
 type Tools struct {
+	Bash      ToolBash      `json:"bash,omitzero"`
 	Ls        ToolLs        `json:"ls,omitzero"`
 	Glob      ToolGlob      `json:"glob,omitzero"`
 	Grep      ToolGrep      `json:"grep,omitzero"`
 	WebSearch ToolWebSearch `json:"web_search,omitzero"`
+}
+
+type ToolBash struct {
+	BlockedCommands  []string            `json:"blocked_commands,omitempty" jsonschema:"description=Additional commands to block from the bash tool,example=terraform,example=docker"`
+	BlockedArguments []ToolBashArguments `json:"blocked_arguments,omitempty" jsonschema:"description=Additional bash command and argument patterns to block"`
+}
+
+type ToolBashArguments struct {
+	Command   string   `json:"command" jsonschema:"required,description=Executable command to block,example=git"`
+	Arguments []string `json:"arguments,omitempty" jsonschema:"description=Positional argument prefix that must match,example=push"`
+	Flags     []string `json:"flags,omitempty" jsonschema:"description=Flags that must be present anywhere in the command,example=--force"`
 }
 
 type ToolLs struct {

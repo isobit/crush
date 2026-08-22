@@ -103,6 +103,8 @@ func TestBuildBashSandboxOptions(t *testing.T) {
 			WritablePaths: []string{"/home/user/.cache"},
 			HiddenPaths:   []string{"/home/user/.aws"},
 		},
+	}, config.ToolBash{
+		BlockedCommands: []string{"terraform"},
 	})
 
 	require.Equal(t, shell.SandboxModeOn, opts.Mode)

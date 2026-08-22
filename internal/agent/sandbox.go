@@ -33,10 +33,12 @@ func sandboxWritablePathsFromConfig(opts *config.Options) []string {
 
 // buildBashSandboxOptions constructs sandbox options from config for the
 // bash tool.
-func buildBashSandboxOptions(opts *config.Options) tools.BashSandboxOptions {
+func buildBashSandboxOptions(opts *config.Options, bashCfg config.ToolBash) tools.BashSandboxOptions {
 	return tools.BashSandboxOptions{
-		Mode:          sandboxModeFromConfig(opts),
-		WritablePaths: sandboxWritablePathsFromConfig(opts),
-		HiddenPaths:   sandboxHiddenPathsFromConfig(opts),
+		Mode:             sandboxModeFromConfig(opts),
+		WritablePaths:    sandboxWritablePathsFromConfig(opts),
+		BlockedCommands:  bashCfg.BlockedCommands,
+		BlockedArguments: bashCfg.BlockedArguments,
+		HiddenPaths:      sandboxHiddenPathsFromConfig(opts),
 	}
 }

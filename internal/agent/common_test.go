@@ -102,6 +102,7 @@ func testEnv(t *testing.T) fakeEnv {
 }
 
 func testSessionAgent(env fakeEnv, large, small fantasy.LanguageModel, systemPrompt string, tools ...fantasy.AgentTool) SessionAgent {
+	maxRetries := 0
 	largeModel := Model{
 		Model: large,
 		CatwalkCfg: catwalk.Model{
@@ -119,6 +120,7 @@ func testSessionAgent(env fakeEnv, large, small fantasy.LanguageModel, systemPro
 	agent := NewSessionAgent(SessionAgentOptions{
 		LargeModel:   largeModel,
 		SmallModel:   smallModel,
+		MaxRetries:   &maxRetries,
 		SystemPrompt: systemPrompt,
 		IsYolo:       true,
 		Sessions:     env.sessions,

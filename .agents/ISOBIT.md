@@ -339,6 +339,15 @@ pulling a new upstream release, use this list to ensure nothing is lost.
   display for human review (one-line summary in header, full code block
   in body when multi-line).
 
+### Agent Test VCR Cassettes
+
+- **Files**: `internal/agent/agent.go`, `internal/agent/common_test.go`,
+  `internal/agent/testdata/TestCoderAgent/`
+- Agent tests use checked-in VCR cassettes and disable retries so stale
+  replay interactions fail immediately instead of waiting through backoff.
+- Re-recording cassettes requires `CRUSH_HYPER_API_KEY`; without that key,
+  tests are expected to fail when their checked-in cassettes no longer match.
+
 ---
 
 ## Notes

@@ -7,6 +7,7 @@ package agenttest
 
 import (
 	"context"
+	"path/filepath"
 
 	"charm.land/catwalk/pkg/catwalk"
 	"charm.land/fantasy/providers/openaicompat"
@@ -37,7 +38,7 @@ func NewCoordinator(
 	sessions session.Service,
 	messages message.Service,
 ) (agent.Coordinator, error) {
-	cfg, err := config.Init(workingDir, "", false)
+	cfg, err := config.Init(workingDir, "", false, config.WithConfigFiles([]string{filepath.Join(workingDir, "crush.test.json")}))
 	if err != nil {
 		return nil, err
 	}

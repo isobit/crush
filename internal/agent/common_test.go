@@ -62,6 +62,10 @@ func hyperBuilder(model string) builderFunc {
 	}
 }
 
+func testConfigFile(workingDir string) config.LoadOption {
+	return config.WithConfigFiles([]string{filepath.Join(workingDir, "crush.json")})
+}
+
 func testEnv(t *testing.T) fakeEnv {
 	workingDir := filepath.Join("/tmp/crush-test/", t.Name())
 	os.RemoveAll(workingDir)
@@ -137,7 +141,7 @@ func coderAgent(r *vcr.Recorder, env fakeEnv, large, small fantasy.LanguageModel
 	if err != nil {
 		return nil, err
 	}
-	cfg, err := config.Init(env.workingDir, "", false)
+	cfg, err := config.Init(env.workingDir, "", false, testConfigFile(env.workingDir))
 	if err != nil {
 		return nil, err
 	}

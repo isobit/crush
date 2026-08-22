@@ -252,9 +252,10 @@ pulling a new upstream release, use this list to ensure nothing is lost.
 - `writable_paths`: absolute files/dirs, or paths beginning with `~/`, that
   are writable by default, in addition to the working directory and `/tmp`.
   They are resolved and validated during config loading against the protected
-  system and credential path policy, and make every sandboxed bash call use
-  the elevated `bash:execute` action. Per-command `sandbox_writable_paths`
-  are combined with these defaults.
+  system and credential path policy, expanded again at bind construction for
+  direct shell callers, and make every sandboxed bash call use the elevated
+  `bash:execute` action. Per-command `sandbox_writable_paths` are combined with
+  these defaults.
 - `hidden_paths`: absolute files/dirs, or paths beginning with `~/`, to hide
   from the sandbox. Each is resolved and masked by binding a placeholder over
   it (`--ro-bind <placeholder> <path>`):

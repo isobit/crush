@@ -51,6 +51,23 @@ func TestBuildBwrapArgs(t *testing.T) {
 		require.True(t, found, "expected --bind /home/user/go/pkg/mod in args: %v", got)
 	})
 
+	t.Run("home-relative paths are expanded before binding", func(t *testing.T) {
+		t.Parallel()
+		home, err := os.UserHomeDir()
+		require.NoError(t, err)
+		cfg := &SandboxConfig{
+			Enabled:       true,
+			WritablePaths: []string{"~/.cache/crush"},
+			HiddenPaths:   []string{"~/.passage/identities"},
+		}
+		got := buildBwrapArgs("/home/user/project", cfg)
+
+		require.Contains(t, got, filepath.Join(home, ".cache/crush"))
+		require.Contains(t, got, filepath.Join(home, ".passage/identities"))
+		require.NotContains(t, got, "~/.cache/crush")
+		require.NotContains(t, got, "~/.passage/identities")
+	})
+
 	t.Run("hidden paths mask with a ro-bind placeholder", func(t *testing.T) {
 		t.Parallel()
 		// Use a real file and a real dir so the placeholder type matches.

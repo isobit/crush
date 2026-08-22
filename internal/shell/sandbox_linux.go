@@ -61,6 +61,7 @@ func buildBwrapArgs(cwd string, cfg *SandboxConfig) []string {
 
 	// Additional writable paths bind read-write to the real filesystem.
 	for _, path := range cfg.WritablePaths {
+		path = expandSandboxHome(path)
 		args = append(args, "--bind", path, path)
 	}
 
@@ -75,6 +76,7 @@ func buildBwrapArgs(cwd string, cfg *SandboxConfig) []string {
 			slog.Error("Failed to create sandbox hidden-path placeholder", "error", err)
 		} else {
 			for _, path := range cfg.HiddenPaths {
+				path = expandSandboxHome(path)
 				src := file
 				if info, statErr := os.Stat(path); statErr == nil && info.IsDir() {
 					src = dir

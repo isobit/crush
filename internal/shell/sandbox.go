@@ -265,12 +265,21 @@ func isWriteFlag(flag int) bool {
 	return flag&(os.O_WRONLY|os.O_RDWR|os.O_CREATE|os.O_APPEND|os.O_TRUNC) != 0
 }
 
+func expandSandboxHome(path string) string {
+	if path == "~" || strings.HasPrefix(path, "~/") {
+		if home, err := os.UserHomeDir(); err == nil {
+			return filepath.Join(home, strings.TrimPrefix(path, "~/"))
+		}
+	}
+	return path
+}
+
 // resolveSandboxPath cleans path and resolves symlinks so a symlinked
 // parent directory cannot be used to escape the writable roots. The final
 // component may not exist yet (file creation), so it falls back to
 // resolving the deepest existing ancestor and re-attaching the remainder.
 func resolveSandboxPath(path string) string {
-	cleaned := filepath.Clean(path)
+	cleaned := filepath.Clean(expandSandboxHome(path))
 	if resolved, err := filepath.EvalSymlinks(cleaned); err == nil {
 		return resolved
 	}

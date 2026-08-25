@@ -28,7 +28,6 @@ type PermissionAction string
 const (
 	PermissionAllow           PermissionAction = "allow"
 	PermissionAllowForSession PermissionAction = "allow_session"
-	PermissionAllowAlways     PermissionAction = "allow_always"
 	PermissionDeny            PermissionAction = "deny"
 )
 
@@ -62,7 +61,7 @@ type Permissions struct {
 	fullscreen   bool // true when dialog is fullscreen
 
 	permission     permission.PermissionRequest
-	selectedOption int // 0: Allow, 1: Allow for session, 2: Always Allow, 3: Deny
+	selectedOption int // 0: Allow, 1: Allow for session, 2: Deny
 
 	viewport      viewport.Model
 	viewportDirty bool // true when viewport content needs to be re-rendered
@@ -240,10 +239,10 @@ func (p *Permissions) HandleMsg(msg tea.Msg) Action {
 			// Escape denies the permission request.
 			return p.respond(PermissionDeny)
 		case key.Matches(msg, p.keyMap.Right), key.Matches(msg, p.keyMap.Tab):
-			p.selectedOption = (p.selectedOption + 1) % 4
+			p.selectedOption = (p.selectedOption + 1) % 3
 		case key.Matches(msg, p.keyMap.Left):
-			// Add 3 instead of subtracting 1 to avoid negative modulo.
-			p.selectedOption = (p.selectedOption + 3) % 4
+			// Add 2 instead of subtracting 1 to avoid negative modulo.
+			p.selectedOption = (p.selectedOption + 2) % 3
 		case key.Matches(msg, p.keyMap.Select):
 			return p.selectCurrentOption()
 		case key.Matches(msg, p.keyMap.Allow):
@@ -308,8 +307,6 @@ func (p *Permissions) selectCurrentOption() tea.Msg {
 		return p.respond(PermissionAllow)
 	case 1:
 		return p.respond(PermissionAllowForSession)
-	case 2:
-		return p.respond(PermissionAllowAlways)
 	default:
 		return p.respond(PermissionDeny)
 	}
@@ -783,8 +780,7 @@ func (p *Permissions) renderButtons(contentWidth int, fullscreen bool) string {
 	buttons := []common.ButtonOpts{
 		{Text: "Allow", UnderlineIndex: 0, Selected: p.selectedOption == 0},
 		{Text: "Allow for Session", UnderlineIndex: 10, Selected: p.selectedOption == 1},
-		{Text: "Always Allow", UnderlineIndex: 2, Selected: p.selectedOption == 2},
-		{Text: "Deny", UnderlineIndex: 0, Selected: p.selectedOption == 3},
+		{Text: "Deny", UnderlineIndex: 0, Selected: p.selectedOption == 2},
 	}
 
 	content := common.ButtonGroup(p.com.Styles, buttons, "  ")

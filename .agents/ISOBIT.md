@@ -78,20 +78,7 @@ pulling a new upstream release, use this list to ensure nothing is lost.
 - Line-addressed editing with 3-char content hashes for verification.
 - Dedicated chat renderer in `internal/ui/chat/file.go`
   (`HashlineEditToolMessageItem`).
-- Diff view in the permission dialog
-  (`internal/ui/dialog/permission_rules_item.go`).
-
-### Permission Rules Management UI
-
-- **Files**: `internal/ui/dialog/permission_rules.go`,
-  `internal/ui/dialog/permission_rules_item.go`,
-  `internal/ui/model/permissions.go`, `internal/ui/model/ui.go`
-- "Manage Permission Rules" command opens a dialog listing session
-  permissions and persistent allow-always rules.
-- Wired via `dialog.PermissionRulesID` case in `openDialog()` and
-  `openPermissionRulesDialog()` method.
-- Persistent rules stored via `db.Queries` (`NewPermissionService` takes
-  a `*db.Queries` parameter — upstream does not).
+- Diff view in the permission dialog (`internal/ui/dialog/permissions.go`).
 
 ### Export and Sessions Commands
 
@@ -357,19 +344,6 @@ pulling a new upstream release, use this list to ensure nothing is lost.
 - The `Sidebar.WorkingDir` style is used as a general "muted text" style
   in places where the old `Styles.Muted` field was used (upstream removed
   the top-level `Muted` field).
-- The `permission.NewPermissionService` signature diverges from upstream:
-  it is `(workingDir, skip, allowedTools []string, queries *db.Queries)`.
-  Upstream added the `allowedTools` param in v0.81.0; isobit adds the
-  trailing `*db.Queries`. Tests need both trailing args (`..., nil, nil`).
-- Permission resolution (`Grant`, `GrantPersistent`, `GrantAlways`, `Deny`)
-  returns `bool` since v0.81.0 and routes through the shared `resolve`
-  helper. `GrantAlways` (isobit) passes an `onResolve` callback that
-  persists the always-allow rule via `db.Queries`; `GrantPersistent`
-  tracks session keys in its callback. The `Workspace` interface mirrors
-  these bool returns (`PermissionGrantAlways` included).
-- The permission dialog has four options (Allow, Allow for Session, Always
-  Allow, Deny) cycling with `% 4`; upstream tests assuming three options
-  must be adapted.
 - Shell exec: `execHandlerOption(cwd, blockFuncs, sandbox...)` merges
   isobit's sandbox handler with upstream's process-group-isolated base
   handler. `newRunner` keeps the variadic `sandbox ...*SandboxConfig` and
@@ -385,7 +359,5 @@ pulling a new upstream release, use this list to ensure nothing is lost.
 - Since v0.87.0, `RuntimeOverrides` retains isobit's `CLIOverrides` alongside
   upstream's `EnabledChannels`; `proto.Workspace` similarly carries
   `ConfigFiles`, `SetOverrides`, and `Channels`.
-- Since v0.87.0, local and client workspaces retain isobit's permission-rule
-  and message-deletion methods alongside upstream's question APIs.
 - Since v0.87.0, sidebar content uses upstream's scrollable 32-column layout
   while preserving isobit's labeled cwd and optional data-directory rows.

@@ -31,15 +31,6 @@ type Message struct {
 	IsSummaryMessage int64          `json:"is_summary_message"`
 }
 
-type PermissionRule struct {
-	ID        int64  `json:"id"`
-	ToolName  string `json:"tool_name"`
-	Action    string `json:"action"`
-	Path      string `json:"path"`
-	CreatedAt int64  `json:"created_at"`
-	Params    string `json:"params"`
-}
-
 type ReadFile struct {
 	SessionID string `json:"session_id"`
 	Path      string `json:"path"`

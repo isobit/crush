@@ -70,12 +70,10 @@ For each conflicted file (`git diff --name-only --diff-filter=U`):
   style fields (e.g. `s.Muted` → gone, `s.EditorPromptX` →
   `s.Editor.PromptX`, `s.ResourceGroupTitle` → `s.Resource.Heading`).
   Search for compile errors after resolving styles.
-- **New function signatures**: upstream may add/remove parameters
-  (e.g. `NewPermissionService` gained a `*db.Queries` arg on isobit).
-  Check test files too.
+- **New function signatures**: upstream may add/remove parameters. Check
+  test files too.
 - **Lost method wiring**: when taking upstream's `ui.go`, isobit-only
-  methods (`deleteMessage`, `openPermissionRulesDialog`, vi state,
-  `sessionPermissions` field) must be re-added. Check the pre-merge
+  methods (`deleteMessage`, vi state) must be re-added. Check the pre-merge
   version for all `func (m *UI)` methods and struct fields that are
   isobit-specific.
 
@@ -117,14 +115,12 @@ These files almost always need manual attention during merges:
 |------|--------------|
 | `internal/ui/styles/isobit.go` | Isobit theme definition |
 | `internal/ui/styles/themes.go` | `ThemeForProvider` → always isobit |
-| `internal/ui/model/ui.go` | Sidebar width, scroll indicator, delete message, vi state, session permissions, permission rules dialog |
+| `internal/ui/model/ui.go` | Sidebar width, scroll indicator, delete message, vi state |
 | `internal/ui/model/sidebar.go` | Labeled cwd/dataDir display |
 | `internal/ui/model/landing.go` | Labeled cwd/dataDir display |
 | `internal/ui/common/common.go` | `DefaultCommon` → `IsobitStyles()` |
 | `internal/ui/common/elements.go` | `LabeledPath()` helper |
 | `internal/app/app.go` | Isobit spinner theme, update nag suppression |
 | `internal/cmd/run.go` | Isobit spinner theme |
-| `internal/permission/permission.go` | Extra `*db.Queries` param |
-| `internal/ui/dialog/permission_rules*.go` | Rules management UI |
 | `internal/ui/model/vi.go` | Vi keybindings |
 | `internal/agent/tools/hashline_edit.go` | Hashline edit tool |

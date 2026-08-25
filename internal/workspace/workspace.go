@@ -14,7 +14,6 @@ import (
 	mcptools "github.com/charmbracelet/crush/internal/agent/tools/mcp"
 	"github.com/charmbracelet/crush/internal/commands"
 	"github.com/charmbracelet/crush/internal/config"
-	"github.com/charmbracelet/crush/internal/db"
 	"github.com/charmbracelet/crush/internal/history"
 	"github.com/charmbracelet/crush/internal/lsp"
 	"github.com/charmbracelet/crush/internal/message"
@@ -126,23 +125,18 @@ type Workspace interface {
 
 	// Permissions
 	//
-	// PermissionGrant, PermissionGrantPersistent, PermissionGrantAlways,
-	// and PermissionDeny return true if the call resolved the pending
-	// request and false if it had already been resolved by another
-	// subscriber (or is no longer pending). A false return is not an
-	// error; the modal can still close locally because the resolution
-	// will arrive via the PermissionNotification event stream regardless
-	// of which client won the race.
+	// PermissionGrant, PermissionGrantPersistent, and PermissionDeny
+	// return true if the call resolved the pending request and false if
+	// it had already been resolved by another subscriber (or is no
+	// longer pending). A false return is not an error; the modal can still
+	// close locally because the resolution will arrive via the
+	// PermissionNotification event stream regardless of which client
+	// won the race.
 	PermissionGrant(perm permission.PermissionRequest) bool
 	PermissionGrantPersistent(perm permission.PermissionRequest) bool
-	PermissionGrantAlways(perm permission.PermissionRequest) bool
 	PermissionDeny(perm permission.PermissionRequest) bool
 	PermissionSkipRequests() bool
 	PermissionSetSkipRequests(skip bool)
-	PermissionListSessionPermissions(sessionID string) []permission.PermissionRequest
-	PermissionListRules(ctx context.Context) ([]db.PermissionRule, error)
-	PermissionDeleteRule(ctx context.Context, id int64) error
-	PermissionDeleteSessionPermission(sessionID string, permissionID string)
 
 	// Questions
 	//

@@ -13,7 +13,6 @@ import (
 	"github.com/charmbracelet/crush/internal/app"
 	"github.com/charmbracelet/crush/internal/commands"
 	"github.com/charmbracelet/crush/internal/config"
-	"github.com/charmbracelet/crush/internal/db"
 	"github.com/charmbracelet/crush/internal/history"
 	"github.com/charmbracelet/crush/internal/lsp"
 	"github.com/charmbracelet/crush/internal/message"
@@ -279,26 +278,6 @@ func (w *AppWorkspace) PermissionSkipRequests() bool {
 
 func (w *AppWorkspace) PermissionSetSkipRequests(skip bool) {
 	w.app.Permissions.SetSkipRequests(skip)
-}
-
-func (w *AppWorkspace) PermissionGrantAlways(perm permission.PermissionRequest) bool {
-	return w.app.Permissions.GrantAlways(perm)
-}
-
-func (w *AppWorkspace) PermissionListSessionPermissions(sessionID string) []permission.PermissionRequest {
-	return w.app.Permissions.ListSessionPermissions(sessionID)
-}
-
-func (w *AppWorkspace) PermissionListRules(ctx context.Context) ([]db.PermissionRule, error) {
-	return w.app.Permissions.ListRules(ctx)
-}
-
-func (w *AppWorkspace) PermissionDeleteRule(ctx context.Context, id int64) error {
-	return w.app.Permissions.DeleteRule(ctx, id)
-}
-
-func (w *AppWorkspace) PermissionDeleteSessionPermission(sessionID string, permissionID string) {
-	w.app.Permissions.DeleteSessionPermission(sessionID, permissionID)
 }
 
 // -- Questions --

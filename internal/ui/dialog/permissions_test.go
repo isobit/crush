@@ -56,15 +56,12 @@ func TestPermissions_NavigationCyclesOptions(t *testing.T) {
 	p := newTestPermissions(t)
 	require.Equal(t, 0, p.selectedOption)
 
-	// Tab cycles forward through the four options.
+	// Tab cycles forward.
 	p.HandleMsg(tea.KeyPressMsg{Code: tea.KeyTab})
 	require.Equal(t, 1, p.selectedOption)
 
 	p.HandleMsg(tea.KeyPressMsg{Code: tea.KeyTab})
 	require.Equal(t, 2, p.selectedOption)
-
-	p.HandleMsg(tea.KeyPressMsg{Code: tea.KeyTab})
-	require.Equal(t, 3, p.selectedOption)
 
 	// Wrap around.
 	p.HandleMsg(tea.KeyPressMsg{Code: tea.KeyTab})
@@ -72,7 +69,7 @@ func TestPermissions_NavigationCyclesOptions(t *testing.T) {
 
 	// Left cycles backward.
 	p.HandleMsg(keyMsg('h'))
-	require.Equal(t, 3, p.selectedOption)
+	require.Equal(t, 2, p.selectedOption)
 }
 
 // TestPermissions_EnterConfirmsSelection verifies that enter confirms the

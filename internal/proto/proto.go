@@ -179,7 +179,6 @@ type PermissionAction string
 const (
 	PermissionAllow           PermissionAction = "allow"
 	PermissionAllowForSession PermissionAction = "allow_session"
-	PermissionAllowAlways     PermissionAction = "allow_always"
 	PermissionDeny            PermissionAction = "deny"
 )
 

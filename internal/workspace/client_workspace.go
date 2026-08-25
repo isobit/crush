@@ -16,7 +16,6 @@ import (
 	"github.com/charmbracelet/crush/internal/client"
 	"github.com/charmbracelet/crush/internal/commands"
 	"github.com/charmbracelet/crush/internal/config"
-	"github.com/charmbracelet/crush/internal/db"
 	"github.com/charmbracelet/crush/internal/herdr"
 	"github.com/charmbracelet/crush/internal/history"
 	"github.com/charmbracelet/crush/internal/log"
@@ -378,36 +377,6 @@ func (w *ClientWorkspace) PermissionSkipRequests() bool {
 func (w *ClientWorkspace) PermissionSetSkipRequests(skip bool) {
 	_ = w.client.SetPermissionsSkipRequests(context.Background(), w.workspaceID(), skip)
 }
-
-func (w *ClientWorkspace) PermissionGrantAlways(perm permission.PermissionRequest) bool {
-	resolved, _ := w.client.GrantPermission(context.Background(), w.workspaceID(), proto.PermissionGrant{
-		Permission: proto.PermissionRequest{
-			ID:          perm.ID,
-			SessionID:   perm.SessionID,
-			ToolCallID:  perm.ToolCallID,
-			ToolName:    perm.ToolName,
-			Description: perm.Description,
-			Action:      perm.Action,
-			Path:        perm.Path,
-			Params:      perm.Params,
-		},
-		Action: proto.PermissionAllowAlways,
-	})
-	return resolved
-}
-
-func (w *ClientWorkspace) PermissionListSessionPermissions(_ string) []permission.PermissionRequest {
-	return nil
-}
-
-func (w *ClientWorkspace) PermissionListRules(_ context.Context) ([]db.PermissionRule, error) {
-	return nil, errors.New("not implemented")
-}
-
-func (w *ClientWorkspace) PermissionDeleteRule(_ context.Context, _ int64) error {
-	return errors.New("not implemented")
-}
-func (w *ClientWorkspace) PermissionDeleteSessionPermission(_ string, _ string) {}
 
 func (w *ClientWorkspace) MessageDelete(_ context.Context, _ string) error {
 	return errors.New("not implemented")

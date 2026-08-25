@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"charm.land/fantasy"
-	"github.com/charmbracelet/crush/internal/db"
 	"github.com/charmbracelet/crush/internal/filetracker"
 	"github.com/charmbracelet/crush/internal/permission"
 	"github.com/charmbracelet/crush/internal/pubsub"
@@ -235,22 +234,6 @@ func (m *mockViewPermissionService) SkipRequests() bool {
 
 func (m *mockViewPermissionService) SubscribeNotifications(ctx context.Context) <-chan pubsub.Event[permission.PermissionNotification] {
 	return make(<-chan pubsub.Event[permission.PermissionNotification])
-}
-
-func (m *mockViewPermissionService) GrantAlways(_ permission.PermissionRequest) bool { return true }
-
-func (m *mockViewPermissionService) ListSessionPermissions(_ string) []permission.PermissionRequest {
-	return nil
-}
-
-func (m *mockViewPermissionService) DeleteSessionPermission(_, _ string) {}
-
-func (m *mockViewPermissionService) ListRules(_ context.Context) ([]db.PermissionRule, error) {
-	return nil, nil
-}
-
-func (m *mockViewPermissionService) DeleteRule(_ context.Context, _ int64) error {
-	return nil
 }
 
 type mockFileTracker struct{}

@@ -2,10 +2,6 @@ package permission
 
 import (
 	"context"
-	"database/sql"
-	"encoding/json"
-	"errors"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"slices"
@@ -13,7 +9,6 @@ import (
 	"sync/atomic"
 
 	"github.com/charmbracelet/crush/internal/csync"
-	"github.com/charmbracelet/crush/internal/db"
 	"github.com/charmbracelet/crush/internal/pubsub"
 	"github.com/google/uuid"
 )
@@ -51,11 +46,9 @@ type CreatePermissionRequest struct {
 }
 
 type PermissionNotification struct {
-	ToolCallID   string `json:"tool_call_id"`
-	Granted      bool   `json:"granted"`
-	Denied       bool   `json:"denied"`
-	AutoApproved bool   `json:"auto_approved,omitempty"`
-	Description  string `json:"description,omitempty"`
+	ToolCallID string `json:"tool_call_id"`
+	Granted    bool   `json:"granted"`
+	Denied     bool   `json:"denied"`
 }
 
 type PermissionRequest struct {
@@ -76,11 +69,6 @@ type Service interface {
 	// pending request; false if the request had already been resolved
 	// (e.g., by another concurrent caller) or is unknown.
 	GrantPersistent(permission PermissionRequest) bool
-	// GrantAlways grants a permission request and persists it as an
-	// always-allow rule. It returns true if this call actually resolved
-	// the pending request; false if it had already been resolved or is
-	// unknown.
-	GrantAlways(permission PermissionRequest) bool
 	// Grant grants a permission request. It returns true if this call
 	// actually resolved the pending request; false if the request had
 	// already been resolved or is unknown.
@@ -94,10 +82,6 @@ type Service interface {
 	SetSkipRequests(skip bool)
 	SkipRequests() bool
 	SubscribeNotifications(ctx context.Context) <-chan pubsub.Event[PermissionNotification]
-	ListRules(ctx context.Context) ([]db.PermissionRule, error)
-	DeleteRule(ctx context.Context, id int64) error
-	ListSessionPermissions(sessionID string) []PermissionRequest
-	DeleteSessionPermission(sessionID string, permissionID string)
 }
 
 // PermissionKey is a composite key for session permission lookups.
@@ -111,17 +95,14 @@ type PermissionKey struct {
 type permissionService struct {
 	*pubsub.Broker[PermissionRequest]
 
-	notificationBroker       *pubsub.Broker[PermissionNotification]
-	workingDir               string
-	queries                  *db.Queries
-	sessionPermissions       *csync.Map[PermissionKey, bool]
-	sessionPermissionKeys    []PermissionKey
-	sessionPermissionsKeysMu sync.RWMutex
-	pendingRequests          *csync.Map[string, chan bool]
-	autoApproveSessions      map[string]bool
-	autoApproveSessionsMu    sync.RWMutex
-	skip                     atomic.Bool
-	allowedTools             []string
+	notificationBroker    *pubsub.Broker[PermissionNotification]
+	workingDir            string
+	sessionPermissions    *csync.Map[PermissionKey, bool]
+	pendingRequests       *csync.Map[string, chan bool]
+	autoApproveSessions   map[string]bool
+	autoApproveSessionsMu sync.RWMutex
+	skip                  atomic.Bool
+	allowedTools          []string
 
 	// used to make sure we only process one request at a time
 	requestMu       sync.Mutex
@@ -180,16 +161,12 @@ func (s *permissionService) GrantPersistent(permission PermissionRequest) bool {
 	// lost to a Deny would still leave an auto-approve entry behind,
 	// silently flipping later denied calls to allowed.
 	return s.resolve(permission, true, false, func() {
-		key := PermissionKey{
+		s.sessionPermissions.Set(PermissionKey{
 			SessionID: permission.SessionID,
 			ToolName:  permission.ToolName,
 			Action:    permission.Action,
 			Path:      permission.Path,
-		}
-		s.sessionPermissions.Set(key, true)
-		s.sessionPermissionsKeysMu.Lock()
-		s.sessionPermissionKeys = append(s.sessionPermissionKeys, key)
-		s.sessionPermissionsKeysMu.Unlock()
+		}, true)
 	})
 }
 
@@ -199,29 +176,6 @@ func (s *permissionService) Grant(permission PermissionRequest) bool {
 
 func (s *permissionService) Deny(permission PermissionRequest) bool {
 	return s.resolve(permission, false, true, nil)
-}
-
-func (s *permissionService) GrantAlways(permission PermissionRequest) bool {
-	return s.resolve(permission, true, false, func() {
-		if s.queries == nil {
-			return
-		}
-		paramsJSON := "{}"
-		if permission.Params != nil {
-			if b, err := json.Marshal(permission.Params); err == nil {
-				paramsJSON = string(b)
-			}
-		}
-		err := s.queries.CreatePermissionRule(context.Background(), db.CreatePermissionRuleParams{
-			ToolName: permission.ToolName,
-			Action:   permission.Action,
-			Path:     permission.Path,
-			Params:   paramsJSON,
-		})
-		if err != nil {
-			slog.Error("Failed to persist permission rule", "error", err)
-		}
-	})
 }
 
 func (s *permissionService) Request(ctx context.Context, opts CreatePermissionRequest) (bool, error) {
@@ -291,25 +245,6 @@ func (s *permissionService) Request(ctx context.Context, opts CreatePermissionRe
 		Params:      opts.Params,
 	}
 
-	if s.queries != nil {
-		_, err := s.queries.MatchPermissionRule(ctx, db.MatchPermissionRuleParams{
-			ToolName: permission.ToolName,
-			Action:   permission.Action,
-			Path:     dir,
-		})
-		if err == nil {
-			s.notificationBroker.Publish(pubsub.CreatedEvent, PermissionNotification{
-				ToolCallID:   opts.ToolCallID,
-				Granted:      true,
-				AutoApproved: true,
-				Description:  opts.Description,
-			})
-			return true, nil
-		} else if !errors.Is(err, sql.ErrNoRows) {
-			slog.Error("Failed to check permission rules", "error", err)
-		}
-	}
-
 	if _, ok := s.sessionPermissions.Get(PermissionKey{
 		SessionID: permission.SessionID,
 		ToolName:  permission.ToolName,
@@ -360,61 +295,11 @@ func (s *permissionService) SkipRequests() bool {
 	return s.skip.Load()
 }
 
-func (s *permissionService) ListSessionPermissions(sessionID string) []PermissionRequest {
-	s.sessionPermissionsKeysMu.RLock()
-	defer s.sessionPermissionsKeysMu.RUnlock()
-
-	var result []PermissionRequest
-	for _, key := range s.sessionPermissionKeys {
-		if key.SessionID == sessionID {
-			result = append(result, PermissionRequest{
-				SessionID: key.SessionID,
-				ToolName:  key.ToolName,
-				Action:    key.Action,
-				Path:      key.Path,
-				ID:        key.SessionID + ":" + key.ToolName + ":" + key.Action + ":" + key.Path,
-			})
-		}
-	}
-	return result
-}
-
-func (s *permissionService) DeleteSessionPermission(sessionID string, permissionID string) {
-	s.sessionPermissionsKeysMu.Lock()
-	defer s.sessionPermissionsKeysMu.Unlock()
-
-	var filtered []PermissionKey
-	for _, key := range s.sessionPermissionKeys {
-		id := key.SessionID + ":" + key.ToolName + ":" + key.Action + ":" + key.Path
-		if key.SessionID == sessionID && id == permissionID {
-			s.sessionPermissions.Del(key)
-			continue
-		}
-		filtered = append(filtered, key)
-	}
-	s.sessionPermissionKeys = filtered
-}
-
-func (s *permissionService) ListRules(ctx context.Context) ([]db.PermissionRule, error) {
-	if s.queries == nil {
-		return nil, nil
-	}
-	return s.queries.ListPermissionRules(ctx)
-}
-
-func (s *permissionService) DeleteRule(ctx context.Context, id int64) error {
-	if s.queries == nil {
-		return nil
-	}
-	return s.queries.DeletePermissionRule(ctx, id)
-}
-
-func NewPermissionService(workingDir string, skip bool, allowedTools []string, queries *db.Queries) Service {
+func NewPermissionService(workingDir string, skip bool, allowedTools []string) Service {
 	svc := &permissionService{
 		Broker:              pubsub.NewBroker[PermissionRequest](),
 		notificationBroker:  pubsub.NewBroker[PermissionNotification](),
 		workingDir:          workingDir,
-		queries:             queries,
 		sessionPermissions:  csync.NewMap[PermissionKey, bool](),
 		autoApproveSessions: make(map[string]bool),
 		allowedTools:        allowedTools,

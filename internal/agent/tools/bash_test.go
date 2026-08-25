@@ -9,7 +9,6 @@ import (
 
 	"charm.land/fantasy"
 	"github.com/charmbracelet/crush/internal/config"
-	"github.com/charmbracelet/crush/internal/db"
 	"github.com/charmbracelet/crush/internal/permission"
 	"github.com/charmbracelet/crush/internal/pubsub"
 	"github.com/charmbracelet/crush/internal/shell"
@@ -43,21 +42,6 @@ func (m *mockBashPermissionService) SkipRequests() bool {
 func (m *mockBashPermissionService) SubscribeNotifications(ctx context.Context) <-chan pubsub.Event[permission.PermissionNotification] {
 	return make(<-chan pubsub.Event[permission.PermissionNotification])
 }
-
-func (m *mockBashPermissionService) DeleteRule(ctx context.Context, id int64) error {
-	return nil
-}
-
-func (m *mockBashPermissionService) GrantAlways(req permission.PermissionRequest) bool { return true }
-
-func (m *mockBashPermissionService) ListRules(ctx context.Context) ([]db.PermissionRule, error) {
-	return nil, nil
-}
-
-func (m *mockBashPermissionService) ListSessionPermissions(sessionID string) []permission.PermissionRequest {
-	return nil
-}
-func (m *mockBashPermissionService) DeleteSessionPermission(sessionID string, permissionID string) {}
 
 func TestMergeWritablePaths(t *testing.T) {
 	t.Parallel()
@@ -140,22 +124,6 @@ func (m *recordingPermissionService) SkipRequests() bool {
 
 func (m *recordingPermissionService) SubscribeNotifications(ctx context.Context) <-chan pubsub.Event[permission.PermissionNotification] {
 	return make(<-chan pubsub.Event[permission.PermissionNotification])
-}
-
-func (m *recordingPermissionService) GrantAlways(_ permission.PermissionRequest) bool { return true }
-
-func (m *recordingPermissionService) ListSessionPermissions(_ string) []permission.PermissionRequest {
-	return nil
-}
-
-func (m *recordingPermissionService) DeleteSessionPermission(_, _ string) {}
-
-func (m *recordingPermissionService) ListRules(_ context.Context) ([]db.PermissionRule, error) {
-	return nil, nil
-}
-
-func (m *recordingPermissionService) DeleteRule(_ context.Context, _ int64) error {
-	return nil
 }
 
 func newBashToolForTest(workingDir string) fantasy.AgentTool {

@@ -641,7 +641,15 @@ func toolParamList(sty *styles.Styles, params []string, width int, opts *ToolRen
 	}
 
 	if width >= 0 && (opts == nil || !opts.ExpandedContent) {
-		output = ansi.Truncate(output, width, "…")
+		if strings.Contains(output, "\n") {
+			lines := strings.Split(output, "\n")
+			for index, line := range lines {
+				lines[index] = ansi.Truncate(line, width, "…")
+			}
+			output = strings.Join(lines, "\n")
+		} else {
+			output = ansi.Truncate(output, width, "…")
+		}
 	} else if opts != nil && opts.ExpandedContent && width > 0 && lipgloss.Width(output) > width {
 		output = ansi.Hardwrap(output, width, false)
 	}

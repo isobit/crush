@@ -9,6 +9,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/crush/internal/agent/tools"
 	"github.com/charmbracelet/crush/internal/message"
+	"github.com/charmbracelet/crush/internal/ui/common"
 	"github.com/charmbracelet/crush/internal/ui/styles"
 	"github.com/charmbracelet/x/ansi"
 )
@@ -65,8 +66,14 @@ func (b *BashToolRenderContext) RenderTool(sty *styles.Styles, width int, opts *
 	cmd := params.Command
 	if !opts.ExpandedContent {
 		cmd = strings.ReplaceAll(cmd, "\n", " ")
+		if !opts.Compact {
+			cmd = common.FormatBashDisplay(cmd)
+		}
 	}
 	cmd = strings.ReplaceAll(cmd, "\t", "    ")
+	if highlighted, err := common.SyntaxHighlightLexerName(sty, cmd, "bash", nil); err == nil {
+		cmd = highlighted
+	}
 	toolParams := []string{cmd}
 	if params.RunInBackground {
 		toolParams = append(toolParams, "background", "true")

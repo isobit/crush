@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"image/color"
 
+	"github.com/alecthomas/chroma/v2"
 	"github.com/alecthomas/chroma/v2/formatters"
 	"github.com/alecthomas/chroma/v2/lexers"
 	"github.com/charmbracelet/crush/internal/ui/styles"
@@ -23,7 +24,18 @@ func SyntaxHighlight(st *styles.Styles, source, fileName string, bg color.Color)
 	if l == nil {
 		l = lexers.Fallback
 	}
+	return syntaxHighlight(st, source, l, bg)
+}
 
+func SyntaxHighlightLexerName(st *styles.Styles, source, lexerName string, bg color.Color) (string, error) {
+	l := lexers.Get(lexerName)
+	if l == nil {
+		l = lexers.Fallback
+	}
+	return syntaxHighlight(st, source, l, bg)
+}
+
+func syntaxHighlight(st *styles.Styles, source string, l chroma.Lexer, bg color.Color) (string, error) {
 	// Get the formatter
 	f := formatters.Get("terminal16m")
 	if f == nil {

@@ -120,6 +120,13 @@ pulling a new upstream release, use this list to ensure nothing is lost.
 - **Files**: `internal/ui/chat/tools.go`
 - Tool calls keep their active spinner and elapsed wall-clock time updating until a result arrives.
 
+### Bash Tool Display
+- **Files**: `internal/ui/chat/bash.go`, `internal/ui/chat/tools.go`,
+  `internal/ui/common/bash.go`, `internal/ui/common/highlight.go`
+- Bash command headers use syntax highlighting and split parsed compound
+  commands onto indented lines for readability without changing execution.
+
+
 ### Suppress Update Nag
 
 - **Files**: `internal/app/app.go`

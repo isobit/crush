@@ -591,7 +591,14 @@ func (p *Permissions) renderBashContent(width int) string {
 		return ""
 	}
 
-	return p.renderContentPanel(params.Command, width)
+	command := strings.ReplaceAll(params.Command, "\n", " ")
+	command = common.FormatBashDisplay(command)
+	command = strings.ReplaceAll(command, "\t", "    ")
+	if highlighted, err := common.SyntaxHighlightLexerName(p.com.Styles, command, "bash", p.com.Styles.Dialog.Permissions.ParamsBg); err == nil {
+		command = highlighted
+	}
+
+	return p.renderContentPanel(command, width)
 }
 
 func (p *Permissions) renderEditContent(contentWidth int) string {

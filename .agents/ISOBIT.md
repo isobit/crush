@@ -122,9 +122,11 @@ pulling a new upstream release, use this list to ensure nothing is lost.
 
 ### Bash Tool Display
 - **Files**: `internal/ui/chat/bash.go`, `internal/ui/chat/tools.go`,
-  `internal/ui/common/bash.go`, `internal/ui/common/highlight.go`
-- Bash command headers use syntax highlighting and split parsed compound
-  commands onto indented lines for readability without changing execution.
+  `internal/ui/common/bash.go`, `internal/ui/common/highlight.go`,
+  `internal/ui/dialog/permissions.go`
+- Bash command headers and permission prompts use syntax highlighting and split
+  parsed compound commands onto indented lines for readability without changing
+  execution.
 
 
 ### Suppress Update Nag

@@ -1,12 +1,15 @@
 package dialog
 
 import (
+	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/crush/internal/agent/tools"
 	"github.com/charmbracelet/crush/internal/permission"
 	"github.com/charmbracelet/crush/internal/ui/common"
 	"github.com/charmbracelet/crush/internal/ui/styles"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/stretchr/testify/require"
 )
 
@@ -95,4 +98,26 @@ func TestPermissions_EscapeDenies(t *testing.T) {
 	resp, ok := action.(ActionPermissionResponse)
 	require.True(t, ok)
 	require.Equal(t, PermissionDeny, resp.Action)
+}
+
+func TestPermissions_RendersFormattedBashCommand(t *testing.T) {
+	t.Parallel()
+
+	s := styles.CharmtonePantera()
+	com := &common.Common{Styles: &s}
+	p := NewPermissions(com, permission.PermissionRequest{
+		ToolName: tools.BashToolName,
+		Params:   tools.BashPermissionsParams{Command: "thing-a; thing-b"},
+	})
+
+	rendered := p.renderBashContent(80)
+	require.Contains(t, rendered, "\x1b[")
+	content := ansi.Strip(rendered)
+
+	commandStart := strings.Index(content, "thing-a;")
+	require.NotEqual(t, -1, commandStart)
+	nextLine := strings.Index(content[commandStart:], "\n")
+	secondCommand := strings.Index(content[commandStart:], "thing-b")
+
+	require.GreaterOrEqual(t, secondCommand, nextLine)
 }

@@ -209,6 +209,17 @@ pulling a new upstream release, use this list to ensure nothing is lost.
 - User-defined rules are additive, apply to foreground and background Bash
   execution, and are included in the Bash tool description shown to the model.
 
+### Bash Safe Command Approval
+
+- **Files**: `internal/agent/tools/safe.go`, `internal/agent/tools/bash.go`,
+  `internal/agent/tools/safe_test.go`, `internal/agent/tools/bash_test.go`
+- Bash auto-approval parses commands with the shell AST and only permits
+  explicitly modeled, literal read-only invocations.
+- Redirections, background operators, pipelines, substitutions, assignments,
+  and multi-command scripts require a permission prompt.
+- Command wrappers such as `timeout`, `nice`, `nohup`, and `env` are
+  recursively checked so the wrapped command cannot bypass approval.
+
 ### Bash Sandbox (bubblewrap)
 
 - **Files**: `internal/shell/sandbox.go`, `internal/shell/sandbox_linux.go`,

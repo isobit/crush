@@ -202,6 +202,23 @@ func TestBashTool_ChainedCommandsRequirePermission(t *testing.T) {
 	require.Equal(t, 0, perms.requestCount, "plain ls should not trigger permission request")
 }
 
+func TestBashTool_DangerousSyntaxRequiresPermission(t *testing.T) {
+	workingDir := t.TempDir()
+	tool, perms := newBashToolWithRecordingPerms(workingDir, true)
+	ctx := context.WithValue(context.Background(), SessionIDContextKey, "test-session")
+
+	for _, command := range []string{"ls > output", "ls & echo done", "timeout 1 rm -f does-not-exist"} {
+		perms.requestCount = 0
+		resp := runBashTool(t, tool, ctx, BashParams{
+			Description: "unsafe syntax",
+			Command:     command,
+		})
+
+		require.False(t, resp.IsError)
+		require.Equal(t, 1, perms.requestCount, "command should trigger permission request: %s", command)
+	}
+}
+
 func TestBashTool_ChainedCommandsDenied(t *testing.T) {
 	workingDir := t.TempDir()
 	tool, perms := newBashToolWithRecordingPerms(workingDir, false)

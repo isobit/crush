@@ -15,6 +15,12 @@ pulling a new upstream release, use this list to ensure nothing is lost.
 
 ## Active Customizations
 
+### Coder Prompt Comment Guidance
+
+- **File**: `internal/agent/templates/coder.md.tpl`
+- The system prompt requires matching skills to be loaded once before the first task-performing tool call, and treats follow-up edits and tests as the same task.
+
+
 ### Theme — Isobit Styles
 
 - **Files**: `internal/ui/styles/isobit.go`, `internal/ui/styles/themes.go`

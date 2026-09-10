@@ -1,10 +1,12 @@
 package tools
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"regexp"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -455,4 +457,14 @@ func TestColumnMatch(t *testing.T) {
 			require.Equal(t, "testdata/grep.txt", filepath.ToSlash(filepath.Clean(match.path)))
 		})
 	}
+}
+
+func TestSearchFilesHonorsContext(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
+	defer cancel()
+
+	_, _, err := searchFiles(ctx, "pattern", t.TempDir(), "", 100)
+	require.ErrorIs(t, err, context.DeadlineExceeded)
 }

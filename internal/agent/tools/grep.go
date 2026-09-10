@@ -3,7 +3,6 @@ package tools
 import (
 	"bufio"
 	"bytes"
-	"cmp"
 	"context"
 	_ "embed"
 	"encoding/json"
@@ -22,7 +21,9 @@ import (
 	"charm.land/fantasy"
 	"github.com/charmbracelet/crush/internal/config"
 	"github.com/charmbracelet/crush/internal/csync"
+	"github.com/charmbracelet/crush/internal/filepathext"
 	"github.com/charmbracelet/crush/internal/fsext"
+	"github.com/charmbracelet/crush/internal/permission"
 	"github.com/charmbracelet/x/ansi"
 )
 
@@ -121,7 +122,7 @@ func escapeRegexPattern(pattern string) string {
 	return escaped
 }
 
-func NewGrepTool(workingDir string, config config.ToolGrep) fantasy.AgentTool {
+func NewGrepTool(permissions permission.Service, workingDir string, cfg config.ToolGrep) fantasy.AgentTool {
 	return fantasy.NewAgentTool(
 		GrepToolName,
 		grepDescription(),
@@ -135,9 +136,22 @@ func NewGrepTool(workingDir string, config config.ToolGrep) fantasy.AgentTool {
 				searchPattern = escapeRegexPattern(params.Pattern)
 			}
 
-			searchPath := cmp.Or(params.Path, workingDir)
+			searchPath := filepathext.SmartJoin(workingDir, params.Path)
 
-			searchCtx, cancel := context.WithTimeout(ctx, config.GetTimeout())
+			searchPath, granted, err := requestToolPathPermission(
+				ctx, permissions, workingDir, searchPath, call, GrepToolName, "read",
+				"Search files outside working directory: %s",
+				"session ID is required for accessing paths outside working directory",
+				params,
+			)
+			if err != nil {
+				return fantasy.ToolResponse{}, err
+			}
+			if !granted {
+				return NewPermissionDeniedResponse(), nil
+			}
+
+			searchCtx, cancel := context.WithTimeout(ctx, cfg.GetTimeout())
 			defer cancel()
 
 			matches, truncated, err := searchFiles(searchCtx, searchPattern, searchPath, params.Include, 100)

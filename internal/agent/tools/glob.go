@@ -3,7 +3,6 @@ package tools
 import (
 	"bufio"
 	"bytes"
-	"cmp"
 	"context"
 	_ "embed"
 	"fmt"
@@ -18,6 +17,7 @@ import (
 	"github.com/charmbracelet/crush/internal/config"
 	"github.com/charmbracelet/crush/internal/filepathext"
 	"github.com/charmbracelet/crush/internal/fsext"
+	"github.com/charmbracelet/crush/internal/permission"
 )
 
 const GlobToolName = "glob"
@@ -50,7 +50,7 @@ type GlobResponseMetadata struct {
 	Truncated     bool `json:"truncated"`
 }
 
-func NewGlobTool(workingDir string, cfg config.ToolGlob) fantasy.AgentTool {
+func NewGlobTool(permissions permission.Service, workingDir string, cfg config.ToolGlob) fantasy.AgentTool {
 	return fantasy.NewAgentTool(
 		GlobToolName,
 		globDescription(),
@@ -59,7 +59,20 @@ func NewGlobTool(workingDir string, cfg config.ToolGlob) fantasy.AgentTool {
 				return fantasy.NewTextErrorResponse("pattern is required"), nil
 			}
 
-			searchPath := cmp.Or(params.Path, workingDir)
+			searchPath := filepathext.SmartJoin(workingDir, params.Path)
+
+			searchPath, granted, err := requestToolPathPermission(
+				ctx, permissions, workingDir, searchPath, call, GlobToolName, "read",
+				"Search directory outside working directory: %s",
+				"session ID is required for accessing directories outside working directory",
+				params,
+			)
+			if err != nil {
+				return fantasy.ToolResponse{}, err
+			}
+			if !granted {
+				return NewPermissionDeniedResponse(), nil
+			}
 
 			// Bound the search so a huge or symlink-heavy root (e.g. $HOME
 			// or a module cache) fails cleanly instead of pinning the CPU

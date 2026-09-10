@@ -153,6 +153,15 @@ pulling a new upstream release, use this list to ensure nothing is lost.
   existing grep timeout pattern. Prevents runaway CPU on large file trees.
 - Configured via `crush.json` under `tools.glob.timeout`.
 
+### Grep and Glob Directory Permissions
+
+- **Files**: `internal/agent/tools/path_permissions.go`,
+  `internal/agent/tools/grep.go`, `internal/agent/tools/glob.go`,
+  `internal/agent/tools/path_permissions_test.go`
+- Grep and glob now require the same session permission approval as view before
+  searching paths outside the working directory. Relative paths are resolved
+  against the working directory, and denied requests stop the tool call.
+
 ### Config File Override (`--config`)
 
 - **Files**: `internal/cmd/root.go`, `internal/config/load.go`,

@@ -40,7 +40,7 @@ func (m *mockBashPermissionService) SkipRequests() bool {
 }
 
 func (m *mockBashPermissionService) SetPermissive(permissive bool) {}
-func (m *mockBashPermissionService) Permissive() bool { return false }
+func (m *mockBashPermissionService) Permissive() bool              { return false }
 
 func (m *mockBashPermissionService) SubscribeNotifications(ctx context.Context) <-chan pubsub.Event[permission.PermissionNotification] {
 	return make(<-chan pubsub.Event[permission.PermissionNotification])
@@ -56,6 +56,51 @@ func TestMergeWritablePaths(t *testing.T) {
 			[]string{"/home/user/.cache", "/home/user/go"},
 		),
 	)
+}
+
+func TestBashPermissionAction(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name                    string
+		sandboxActive           bool
+		sandboxNetwork          bool
+		additionalWritablePaths bool
+		expectedAction          string
+	}{
+		{
+			name:           "fully contained",
+			sandboxActive:  true,
+			expectedAction: BashActionExecuteSandboxed,
+		},
+		{
+			name:                    "requested writable paths",
+			sandboxActive:           true,
+			additionalWritablePaths: true,
+			expectedAction:          BashActionExecute,
+		},
+		{
+			name:           "network access",
+			sandboxActive:  true,
+			sandboxNetwork: true,
+			expectedAction: BashActionExecute,
+		},
+		{
+			name:           "unsandboxed",
+			expectedAction: BashActionExecute,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tt.expectedAction, bashPermissionAction(
+				tt.sandboxActive,
+				tt.sandboxNetwork,
+				tt.additionalWritablePaths,
+			))
+		})
+	}
 }
 
 func TestBashTool_DefaultAutoBackgroundThreshold(t *testing.T) {
@@ -126,7 +171,7 @@ func (m *recordingPermissionService) SkipRequests() bool {
 }
 
 func (m *recordingPermissionService) SetPermissive(permissive bool) {}
-func (m *recordingPermissionService) Permissive() bool { return false }
+func (m *recordingPermissionService) Permissive() bool              { return false }
 
 func (m *recordingPermissionService) SubscribeNotifications(ctx context.Context) <-chan pubsub.Event[permission.PermissionNotification] {
 	return make(<-chan pubsub.Event[permission.PermissionNotification])

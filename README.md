@@ -521,7 +521,7 @@ permissions. Use this with care.
 You can also skip all permission prompts entirely by running Crush with the
 `--yolo` flag. Be very, very careful with this feature.
 
-For a narrower alternative, use permissive mode with `--permissive`. It auto-approves writes inside the working directory, fully sandboxed Bash commands, and MCP tools marked with the read-only hint. Other MCP tools, writes outside the working directory, network-enabled Bash, extra writable paths, and unsandboxed Bash still require permission. The sandbox's configured writable and hidden paths remain enforced. Toggle it from the Commands menu or with `ctrl+shift+p`.
+For a narrower alternative, use permissive mode with `--permissive`. It auto-approves writes inside the working directory, sandboxed Bash commands with no network or agent-requested additional writable paths (configured writable paths are fine), and MCP tools marked with the read-only hint. Other MCP tools, writes outside the working directory, network-enabled Bash, Bash commands requesting additional writable paths, and unsandboxed Bash still require permission. The sandbox's configured writable and hidden paths remain enforced. Toggle it from the Commands menu or with `ctrl+shift+p`.
 
 ### Bash Sandbox
 
@@ -544,9 +544,7 @@ and credential paths cannot be writable.
 }
 ```
 
-Configured writable paths are persistent real-filesystem writes and therefore
-use the elevated `bash:execute` permission action. Hidden paths cannot be read
-inside the sandbox, including through shell redirections.
+Configured writable paths are persistent real-filesystem writes. Sandboxed Bash commands with no network and no agent-requested additional writable paths use the `bash:execute_sandboxed` permission action, including commands that use configured writable paths. Network access, requested writable paths, and unsandboxed execution use the elevated `bash:execute` action. Hidden paths cannot be read inside the sandbox, including through shell redirections.
 
 ### Disabling Built-In Tools
 

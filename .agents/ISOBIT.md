@@ -310,12 +310,12 @@ pulling a new upstream release, use this list to ensure nothing is lost.
   auto-approval is expressed entirely through the existing
   `permissions.allowed_tools` config (keyed on `tool:action`) rather than a
   bespoke sandbox flag:
-  - **Contained** (sandbox active, no network, no extra writable paths) ->
-    action `bash:execute_sandboxed`. Allowlisting `bash:execute_sandboxed`
-    lets these run without a prompt.
-  - **Elevated** (network and/or extra writable paths) and **Unsandboxed**
-    (`no_sandbox`, or sandbox not actually active) -> action
-    `bash:execute` (historical action; still prompts by default).
+  - **Contained** (sandbox active, no network, and no writable paths beyond
+    the configured defaults, including the working directory and `/tmp`) ->
+    action `bash:execute_sandboxed`.
+  - **Elevated** (network and/or agent-requested additional writable paths)
+    and **Unsandboxed** (`no_sandbox`, or sandbox not actually active) ->
+    action `bash:execute` (historical action; still prompts by default).
   The action reflects the posture that actually happened: `mode:"auto"`
   with `bwrap` missing yields `bash:execute` (unsandboxed), so a
   `bash:execute_sandboxed` allow correctly does not fire. Action constants
@@ -327,9 +327,9 @@ pulling a new upstream release, use this list to ensure nothing is lost.
 
 ### Permissive Permission Mode
 
-- **Files**: `internal/permission/permission.go`, `internal/proto/proto.go`, `internal/backend/`, `internal/client/`, `internal/server/`, `internal/workspace/`, `internal/cmd/root.go`, `internal/agent/tools/mcp-tools.go`, `internal/agent/tools/mcp-tools_test.go`, `internal/agent/tools/lsp_replace_symbol.go`, `internal/ui/model/`, `internal/ui/dialog/`, `README.md`
-- `--permissive` and the interactive Permissive mode auto-approve write actions inside the working directory, `bash:execute_sandboxed`, and MCP tools with the read-only hint.
-- Other MCP tools, writes outside the working directory, elevated or unsandboxed Bash, network access, and extra writable paths still require permission. Sandbox filesystem restrictions remain enforced.
+- **Files**: `internal/permission/permission.go`, `internal/proto/proto.go`, `internal/backend/`, `internal/client/`, `internal/server/`, `internal/workspace/`, `internal/cmd/root.go`, `internal/agent/tools/bash.go`, `internal/agent/tools/bash_test.go`, `internal/agent/tools/mcp-tools.go`, `internal/agent/tools/mcp-tools_test.go`, `internal/agent/tools/lsp_replace_symbol.go`, `internal/ui/model/`, `internal/ui/dialog/`, `README.md`
+- `--permissive` and the interactive Permissive mode auto-approve write actions inside the working directory, sandboxed Bash with no network or agent-requested additional writable paths, and MCP tools with the read-only hint.
+- Other MCP tools, writes outside the working directory, elevated or unsandboxed Bash, network access, and agent-requested additional writable paths still require permission. Configured writable paths are allowed in the sandboxed tier; sandbox filesystem restrictions remain enforced.
 
 ### Kagi Search Integration
 

@@ -62,10 +62,9 @@ const (
 	// paths) or entirely outside the sandbox. It is the historical,
 	// higher-risk action.
 	BashActionExecute = "execute"
-	// BashActionExecuteSandboxed is the permission action for fully
-	// contained commands: the sandbox is active with no network and no
-	// extra writable paths. Allowlisting bash:execute_sandboxed lets these
-	// run without a prompt while riskier postures still require approval.
+	// BashActionExecuteSandboxed is the permission action for commands with
+	// the sandbox active, no network, and no writable paths beyond the
+	// configured defaults, including the working directory and /tmp.
 	BashActionExecuteSandboxed = "execute_sandboxed"
 
 	DefaultAutoBackgroundAfter = 60 // Commands taking longer automatically become background jobs
@@ -257,6 +256,14 @@ func mergeWritablePaths(defaults, requested []string) []string {
 	return paths
 }
 
+// bashPermissionAction maps the effective sandbox posture to its permission tier.
+func bashPermissionAction(sandboxActive, sandboxNetwork, additionalWritablePaths bool) string {
+	if sandboxActive && !sandboxNetwork && !additionalWritablePaths {
+		return BashActionExecuteSandboxed
+	}
+	return BashActionExecute
+}
+
 func NewBashTool(permissions permission.Service, workingDir string, attribution *config.Attribution, modelID string, sandboxOpts BashSandboxOptions) fantasy.AgentTool {
 	sandboxEnabled := shell.ShouldSandbox(sandboxOpts.Mode)
 	return fantasy.NewAgentTool(
@@ -279,9 +286,9 @@ func NewBashTool(permissions permission.Service, workingDir string, attribution 
 			sandboxActive := sandboxEnabled && !params.NoSandbox
 			var sandboxCfg *shell.SandboxConfig
 			writablePaths := sandboxOpts.WritablePaths
+			requestedPaths := params.SandboxWritablePaths
 			if sandboxActive {
 				// Resolve and validate requested writable paths.
-				requestedPaths := params.SandboxWritablePaths
 				if len(requestedPaths) > 0 {
 					home, _ := os.UserHomeDir()
 					var err error
@@ -299,14 +306,8 @@ func NewBashTool(permissions permission.Service, workingDir string, attribution 
 				}
 			}
 
-			// Derive the permission action from the effective posture. A
-			// fully contained command (sandbox active, no network, no extra
-			// writable paths) uses a distinct action so it can be
-			// allowlisted independently of riskier postures.
-			action := BashActionExecute
-			if sandboxActive && !params.SandboxNetwork && len(writablePaths) == 0 {
-				action = BashActionExecuteSandboxed
-			}
+			additionalWritablePaths := len(writablePaths) > len(sandboxOpts.WritablePaths)
+			action := bashPermissionAction(sandboxActive, params.SandboxNetwork, additionalWritablePaths)
 
 			safeReadOnly := isSafeReadOnly(params.Command)
 

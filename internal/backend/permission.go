@@ -58,3 +58,24 @@ func (b *Backend) GetPermissionsSkip(workspaceID string) (bool, error) {
 
 	return ws.Permissions.SkipRequests(), nil
 }
+
+// SetPermissionsPermissive sets whether safe writes and sandboxed commands are auto-approved.
+func (b *Backend) SetPermissionsPermissive(workspaceID string, permissive bool) error {
+	ws, err := b.GetWorkspace(workspaceID)
+	if err != nil {
+		return err
+	}
+
+	ws.Permissions.SetPermissive(permissive)
+	return nil
+}
+
+// GetPermissionsPermissive returns whether permissive mode is enabled.
+func (b *Backend) GetPermissionsPermissive(workspaceID string) (bool, error) {
+	ws, err := b.GetWorkspace(workspaceID)
+	if err != nil {
+		return false, err
+	}
+
+	return ws.Permissions.Permissive(), nil
+}

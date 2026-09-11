@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 
@@ -81,6 +82,8 @@ type Service interface {
 	AutoApproveSession(sessionID string)
 	SetSkipRequests(skip bool)
 	SkipRequests() bool
+	SetPermissive(permissive bool)
+	Permissive() bool
 	SubscribeNotifications(ctx context.Context) <-chan pubsub.Event[PermissionNotification]
 }
 
@@ -102,12 +105,30 @@ type permissionService struct {
 	autoApproveSessions   map[string]bool
 	autoApproveSessionsMu sync.RWMutex
 	skip                  atomic.Bool
+	permissive            atomic.Bool
 	allowedTools          []string
 
 	// used to make sure we only process one request at a time
 	requestMu       sync.Mutex
 	activeRequest   *PermissionRequest
 	activeRequestMu sync.Mutex
+}
+
+// permissiveToolActions is the complete set of tool/action pairs that can
+// be auto-approved by permissive mode. Keep this explicit so new tools do
+// not inherit write access accidentally.
+var permissiveToolActions = map[string]struct {
+	Actions      []string
+	SkipDirCheck bool
+}{
+	"bash":               {Actions: []string{"execute_sandboxed"}, SkipDirCheck: true},
+	"download":           {Actions: []string{"download"}},
+	"edit":               {Actions: []string{"write"}},
+	"hashline_edit":      {Actions: []string{"write"}},
+	"lsp_rename":         {Actions: []string{"write"}},
+	"lsp_replace_symbol": {Actions: []string{"write"}},
+	"multiedit":          {Actions: []string{"write"}},
+	"write":              {Actions: []string{"write"}},
 }
 
 // resolve atomically removes the pending request entry for the given
@@ -178,8 +199,47 @@ func (s *permissionService) Deny(permission PermissionRequest) bool {
 	return s.resolve(permission, false, true, nil)
 }
 
+func (s *permissionService) permissionPath(path string) string {
+	fileInfo, err := os.Stat(path)
+	dir := path
+	if err == nil && !fileInfo.IsDir() {
+		dir = filepath.Dir(path)
+	}
+	if dir == "." {
+		dir = s.workingDir
+	}
+	return dir
+}
+
+func (s *permissionService) permissiveAllows(opts CreatePermissionRequest) bool {
+	tool, ok := permissiveToolActions[opts.ToolName]
+	if !ok || !slices.Contains(tool.Actions, opts.Action) {
+		return false
+	}
+	if tool.SkipDirCheck {
+		return true
+	}
+	workingDir, err := filepath.Abs(s.workingDir)
+	if err != nil {
+		return false
+	}
+	path := s.permissionPath(opts.Path)
+	if !filepath.IsAbs(path) {
+		path = filepath.Join(workingDir, path)
+	}
+	path, err = filepath.Abs(path)
+	if err != nil {
+		return false
+	}
+	rel, err := filepath.Rel(workingDir, path)
+	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
+}
+
 func (s *permissionService) Request(ctx context.Context, opts CreatePermissionRequest) (bool, error) {
 	if s.skip.Load() {
+		return true, nil
+	}
+	if s.permissive.Load() && s.permissiveAllows(opts) {
 		return true, nil
 	}
 
@@ -221,19 +281,7 @@ func (s *permissionService) Request(ctx context.Context, opts CreatePermissionRe
 		return true, nil
 	}
 
-	fileInfo, err := os.Stat(opts.Path)
-	dir := opts.Path
-	if err == nil {
-		if fileInfo.IsDir() {
-			dir = opts.Path
-		} else {
-			dir = filepath.Dir(opts.Path)
-		}
-	}
-
-	if dir == "." {
-		dir = s.workingDir
-	}
+	dir := s.permissionPath(opts.Path)
 	permission := PermissionRequest{
 		ID:          uuid.New().String(),
 		Path:        dir,
@@ -293,6 +341,14 @@ func (s *permissionService) SetSkipRequests(skip bool) {
 
 func (s *permissionService) SkipRequests() bool {
 	return s.skip.Load()
+}
+
+func (s *permissionService) SetPermissive(permissive bool) {
+	s.permissive.Store(permissive)
+}
+
+func (s *permissionService) Permissive() bool {
+	return s.permissive.Load()
 }
 
 func NewPermissionService(workingDir string, skip bool, allowedTools []string) Service {

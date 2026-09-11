@@ -521,6 +521,8 @@ permissions. Use this with care.
 You can also skip all permission prompts entirely by running Crush with the
 `--yolo` flag. Be very, very careful with this feature.
 
+For a narrower alternative, use permissive mode with `--permissive`. It auto-approves writes inside the working directory and fully sandboxed Bash commands, while writes outside the working directory, network-enabled Bash, extra writable paths, and unsandboxed Bash still require permission. The sandbox's configured writable and hidden paths remain enforced. Toggle it from the Commands menu or with `ctrl+shift+p`.
+
 ### Bash Sandbox
 
 On Linux, Bash commands can run inside a bubblewrap sandbox. Configure

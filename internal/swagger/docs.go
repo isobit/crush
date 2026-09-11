@@ -3663,6 +3663,9 @@ const docTemplate = `{
                 "path": {
                     "type": "string"
                 },
+                "permissive": {
+                    "type": "boolean"
+                },
                 "version": {
                     "type": "string"
                 },

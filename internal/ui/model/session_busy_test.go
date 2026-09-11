@@ -71,6 +71,9 @@ func (w *countingWorkspace) PermissionSetSkipRequests(skip bool) {
 	w.yolo = skip
 }
 
+func (w *countingWorkspace) PermissionPermissive() bool   { return false }
+func (w *countingWorkspace) PermissionSetPermissive(bool) {}
+
 func (w *countingWorkspace) AgentClearQueue(string) { w.clearQueueCalls++; w.queued = nil }
 func (w *countingWorkspace) AgentCancel(string)     { w.cancelCalls++ }
 
@@ -136,6 +139,7 @@ func pinTTLs(t *testing.T) {
 func warmCaches(m *UI, busy bool) {
 	m.agentBusyCache.set(busy)
 	m.yoloCache.set(false)
+	m.permissiveCache.set(false)
 	m.promptQueueCheckedAt = time.Now()
 }
 

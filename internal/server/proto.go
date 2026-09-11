@@ -1149,6 +1149,54 @@ func (c *controllerV1) handleGetWorkspacePermissionsSkip(w http.ResponseWriter, 
 	jsonEncode(w, proto.PermissionSkipRequest{Skip: skip})
 }
 
+// handlePostWorkspacePermissionsPermissive sets permissive mode.
+//
+//	@Summary		Set permissive mode
+//	@Tags			permissions
+//	@Accept			json
+//	@Param			id		path	string					true	"Workspace ID"
+//	@Param			request	body	proto.PermissionPermissiveRequest	true	"Permissive mode request"
+//	@Success		200
+//	@Failure		400	{object} proto.Error
+//	@Failure		404	{object} proto.Error
+//	@Failure		500	{object} proto.Error
+//	@Router			/workspaces/{id}/permissions/permissive [post]
+func (c *controllerV1) handlePostWorkspacePermissionsPermissive(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+
+	var req proto.PermissionPermissiveRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		c.server.logError(r, "Failed to decode request", "error", err)
+		jsonError(w, http.StatusBadRequest, "failed to decode request")
+		return
+	}
+
+	if err := c.backend.SetPermissionsPermissive(id, req.Permissive); err != nil {
+		c.handleError(w, r, err)
+		return
+	}
+}
+
+// handleGetWorkspacePermissionsPermissive returns permissive mode.
+//
+//	@Summary		Get permissive mode status
+//	@Tags			permissions
+//	@Produce		json
+//	@Param			id	path		string					true	"Workspace ID"
+//	@Success		200	{object} proto.PermissionPermissiveRequest
+//	@Failure		404	{object} proto.Error
+//	@Failure		500	{object} proto.Error
+//	@Router			/workspaces/{id}/permissions/permissive [get]
+func (c *controllerV1) handleGetWorkspacePermissionsPermissive(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	permissive, err := c.backend.GetPermissionsPermissive(id)
+	if err != nil {
+		c.handleError(w, r, err)
+		return
+	}
+	jsonEncode(w, proto.PermissionPermissiveRequest{Permissive: permissive})
+}
+
 // handleError maps backend errors to HTTP status codes and writes the
 // JSON error response.
 //

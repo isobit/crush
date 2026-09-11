@@ -325,6 +325,12 @@ pulling a new upstream release, use this list to ensure nothing is lost.
   prompt regardless of posture.
 - Non-Linux platforms get a no-op handler stub.
 
+### Permissive Permission Mode
+
+- **Files**: `internal/permission/permission.go`, `internal/proto/proto.go`, `internal/backend/`, `internal/client/`, `internal/server/`, `internal/workspace/`, `internal/cmd/root.go`, `internal/agent/tools/lsp_replace_symbol.go`, `internal/ui/model/`, `internal/ui/dialog/`, `README.md`
+- `--permissive` and the interactive Permissive mode auto-approve write actions inside the working directory and `bash:execute_sandboxed` commands.
+- Writes outside the working directory, elevated or unsandboxed Bash, network access, and extra writable paths still require permission. Sandbox filesystem restrictions remain enforced.
+
 ### Kagi Search Integration
 
 - **Files**: `internal/agent/tools/search_kagi.go`,

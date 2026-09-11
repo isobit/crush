@@ -65,9 +65,10 @@ type busyStateMsg struct {
 	// before a newer state transition (optimistic send, invalidation,
 	// session switch, ...) and is discarded, then re-fetched, so the
 	// authoritative refresh is never lost to an older in-flight request.
-	gen       uint64
-	agentBusy bool
-	yolo      bool
+	gen        uint64
+	agentBusy  bool
+	yolo       bool
+	permissive bool
 }
 
 // promptQueueMsg delivers the queued prompts fetched off-thread.
@@ -102,6 +103,7 @@ func (m *UI) currentSessionID() string {
 func (m *UI) invalidateBusyCaches() {
 	m.agentBusyCache.invalidate()
 	m.yoloCache.invalidate()
+	m.permissiveCache.invalidate()
 	m.busyFetchGen++
 }
 
@@ -130,6 +132,7 @@ func (m *UI) dispatchBusyRefresh() tea.Cmd {
 			st.agentBusy = ws.AgentIsBusy()
 		}
 		st.yolo = ws.PermissionSkipRequests()
+		st.permissive = ws.PermissionPermissive()
 		return st
 	}
 }
@@ -150,13 +153,11 @@ func (m *UI) applyBusyState(msg busyStateMsg) []tea.Cmd {
 	}
 	prevBusy := m.isAgentBusy()
 	prevYolo := m.yoloModeCached()
+	prevPermissive := m.permissiveModeCached()
 	m.agentBusyCache.set(msg.agentBusy)
 	m.yoloCache.set(msg.yolo)
-	if prevYolo != msg.yolo {
-		// A remote/async toggle changed yolo mode: update the editor
-		// prompt function so the prompt icon/style tracks the new mode.
-		// The cache is written above and the placeholder is refreshed by
-		// the Update tail.
+	m.permissiveCache.set(msg.permissive)
+	if prevYolo != msg.yolo || prevPermissive != msg.permissive {
 		m.setEditorPrompt(msg.yolo)
 	}
 
@@ -245,7 +246,7 @@ func (m *UI) staleWorkspaceRefreshCmds() []tea.Cmd {
 		return nil
 	}
 	var cmds []tea.Cmd
-	if !m.agentBusyCache.fresh(busyCacheTTL) || !m.yoloCache.fresh(busyCacheTTL) {
+	if !m.agentBusyCache.fresh(busyCacheTTL) || !m.yoloCache.fresh(busyCacheTTL) || !m.permissiveCache.fresh(busyCacheTTL) {
 		if cmd := m.dispatchBusyRefresh(); cmd != nil {
 			cmds = append(cmds, cmd)
 		}
@@ -274,6 +275,20 @@ func (m *UI) toggleYoloMode() bool {
 	m.busyFetchGen++
 	m.setEditorPrompt(yolo)
 	return yolo
+}
+
+// togglePermissiveMode flips permissive mode and updates its cache and prompt.
+func (m *UI) togglePermissiveMode() bool {
+	permissive := !m.com.Workspace.PermissionPermissive()
+	m.com.Workspace.PermissionSetPermissive(permissive)
+	m.permissiveCache.set(permissive)
+	m.busyFetchGen++
+	m.setEditorPrompt(m.yoloModeCached())
+	return permissive
+}
+
+func (m *UI) permissiveModeCached() bool {
+	return m.permissiveCache.val
 }
 
 // yoloModeCached reports the memoized permission-skip ("yolo") mode. Toggles

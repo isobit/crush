@@ -16,6 +16,7 @@ type Workspace struct {
 	ID           string            `json:"id"`
 	Path         string            `json:"path"`
 	YOLO         bool              `json:"yolo,omitempty"`
+	Permissive   bool              `json:"permissive,omitempty"`
 	Debug        bool              `json:"debug,omitempty"`
 	DataDir      string            `json:"data_dir,omitempty"`
 	ConfigFiles  []string          `json:"config_files,omitempty"`
@@ -267,6 +268,11 @@ type QuestionNotification struct {
 // PermissionSkipRequest represents a request to skip permission prompts.
 type PermissionSkipRequest struct {
 	Skip bool `json:"skip"`
+}
+
+// PermissionPermissiveRequest represents a request to set permissive mode.
+type PermissionPermissiveRequest struct {
+	Permissive bool `json:"permissive"`
 }
 
 // LSPEventType represents the type of LSP event.

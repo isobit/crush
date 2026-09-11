@@ -60,6 +60,7 @@ func init() {
 	rootCmd.PersistentFlags().StringArrayP("set", "o", nil, "Override a config option (key=value, e.g. --set debug=true)")
 	rootCmd.Flags().BoolP("help", "h", false, "Help")
 	rootCmd.Flags().BoolP("yolo", "y", false, "Automatically accept all permissions (dangerous mode)")
+	rootCmd.Flags().Bool("permissive", false, "Automatically accept writes in the working directory and sandboxed commands")
 	rootCmd.PersistentFlags().StringSlice("channels", nil, "MCP servers to enable as channels (repeatable), e.g. --channels server:webhook")
 	_ = rootCmd.PersistentFlags().MarkHidden("channels")
 	rootCmd.Flags().StringP("session", "s", "", "Continue a previous session by ID")
@@ -101,6 +102,9 @@ crush --debug --cwd /path/to/project
 
 # Run in yolo mode (auto-accept all permissions; use with care)
 crush --yolo
+
+// Run in permissive mode (allow working-directory writes and sandboxed Bash)
+crush --permissive
 
 # Run with custom data directory
 crush --data-dir /path/to/custom/.crush
@@ -266,6 +270,7 @@ func setupWorkspace(cmd *cobra.Command) (workspace.Workspace, func(), error) {
 func setupLocalWorkspace(cmd *cobra.Command) (workspace.Workspace, func(), error) {
 	debug, _ := cmd.Flags().GetBool("debug")
 	yolo, _ := cmd.Flags().GetBool("yolo")
+	permissive, _ := cmd.Flags().GetBool("permissive")
 	channels, _ := cmd.Flags().GetStringSlice("channels")
 	dataDir, _ := cmd.Flags().GetString("data-dir")
 	setArgs, _ := cmd.Flags().GetStringArray("set")
@@ -293,6 +298,7 @@ func setupLocalWorkspace(cmd *cobra.Command) (workspace.Workspace, func(), error
 
 	cfg := store.Config()
 	store.Overrides().SkipPermissionRequests = yolo
+	store.Overrides().Permissive = permissive
 	store.Overrides().EnabledChannels = channels
 
 	// Apply --set overrides.
@@ -415,6 +421,7 @@ func connectToServer(cmd *cobra.Command) (*client.Client, *proto.Workspace, func
 
 	debug, _ := cmd.Flags().GetBool("debug")
 	yolo, _ := cmd.Flags().GetBool("yolo")
+	permissive, _ := cmd.Flags().GetBool("permissive")
 	channels, _ := cmd.Flags().GetStringSlice("channels")
 	dataDir, _ := cmd.Flags().GetString("data-dir")
 	setArgs, _ := cmd.Flags().GetStringArray("set")
@@ -445,6 +452,7 @@ func connectToServer(cmd *cobra.Command) (*client.Client, *proto.Workspace, func
 		DataDir:      dataDir,
 		Debug:        debug,
 		YOLO:         yolo,
+		Permissive:   permissive,
 		Channels:     channels,
 		Version:      version.Version,
 		Env:          os.Environ(),

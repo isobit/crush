@@ -701,6 +701,36 @@ func (c *Client) GetPermissionsSkipRequests(ctx context.Context, id string) (boo
 	return skip.Skip, nil
 }
 
+// SetPermissionsPermissive sets the permissive mode for a workspace.
+func (c *Client) SetPermissionsPermissive(ctx context.Context, id string, permissive bool) error {
+	rsp, err := c.post(ctx, fmt.Sprintf("/workspaces/%s/permissions/permissive", id), nil, jsonBody(proto.PermissionPermissiveRequest{Permissive: permissive}), http.Header{"Content-Type": []string{"application/json"}})
+	if err != nil {
+		return fmt.Errorf("failed to set permissive mode: %w", err)
+	}
+	defer rsp.Body.Close()
+	if rsp.StatusCode != http.StatusOK {
+		return fmt.Errorf("failed to set permissive mode: status code %d", rsp.StatusCode)
+	}
+	return nil
+}
+
+// GetPermissionsPermissive retrieves the permissive mode for a workspace.
+func (c *Client) GetPermissionsPermissive(ctx context.Context, id string) (bool, error) {
+	rsp, err := c.get(ctx, fmt.Sprintf("/workspaces/%s/permissions/permissive", id), nil, nil)
+	if err != nil {
+		return false, fmt.Errorf("failed to get permissive mode: %w", err)
+	}
+	defer rsp.Body.Close()
+	if rsp.StatusCode != http.StatusOK {
+		return false, fmt.Errorf("failed to get permissive mode: status code %d", rsp.StatusCode)
+	}
+	var permissive proto.PermissionPermissiveRequest
+	if err := json.NewDecoder(rsp.Body).Decode(&permissive); err != nil {
+		return false, fmt.Errorf("failed to decode permissive mode: %w", err)
+	}
+	return permissive.Permissive, nil
+}
+
 // GetConfig retrieves the workspace-specific configuration.
 func (c *Client) GetConfig(ctx context.Context, id string) (*config.Config, error) {
 	rsp, err := c.get(ctx, fmt.Sprintf("/workspaces/%s/config", id), nil, nil)

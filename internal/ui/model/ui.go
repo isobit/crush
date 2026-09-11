@@ -347,6 +347,7 @@ type UI struct {
 	// never probe; refreshes happen off-thread (see workspace_cache.go).
 	agentBusyCache    ttlCache
 	yoloCache         ttlCache
+	permissiveCache   ttlCache
 	busyFetchInFlight bool
 	// busyFetchGen is bumped by every busy/permission state transition;
 	// like promptQueueGen it lets a stale in-flight probe result be
@@ -458,11 +459,13 @@ func New(com *common.Common, initialSessionID string, continueLast bool) *UI {
 		ui.themeKey = styles.ThemeKeyForProvider(cfg.Models[config.SelectedModelTypeLarge].Provider)
 	}
 
-	// Seed the yolo cache once at construction; afterwards it is kept
+	// Seed the mode caches once at construction; afterwards they are kept
 	// fresh by write-through toggles and off-thread refreshes so Update
 	// and View never probe the workspace synchronously.
 	yolo := com.Workspace.PermissionSkipRequests()
+	permissive := com.Workspace.PermissionPermissive()
 	ui.yoloCache.set(yolo)
+	ui.permissiveCache.set(permissive)
 	ui.setEditorPrompt(yolo)
 	ui.randomizePlaceholders()
 	ui.textarea.Placeholder = ui.readyPlaceholder
@@ -1806,6 +1809,9 @@ func (m *UI) handleDialogMsg(msg tea.Msg) tea.Cmd {
 	case dialog.ActionToggleYoloMode:
 		m.toggleYoloMode()
 		m.dialog.CloseDialog(dialog.CommandsID)
+	case dialog.ActionTogglePermissiveMode:
+		m.togglePermissiveMode()
+		m.dialog.CloseDialog(dialog.CommandsID)
 	case dialog.ActionSelectNotificationStyle:
 		cfg := m.com.Config()
 		if cfg != nil && cfg.Options != nil {
@@ -2288,6 +2294,14 @@ func (m *UI) handleKeyPressMsg(msg tea.KeyPressMsg) tea.Cmd {
 				status = "enabled"
 			}
 			cmds = append(cmds, util.ReportInfo("Yolo mode "+status))
+			return true
+		case key.Matches(msg, m.keyMap.TogglePermissive):
+			permissive := m.togglePermissiveMode()
+			status := "disabled"
+			if permissive {
+				status = "enabled"
+			}
+			cmds = append(cmds, util.ReportInfo("Permissive mode "+status))
 			return true
 		}
 		return false
@@ -3629,6 +3643,10 @@ func (m *UI) setEditorPrompt(yolo bool) {
 		m.textarea.SetPromptFunc(4, m.yoloPromptFunc)
 		return
 	}
+	if m.permissiveModeCached() {
+		m.textarea.SetPromptFunc(4, m.permissivePromptFunc)
+		return
+	}
 	m.textarea.SetPromptFunc(4, m.normalPromptFunc)
 }
 
@@ -3663,6 +3681,23 @@ func (m *UI) yoloPromptFunc(info textarea.PromptInfo) string {
 		return t.Editor.PromptYoloDotsFocused.Render()
 	}
 	return t.Editor.PromptYoloDotsBlurred.Render()
+}
+
+// permissivePromptFunc displays the permissive mode prompt with a P icon.
+func (m *UI) permissivePromptFunc(info textarea.PromptInfo) string {
+	t := m.com.Styles
+	if info.LineNumber == 0 {
+		style := t.Editor.PromptYoloIconBlurred
+		if info.Focused {
+			style = t.Editor.PromptYoloIconFocused
+		}
+		return style.SetString(" P ").Render()
+	}
+	style := t.Editor.PromptYoloDotsBlurred
+	if info.Focused {
+		style = t.Editor.PromptYoloDotsFocused
+	}
+	return style.Render()
 }
 
 // bangPromptFunc returns the bang mode editor prompt style with Turtle-colored

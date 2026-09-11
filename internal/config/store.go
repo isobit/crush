@@ -50,6 +50,7 @@ type fileSnapshot struct {
 // the lifetime of the process (or workspace).
 type RuntimeOverrides struct {
 	SkipPermissionRequests bool
+	Permissive             bool
 	CLIOverrides           map[string]string
 	EnabledChannels        []string
 }

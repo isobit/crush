@@ -137,6 +137,7 @@ func NewReplaceSymbolTool(
 					Path:        params.FilePath,
 					ToolName:    ReplaceSymbolToolName,
 					Description: fmt.Sprintf("%s symbol '%s' in %s", action, params.Symbol, params.FilePath),
+					Action:      "write",
 					Params: ReplaceSymbolPermissionsParams{
 						FilePath:   params.FilePath,
 						OldContent: string(content),

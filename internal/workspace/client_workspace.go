@@ -378,6 +378,18 @@ func (w *ClientWorkspace) PermissionSetSkipRequests(skip bool) {
 	_ = w.client.SetPermissionsSkipRequests(context.Background(), w.workspaceID(), skip)
 }
 
+func (w *ClientWorkspace) PermissionPermissive() bool {
+	permissive, err := w.client.GetPermissionsPermissive(context.Background(), w.workspaceID())
+	if err != nil {
+		return false
+	}
+	return permissive
+}
+
+func (w *ClientWorkspace) PermissionSetPermissive(permissive bool) {
+	_ = w.client.SetPermissionsPermissive(context.Background(), w.workspaceID(), permissive)
+}
+
 func (w *ClientWorkspace) MessageDelete(_ context.Context, _ string) error {
 	return errors.New("not implemented")
 }

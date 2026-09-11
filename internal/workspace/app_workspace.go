@@ -280,6 +280,14 @@ func (w *AppWorkspace) PermissionSetSkipRequests(skip bool) {
 	w.app.Permissions.SetSkipRequests(skip)
 }
 
+func (w *AppWorkspace) PermissionPermissive() bool {
+	return w.app.Permissions.Permissive()
+}
+
+func (w *AppWorkspace) PermissionSetPermissive(permissive bool) {
+	w.app.Permissions.SetPermissive(permissive)
+}
+
 // -- Questions --
 
 func (w *AppWorkspace) QuestionAnswer(responses []question.Answer) bool {

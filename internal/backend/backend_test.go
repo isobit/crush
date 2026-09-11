@@ -464,10 +464,12 @@ func TestPathDedupe_FirstWinsKeepsOriginalEnv(t *testing.T) {
 	originalEnv := []string{"FOO=bar"}
 	argsA := protoWS(cwd, dataDir, uuid.New().String())
 	argsA.YOLO = true
+	argsA.Permissive = true
 	argsA.Env = originalEnv
 	wsA, protoA, err := b.CreateWorkspace(argsA)
 	require.NoError(t, err)
 	require.True(t, protoA.YOLO)
+	require.True(t, protoA.Permissive)
 	require.Equal(t, originalEnv, protoA.Env)
 
 	argsB := protoWS(cwd, dataDir, uuid.New().String())
@@ -478,6 +480,7 @@ func TestPathDedupe_FirstWinsKeepsOriginalEnv(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, protoA.ID, protoB.ID)
 	require.True(t, protoB.YOLO, "first wins: YOLO must remain true")
+	require.True(t, protoB.Permissive, "first wins: permissive mode must remain true")
 	require.Equal(t, originalEnv, protoB.Env, "proto must carry the originating client's Env")
 	require.Equal(t, wsA.Cfg.Overrides().SkipPermissionRequests, true)
 }

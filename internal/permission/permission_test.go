@@ -1,6 +1,8 @@
 package permission
 
 import (
+	"context"
+	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -612,4 +614,72 @@ func TestPermissionService_ResolveIdempotency(t *testing.T) {
 			// good: no notification.
 		}
 	})
+}
+
+func TestPermissionService_PermissiveMode(t *testing.T) {
+	t.Parallel()
+
+	workingDir := t.TempDir()
+	service := NewPermissionService(workingDir, false, nil)
+	service.SetPermissive(true)
+
+	for _, req := range []CreatePermissionRequest{
+		{ToolName: "write", Action: "write", Path: workingDir + "/file.txt"},
+		{ToolName: "bash", Action: "execute_sandboxed", Path: "/"},
+	} {
+		granted, err := service.Request(t.Context(), req)
+		require.NoError(t, err)
+		require.True(t, granted)
+	}
+
+	outside := t.TempDir()
+	events := service.Subscribe(t.Context())
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+	defer cancel()
+	result := make(chan bool, 1)
+	go func() {
+		granted, _ := service.Request(ctx, CreatePermissionRequest{
+			SessionID: "session",
+			ToolName:  "write",
+			Action:    "write",
+			Path:      outside + "/file.txt",
+		})
+		result <- granted
+	}()
+	event := <-events
+	service.Deny(event.Payload)
+	require.False(t, <-result)
+}
+
+func TestPermissionService_PermissiveModeToolActions(t *testing.T) {
+	t.Parallel()
+
+	workingDir := t.TempDir()
+	service := NewPermissionService(workingDir, false, nil)
+	service.SetPermissive(true)
+
+	for _, req := range []CreatePermissionRequest{
+		{ToolName: "write", Action: "write", Path: filepath.Join(workingDir, "write.txt")},
+		{ToolName: "edit", Action: "write", Path: filepath.Join(workingDir, "edit.txt")},
+		{ToolName: "multiedit", Action: "write", Path: filepath.Join(workingDir, "multiedit.txt")},
+		{ToolName: "hashline_edit", Action: "write", Path: filepath.Join(workingDir, "hashline.txt")},
+		{ToolName: "lsp_rename", Action: "write", Path: workingDir},
+		{ToolName: "lsp_replace_symbol", Action: "write", Path: filepath.Join(workingDir, "symbol.go")},
+		{ToolName: "download", Action: "download", Path: filepath.Join(workingDir, "download.bin")},
+	} {
+		granted, err := service.Request(t.Context(), req)
+		require.NoError(t, err)
+		require.True(t, granted, "%s:%s should be permissive", req.ToolName, req.Action)
+	}
+	ps := service.(*permissionService)
+	require.False(t, ps.permissiveAllows(CreatePermissionRequest{
+		ToolName: "view",
+		Action:   "read",
+		Path:     workingDir,
+	}))
+	require.False(t, ps.permissiveAllows(CreatePermissionRequest{
+		ToolName: "unknown_writer",
+		Action:   "write",
+		Path:     workingDir,
+	}))
 }

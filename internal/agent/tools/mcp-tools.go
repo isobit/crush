@@ -72,6 +72,13 @@ func (m *Tool) MCPToolName() string {
 	return m.tool.Name
 }
 
+func (m *Tool) permissionAction() string {
+	if m.tool.Annotations != nil && m.tool.Annotations.ReadOnlyHint {
+		return "execute_read_only"
+	}
+	return "execute"
+}
+
 func (m *Tool) Info() fantasy.ToolInfo {
 	parameters := make(map[string]any)
 	required := make([]string, 0)
@@ -129,7 +136,7 @@ func (m *Tool) Run(ctx context.Context, params fantasy.ToolCall) (fantasy.ToolRe
 				ToolCallID:  params.ID,
 				Path:        m.workingDir,
 				ToolName:    m.Info().Name,
-				Action:      "execute",
+				Action:      m.permissionAction(),
 				Description: permissionDescription,
 				Params:      mcpInput,
 			},

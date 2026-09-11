@@ -666,6 +666,7 @@ func TestPermissionService_PermissiveModeToolActions(t *testing.T) {
 		{ToolName: "lsp_rename", Action: "write", Path: workingDir},
 		{ToolName: "lsp_replace_symbol", Action: "write", Path: filepath.Join(workingDir, "symbol.go")},
 		{ToolName: "download", Action: "download", Path: filepath.Join(workingDir, "download.bin")},
+		{ToolName: "mcp_docs_search", Action: "execute_read_only", Path: "/outside"},
 	} {
 		granted, err := service.Request(t.Context(), req)
 		require.NoError(t, err)

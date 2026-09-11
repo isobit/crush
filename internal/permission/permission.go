@@ -122,6 +122,7 @@ var permissiveToolActions = map[string]struct {
 	SkipDirCheck bool
 }{
 	"bash":               {Actions: []string{"execute_sandboxed"}, SkipDirCheck: true},
+	"mcp":                {Actions: []string{"execute_read_only"}, SkipDirCheck: true},
 	"download":           {Actions: []string{"download"}},
 	"edit":               {Actions: []string{"write"}},
 	"hashline_edit":      {Actions: []string{"write"}},
@@ -212,7 +213,11 @@ func (s *permissionService) permissionPath(path string) string {
 }
 
 func (s *permissionService) permissiveAllows(opts CreatePermissionRequest) bool {
-	tool, ok := permissiveToolActions[opts.ToolName]
+	toolName := opts.ToolName
+	if strings.HasPrefix(toolName, "mcp_") {
+		toolName = "mcp"
+	}
+	tool, ok := permissiveToolActions[toolName]
 	if !ok || !slices.Contains(tool.Actions, opts.Action) {
 		return false
 	}

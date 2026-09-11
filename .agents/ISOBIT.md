@@ -327,9 +327,9 @@ pulling a new upstream release, use this list to ensure nothing is lost.
 
 ### Permissive Permission Mode
 
-- **Files**: `internal/permission/permission.go`, `internal/proto/proto.go`, `internal/backend/`, `internal/client/`, `internal/server/`, `internal/workspace/`, `internal/cmd/root.go`, `internal/agent/tools/lsp_replace_symbol.go`, `internal/ui/model/`, `internal/ui/dialog/`, `README.md`
-- `--permissive` and the interactive Permissive mode auto-approve write actions inside the working directory and `bash:execute_sandboxed` commands.
-- Writes outside the working directory, elevated or unsandboxed Bash, network access, and extra writable paths still require permission. Sandbox filesystem restrictions remain enforced.
+- **Files**: `internal/permission/permission.go`, `internal/proto/proto.go`, `internal/backend/`, `internal/client/`, `internal/server/`, `internal/workspace/`, `internal/cmd/root.go`, `internal/agent/tools/mcp-tools.go`, `internal/agent/tools/mcp-tools_test.go`, `internal/agent/tools/lsp_replace_symbol.go`, `internal/ui/model/`, `internal/ui/dialog/`, `README.md`
+- `--permissive` and the interactive Permissive mode auto-approve write actions inside the working directory, `bash:execute_sandboxed`, and MCP tools with the read-only hint.
+- Other MCP tools, writes outside the working directory, elevated or unsandboxed Bash, network access, and extra writable paths still require permission. Sandbox filesystem restrictions remain enforced.
 
 ### Kagi Search Integration
 

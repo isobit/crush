@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/charmbracelet/crush/internal/agent/tools/mcp"
+	modelmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/require"
 )
 
@@ -56,4 +57,14 @@ func TestMCPToolInfoSupportsConcurrentCalls(t *testing.T) {
 		})
 	}
 	wg.Wait()
+}
+
+func TestMCPToolPermissionActionUsesReadOnlyHint(t *testing.T) {
+	t.Parallel()
+
+	readOnly := &Tool{tool: &mcp.Tool{Annotations: &modelmcp.ToolAnnotations{ReadOnlyHint: true}}}
+	require.Equal(t, "execute_read_only", readOnly.permissionAction())
+
+	defaultTool := &Tool{tool: &mcp.Tool{}}
+	require.Equal(t, "execute", defaultTool.permissionAction())
 }

@@ -190,8 +190,8 @@ func NewCoordinator(ctx context.Context, opts CoordinatorOptions) (Coordinator, 
 		return nil, errCoderAgentNotConfigured
 	}
 
-	// TODO: make this dynamic when we support multiple agents
-	prompt, err := coderPrompt(prompt.WithWorkingDir(c.cfg.WorkingDir()))
+	// The coder profile may provide its own prompt and context paths.
+	prompt, err := agentPrompt(agentCfg, c.cfg.WorkingDir())
 	if err != nil {
 		return nil, err
 	}
@@ -609,7 +609,7 @@ func mergeCallOptions(model Model, cfg config.ProviderConfig) (fantasy.ProviderO
 }
 
 func (c *coordinator) buildAgent(ctx context.Context, prompt *prompt.Prompt, agent config.Agent, isSubAgent bool) (SessionAgent, error) {
-	large, small, err := c.buildAgentModels(ctx, isSubAgent)
+	large, small, err := c.buildAgentModelsFor(ctx, agent, isSubAgent)
 	if err != nil {
 		return nil, err
 	}
@@ -621,6 +621,7 @@ func (c *coordinator) buildAgent(ctx context.Context, prompt *prompt.Prompt, age
 		SystemPromptPrefix:   largeProviderCfg.SystemPromptPrefix,
 		SystemPrompt:         "",
 		IsSubAgent:           isSubAgent,
+		PermissionMode:       permission.PermissionMode(agent.PermissionMode),
 		DisableAutoSummarize: c.cfg.Config().Options.DisableAutoSummarize,
 		IsYolo:               c.permissions.SkipRequests(),
 		Sessions:             c.sessions,
@@ -678,8 +679,8 @@ func (c *coordinator) buildAgent(ctx context.Context, prompt *prompt.Prompt, age
 
 func (c *coordinator) buildTools(ctx context.Context, agent config.Agent, isSubAgent bool) ([]fantasy.AgentTool, error) {
 	var allTools []fantasy.AgentTool
-	if slices.Contains(agent.AllowedTools, AgentToolName) {
-		agentTool, err := c.agentTool(ctx)
+	if !isSubAgent && slices.Contains(agent.AllowedTools, AgentToolName) {
+		agentTool, err := c.agentTool()
 		if err != nil {
 			return nil, err
 		}
@@ -818,11 +819,27 @@ func (c *coordinator) buildTools(ctx context.Context, agent config.Agent, isSubA
 
 // TODO: when we support multiple agents we need to change this so that we pass in the agent specific model config
 func (c *coordinator) buildAgentModels(ctx context.Context, isSubAgent bool) (Model, Model, error) {
-	largeModelCfg, ok := c.cfg.Config().Models[config.SelectedModelTypeLarge]
+	return c.buildAgentModelsFor(ctx, config.Agent{
+		Model:      config.SelectedModelTypeLarge,
+		SmallModel: config.SelectedModelTypeSmall,
+	}, isSubAgent)
+}
+
+func (c *coordinator) buildAgentModelsFor(ctx context.Context, agent config.Agent, isSubAgent bool) (Model, Model, error) {
+	largeRef := agent.Model
+	if largeRef == "" {
+		largeRef = config.SelectedModelTypeLarge
+	}
+	smallRef := agent.SmallModel
+	if smallRef == "" {
+		smallRef = config.SelectedModelTypeSmall
+	}
+
+	largeModelCfg, ok := c.cfg.Config().Models[largeRef]
 	if !ok {
 		return Model{}, Model{}, errLargeModelNotSelected
 	}
-	smallModelCfg, ok := c.cfg.Config().Models[config.SelectedModelTypeSmall]
+	smallModelCfg, ok := c.cfg.Config().Models[smallRef]
 	if !ok {
 		return Model{}, Model{}, errSmallModelNotSelected
 	}
@@ -864,18 +881,15 @@ func (c *coordinator) buildAgentModels(ctx context.Context, isSubAgent bool) (Mo
 	if largeCatwalkModel == nil {
 		return Model{}, Model{}, errLargeModelNotFound
 	}
-
 	if smallCatwalkModel == nil {
 		return Model{}, Model{}, errSmallModelNotFound
 	}
 
 	largeModelID := largeModelCfg.Model
 	smallModelID := smallModelCfg.Model
-
 	if largeModelCfg.Provider == openrouter.Name && isExactoSupported(largeModelID) {
 		largeModelID += ":exacto"
 	}
-
 	if smallModelCfg.Provider == openrouter.Name && isExactoSupported(smallModelID) {
 		smallModelID += ":exacto"
 	}
@@ -1220,17 +1234,17 @@ func (c *coordinator) Model() Model {
 }
 
 func (c *coordinator) UpdateModels(ctx context.Context) error {
-	// build the models again so we make sure we get the latest config
-	large, small, err := c.buildAgentModels(ctx, false)
-	if err != nil {
-		return err
-	}
-	c.currentAgent.SetModels(large, small)
-
 	agentCfg, ok := c.cfg.Config().Agents[config.AgentCoder]
 	if !ok {
 		return errCoderAgentNotConfigured
 	}
+
+	// Build the models again so we make sure we get the latest config.
+	large, small, err := c.buildAgentModelsFor(ctx, agentCfg, false)
+	if err != nil {
+		return err
+	}
+	c.currentAgent.SetModels(large, small)
 
 	tools, err := c.buildTools(ctx, agentCfg, false)
 	if err != nil {

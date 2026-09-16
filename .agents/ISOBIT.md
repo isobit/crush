@@ -331,6 +331,13 @@ pulling a new upstream release, use this list to ensure nothing is lost.
 - `--permissive` and the interactive Permissive mode auto-approve write actions inside the working directory, sandboxed Bash with no network or agent-requested additional writable paths, and MCP tools with the read-only hint.
 - Other MCP tools, writes outside the working directory, elevated or unsandboxed Bash, network access, and agent-requested additional writable paths still require permission. Configured writable paths are allowed in the sandboxed tier; sandbox filesystem restrictions remain enforced.
 
+
+### Configurable Agent Profiles
+
+- **Files**: `internal/config/config.go`, `internal/agent/agent_tool.go`, `internal/agent/agent_tool_test.go`, `internal/agent/coordinator.go`, `internal/agent/prompt/`, `internal/permission/permission.go`, `internal/ui/chat/agent.go`, `README.md`
+- Named agent profiles can select models, custom prompt templates, tool and MCP allowlists, context paths, and inherited or prompt-only permission behavior.
+- The `agent` tool description now lists every configured profile and its description, and defaults to the read-only `task` profile when no profile is selected.
+- Prompt-only child profiles bypass runtime auto-approval shortcuts, including permissive mode and `--yolo`; inherited profiles retain the parent permission policy.
 ### Kagi Search Integration
 
 - **Files**: `internal/agent/tools/search_kagi.go`,

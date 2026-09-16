@@ -36,6 +36,26 @@ func hookApproved(ctx context.Context, toolCallID string) bool {
 	return v == toolCallID
 }
 
+// PermissionMode controls whether runtime auto-approval shortcuts apply.
+type PermissionMode string
+
+const (
+	PermissionModeInherit PermissionMode = "inherit"
+	PermissionModePrompt  PermissionMode = "prompt"
+)
+
+type permissionModeKey struct{}
+
+// WithMode requires permission requests in ctx to use the selected mode.
+func WithMode(ctx context.Context, mode PermissionMode) context.Context {
+	return context.WithValue(ctx, permissionModeKey{}, mode)
+}
+
+func promptMode(ctx context.Context) bool {
+	mode, _ := ctx.Value(permissionModeKey{}).(PermissionMode)
+	return mode == PermissionModePrompt
+}
+
 type CreatePermissionRequest struct {
 	SessionID   string `json:"session_id"`
 	ToolCallID  string `json:"tool_call_id"`
@@ -241,16 +261,17 @@ func (s *permissionService) permissiveAllows(opts CreatePermissionRequest) bool 
 }
 
 func (s *permissionService) Request(ctx context.Context, opts CreatePermissionRequest) (bool, error) {
-	if s.skip.Load() {
+	prompt := promptMode(ctx)
+	if !prompt && s.skip.Load() {
 		return true, nil
 	}
-	if s.permissive.Load() && s.permissiveAllows(opts) {
+	if !prompt && s.permissive.Load() && s.permissiveAllows(opts) {
 		return true, nil
 	}
 
-	// Check if the tool/action combination is in the allowlist
+	// Check if the tool/action combination is in the allowlist.
 	commandKey := opts.ToolName + ":" + opts.Action
-	if slices.Contains(s.allowedTools, commandKey) || slices.Contains(s.allowedTools, opts.ToolName) {
+	if !prompt && (slices.Contains(s.allowedTools, commandKey) || slices.Contains(s.allowedTools, opts.ToolName)) {
 		return true, nil
 	}
 
@@ -258,7 +279,7 @@ func (s *permissionService) Request(ctx context.Context, opts CreatePermissionRe
 	// with the tool call ID. Treat that as a pre-approval and skip the
 	// prompt entirely. We still publish a granted notification so the UI
 	// and audit subscribers see the outcome.
-	if hookApproved(ctx, opts.ToolCallID) {
+	if !prompt && hookApproved(ctx, opts.ToolCallID) {
 		s.notificationBroker.Publish(pubsub.CreatedEvent, PermissionNotification{
 			ToolCallID: opts.ToolCallID,
 			Granted:    true,
@@ -274,16 +295,31 @@ func (s *permissionService) Request(ctx context.Context, opts CreatePermissionRe
 		ToolCallID: opts.ToolCallID,
 	})
 
-	s.autoApproveSessionsMu.RLock()
-	autoApprove := s.autoApproveSessions[opts.SessionID]
-	s.autoApproveSessionsMu.RUnlock()
+	if !prompt {
+		s.autoApproveSessionsMu.RLock()
+		autoApprove := s.autoApproveSessions[opts.SessionID]
+		s.autoApproveSessionsMu.RUnlock()
 
-	if autoApprove {
-		s.notificationBroker.Publish(pubsub.CreatedEvent, PermissionNotification{
-			ToolCallID: opts.ToolCallID,
-			Granted:    true,
-		})
-		return true, nil
+		if autoApprove {
+			s.notificationBroker.Publish(pubsub.CreatedEvent, PermissionNotification{
+				ToolCallID: opts.ToolCallID,
+				Granted:    true,
+			})
+			return true, nil
+		}
+
+		if _, ok := s.sessionPermissions.Get(PermissionKey{
+			SessionID: opts.SessionID,
+			ToolName:  opts.ToolName,
+			Action:    opts.Action,
+			Path:      s.permissionPath(opts.Path),
+		}); ok {
+			s.notificationBroker.Publish(pubsub.CreatedEvent, PermissionNotification{
+				ToolCallID: opts.ToolCallID,
+				Granted:    true,
+			})
+			return true, nil
+		}
 	}
 
 	dir := s.permissionPath(opts.Path)
@@ -296,19 +332,6 @@ func (s *permissionService) Request(ctx context.Context, opts CreatePermissionRe
 		Description: opts.Description,
 		Action:      opts.Action,
 		Params:      opts.Params,
-	}
-
-	if _, ok := s.sessionPermissions.Get(PermissionKey{
-		SessionID: permission.SessionID,
-		ToolName:  permission.ToolName,
-		Action:    permission.Action,
-		Path:      permission.Path,
-	}); ok {
-		s.notificationBroker.Publish(pubsub.CreatedEvent, PermissionNotification{
-			ToolCallID: opts.ToolCallID,
-			Granted:    true,
-		})
-		return true, nil
 	}
 
 	s.activeRequestMu.Lock()

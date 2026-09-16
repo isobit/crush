@@ -21,11 +21,12 @@ import (
 
 // Prompt represents a template-based prompt generator.
 type Prompt struct {
-	name       string
-	template   string
-	now        func() time.Time
-	platform   string
-	workingDir string
+	name         string
+	template     string
+	now          func() time.Time
+	platform     string
+	workingDir   string
+	contextPaths []string
 }
 
 type PromptDat struct {
@@ -65,6 +66,12 @@ func WithPlatform(platform string) Option {
 func WithWorkingDir(workingDir string) Option {
 	return func(p *Prompt) {
 		p.workingDir = workingDir
+	}
+}
+
+func WithContextPaths(paths []string) Option {
+	return func(p *Prompt) {
+		p.contextPaths = paths
 	}
 }
 
@@ -168,7 +175,11 @@ func (p *Prompt) promptData(ctx context.Context, provider, model string, store *
 	platform := cmp.Or(p.platform, runtime.GOOS)
 
 	cfg := store.Config()
-	contextFiles := loadContextFiles(cfg.Options.ContextPaths, store)
+	contextPaths := cfg.Options.ContextPaths
+	if p.contextPaths != nil {
+		contextPaths = p.contextPaths
+	}
+	contextFiles := loadContextFiles(contextPaths, store)
 	globalContextFiles := loadContextFiles(cfg.Options.GlobalContextPaths, store)
 
 	// Discover and load skills metadata.

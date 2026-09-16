@@ -4,10 +4,12 @@ import (
 	"context"
 	_ "embed"
 	"errors"
+	"fmt"
+	"sort"
+	"strings"
 
 	"charm.land/fantasy"
 
-	"github.com/charmbracelet/crush/internal/agent/prompt"
 	"github.com/charmbracelet/crush/internal/agent/tools"
 	"github.com/charmbracelet/crush/internal/config"
 )
@@ -16,6 +18,7 @@ import (
 var agentToolDescription string
 
 type AgentParams struct {
+	Agent  string `json:"agent,omitempty" description:"The configured agent profile to run"`
 	Prompt string `json:"prompt" description:"The task for the agent to perform"`
 }
 
@@ -23,26 +26,52 @@ const (
 	AgentToolName = "agent"
 )
 
-func (c *coordinator) agentTool(ctx context.Context) (fantasy.AgentTool, error) {
-	agentCfg, ok := c.cfg.Config().Agents[config.AgentTask]
-	if !ok {
-		return nil, errors.New("task agent not configured")
+func availableAgentDescription(agents map[string]config.Agent) string {
+	ids := make([]string, 0, len(agents))
+	for id := range agents {
+		ids = append(ids, id)
 	}
-	prompt, err := taskPrompt(prompt.WithWorkingDir(c.cfg.WorkingDir()))
-	if err != nil {
-		return nil, err
+	sort.Strings(ids)
+
+	profiles := make([]string, 0, len(ids))
+	for _, id := range ids {
+		agent := agents[id]
+		description := agent.Description
+		if description == "" {
+			description = "No description provided."
+		}
+		profiles = append(profiles, fmt.Sprintf("- %s: %s", id, description))
 	}
 
-	agent, err := c.buildAgent(ctx, prompt, agentCfg, true)
-	if err != nil {
-		return nil, err
-	}
+	return strings.Join(append([]string{agentToolDescription, "", "Available agent profiles:"}, profiles...), "\n")
+}
+
+func (c *coordinator) agentTool() (fantasy.AgentTool, error) {
+	description := availableAgentDescription(c.cfg.Config().Agents)
 	return fantasy.NewParallelAgentTool(
 		AgentToolName,
-		agentToolDescription,
+		description,
 		func(ctx context.Context, params AgentParams, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			if params.Prompt == "" {
 				return fantasy.NewTextErrorResponse("prompt is required"), nil
+			}
+
+			agentID := params.Agent
+			if agentID == "" {
+				agentID = config.AgentTask
+			}
+			agentCfg, ok := c.cfg.Config().Agents[agentID]
+			if !ok || agentCfg.Disabled {
+				return fantasy.NewTextErrorResponse(fmt.Sprintf("agent profile %q is not configured", agentID)), nil
+			}
+
+			prompt, err := agentPrompt(agentCfg, c.cfg.WorkingDir())
+			if err != nil {
+				return fantasy.ToolResponse{}, err
+			}
+			agent, err := c.buildAgent(ctx, prompt, agentCfg, true)
+			if err != nil {
+				return fantasy.ToolResponse{}, err
 			}
 
 			sessionID := tools.GetSessionFromContext(ctx)
@@ -61,7 +90,7 @@ func (c *coordinator) agentTool(ctx context.Context) (fantasy.AgentTool, error) 
 				AgentMessageID: agentMessageID,
 				ToolCallID:     call.ID,
 				Prompt:         params.Prompt,
-				SessionTitle:   "New Agent Session",
+				SessionTitle:   agentCfg.Name + " Session",
 			})
 		},
 	), nil

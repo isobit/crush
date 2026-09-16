@@ -141,6 +141,9 @@ func Load(workingDir, dataDir string, debug bool, opts ...LoadOption) (*ConfigSt
 	if err := cfg.ValidateSandbox(); err != nil {
 		return nil, fmt.Errorf("invalid sandbox configuration: %w", err)
 	}
+	if err := cfg.ValidateAgents(); err != nil {
+		return nil, fmt.Errorf("invalid agent configuration: %w", err)
+	}
 
 	if !isInsideWorktree() {
 		const depth = 2

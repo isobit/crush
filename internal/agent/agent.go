@@ -42,6 +42,7 @@ import (
 	"github.com/charmbracelet/crush/internal/config"
 	"github.com/charmbracelet/crush/internal/csync"
 	"github.com/charmbracelet/crush/internal/message"
+	"github.com/charmbracelet/crush/internal/permission"
 	"github.com/charmbracelet/crush/internal/pubsub"
 	"github.com/charmbracelet/crush/internal/session"
 	"github.com/charmbracelet/crush/internal/stringext"
@@ -175,6 +176,7 @@ type sessionAgent struct {
 	tools              *csync.Slice[fantasy.AgentTool]
 
 	isSubAgent           bool
+	permissionMode       permission.PermissionMode
 	sessions             session.Service
 	messages             message.Service
 	disableAutoSummarize bool
@@ -230,6 +232,7 @@ type SessionAgentOptions struct {
 	SystemPromptPrefix   string
 	SystemPrompt         string
 	IsSubAgent           bool
+	PermissionMode       permission.PermissionMode
 	DisableAutoSummarize bool
 	IsYolo               bool
 	Sessions             session.Service
@@ -249,6 +252,7 @@ func NewSessionAgent(
 		systemPromptPrefix:   csync.NewValue(opts.SystemPromptPrefix),
 		systemPrompt:         csync.NewValue(opts.SystemPrompt),
 		isSubAgent:           opts.IsSubAgent,
+		permissionMode:       opts.PermissionMode,
 		sessions:             opts.Sessions,
 		messages:             opts.Messages,
 		disableAutoSummarize: opts.DisableAutoSummarize,
@@ -569,6 +573,9 @@ func ValidateCall(call SessionAgentCall) error {
 func (a *sessionAgent) Run(ctx context.Context, call SessionAgentCall) (result *fantasy.AgentResult, retErr error) {
 	if err := ValidateCall(call); err != nil {
 		return nil, err
+	}
+	if a.permissionMode == permission.PermissionModePrompt {
+		ctx = permission.WithMode(ctx, permission.PermissionModePrompt)
 	}
 
 	// genCtx/cancel are the run context and its cancel func, created under

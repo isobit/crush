@@ -2356,3 +2356,55 @@ func TestConfig_configureProviders_UnsetAzureEndpointSkipsProvider(t *testing.T)
 	_, exists := cfg.Providers.Get("azure")
 	require.False(t, exists)
 }
+
+func TestConfig_setupAgentsWithCustomProfiles(t *testing.T) {
+	cfg := &Config{
+		Options: &Options{},
+		Agents: map[string]Agent{
+			"implementer": {
+				Description:    "Writes code.",
+				Model:          "frontier",
+				SmallModel:     "fast",
+				PermissionMode: AgentPermissionModePrompt,
+				AllowedTools:   []string{"view", "write"},
+			},
+		},
+	}
+
+	cfg.SetupAgents()
+
+	implementer, ok := cfg.Agents["implementer"]
+	require.True(t, ok)
+	require.Equal(t, "implementer", implementer.ID)
+	require.Equal(t, "implementer", implementer.Name)
+	require.Equal(t, SelectedModelType("frontier"), implementer.Model)
+	require.Equal(t, SelectedModelType("fast"), implementer.SmallModel)
+	require.Equal(t, AgentPermissionModePrompt, implementer.PermissionMode)
+	require.Equal(t, []string{"view", "write"}, implementer.AllowedTools)
+	require.Empty(t, implementer.AllowedMCP)
+
+	require.Contains(t, cfg.Agents, AgentCoder)
+	require.Contains(t, cfg.Agents, AgentTask)
+}
+
+func TestConfig_ValidateAgents(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		mode    string
+		wantErr bool
+	}{
+		{name: "inherit", mode: AgentPermissionModeInherit},
+		{name: "prompt", mode: AgentPermissionModePrompt},
+		{name: "invalid", mode: "unknown", wantErr: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			cfg := &Config{Agents: map[string]Agent{"agent": {PermissionMode: test.mode}}}
+			err := cfg.ValidateAgents()
+			if test.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
+}

@@ -3,6 +3,68 @@
   "$id": "https://github.com/charmbracelet/crush/internal/config/config",
   "$ref": "#/$defs/Config",
   "$defs": {
+    "Agent": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "prompt": {
+          "type": "string",
+          "description": "Path to a custom system prompt template for this agent"
+        },
+        "disabled": {
+          "type": "boolean"
+        },
+        "model": {
+          "type": "string",
+          "description": "Model profile key used for this agent",
+          "default": "large"
+        },
+        "small_model": {
+          "type": "string",
+          "description": "Model profile key used for summaries and titles",
+          "default": "small"
+        },
+        "permission_mode": {
+          "type": "string",
+          "enum": [
+            "inherit",
+            "prompt"
+          ],
+          "description": "Permission behavior for this agent",
+          "default": "inherit"
+        },
+        "allowed_tools": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "allowed_mcp": {
+          "additionalProperties": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "type": "object"
+        },
+        "context_paths": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
     "Attribution": {
       "properties": {
         "trailer_style": {
@@ -99,6 +161,12 @@
           },
           "type": "object",
           "description": "User-defined shell commands that fire on hook events (e.g. PreToolUse)"
+        },
+        "agents": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Agent"
+          },
+          "type": "object"
         }
       },
       "additionalProperties": false,

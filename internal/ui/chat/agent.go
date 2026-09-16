@@ -138,13 +138,18 @@ func (r *AgentToolRenderContext) RenderTool(sty *styles.Styles, width int, opts 
 		prompt = strings.ReplaceAll(prompt, "\n", " ")
 	}
 
+	agentName := params.Agent
+	if agentName == "" {
+		agentName = "Task"
+	}
+
 	header := toolHeader(sty, opts.Status, "Agent", cappedWidth, opts)
 	if opts.Compact {
 		return header
 	}
 
-	// Build the task tag and prompt.
-	taskTag := sty.Tool.AgentTaskTag.Render("Task")
+	// Build the selected profile tag and prompt.
+	taskTag := sty.Tool.AgentTaskTag.Render(agentName)
 	taskTagWidth := lipgloss.Width(taskTag)
 
 	// Calculate remaining width for prompt.

@@ -684,3 +684,28 @@ func TestPermissionService_PermissiveModeToolActions(t *testing.T) {
 		Path:     workingDir,
 	}))
 }
+
+func TestPermissionService_PromptModeOverridesAutoApproval(t *testing.T) {
+	t.Parallel()
+
+	workingDir := t.TempDir()
+	service := NewPermissionService(workingDir, false, nil)
+	service.SetSkipRequests(true)
+	service.SetPermissive(true)
+
+	events := service.Subscribe(t.Context())
+	result := make(chan bool, 1)
+	go func() {
+		granted, _ := service.Request(WithMode(t.Context(), PermissionModePrompt), CreatePermissionRequest{
+			SessionID: "session",
+			ToolName:  "write",
+			Action:    "write",
+			Path:      filepath.Join(workingDir, "file.txt"),
+		})
+		result <- granted
+	}()
+
+	event := <-events
+	service.Deny(event.Payload)
+	require.False(t, <-result)
+}

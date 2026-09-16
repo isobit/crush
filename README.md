@@ -523,6 +523,41 @@ You can also skip all permission prompts entirely by running Crush with the
 
 For a narrower alternative, use permissive mode with `--permissive`. It auto-approves writes inside the working directory, sandboxed Bash commands with no network or agent-requested additional writable paths (configured writable paths are fine), and MCP tools marked with the read-only hint. Other MCP tools, writes outside the working directory, network-enabled Bash, Bash commands requesting additional writable paths, and unsandboxed Bash still require permission. The sandbox's configured writable and hidden paths remain enforced. Toggle it from the Commands menu or with `ctrl+shift+p`.
 
+### Agent Profiles
+
+Crush includes a read-only `task` agent for repository research. The top-level agent can delegate to any configured profile through the `agent` tool. Built-in profiles are `coder` and `task`; custom profiles are defined under `agents`.
+
+Each profile may select a model configuration key from `models`, provide a prompt template path, restrict tools and MCP servers, and choose `inherit` or `prompt` permission behavior. Custom profiles have no tools or MCP access unless explicitly allowed.
+
+```jsonc
+{
+  "$schema": "https://charm.land/crush.json",
+  "models": {
+    "large": { "model": "gpt-5", "provider": "openai" },
+    "small": { "model": "gpt-5-mini", "provider": "openai" },
+    "frontier": { "model": "o3", "provider": "openai" },
+    "fast": { "model": "gpt-5-mini", "provider": "openai" }
+  },
+  "agents": {
+    "implementer": {
+      "description": "Implements and tests code changes.",
+      "model": "frontier",
+      "small_model": "fast",
+      "prompt": ".crush/agents/implementer.md",
+      "permission_mode": "inherit",
+      "allowed_tools": [
+        "bash", "edit", "multiedit", "write",
+        "glob", "grep", "ls", "view", "lsp_diagnostics"
+      ]
+    }
+  }
+}
+```
+
+The `agent` tool defaults to `task` when `agent` is omitted. Child agents cannot spawn further agents. `permission_mode: "prompt"` disables runtime auto-approval shortcuts for that child, including `--yolo`, permissive mode, and configured tool allowlists.
+
+With `--permissive`, child agents using `permission_mode: "inherit"` follow the same bounded rules as the parent: in-project writes and contained offline sandboxed Bash are automatic, while network or unsandboxed Bash, external writes, and write-capable MCP calls still prompt.
+
 ### Bash Sandbox
 
 On Linux, Bash commands can run inside a bubblewrap sandbox. Configure

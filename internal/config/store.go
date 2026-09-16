@@ -1051,6 +1051,9 @@ func (s *ConfigStore) reloadFromDiskLocked(ctx context.Context) error {
 	if err := cfg.ValidateSandbox(); err != nil {
 		return fmt.Errorf("invalid sandbox configuration on reload: %w", err)
 	}
+	if err := cfg.ValidateAgents(); err != nil {
+		return fmt.Errorf("invalid agent configuration on reload: %w", err)
+	}
 
 	// Preserve runtime overrides
 	overrides := s.overrides

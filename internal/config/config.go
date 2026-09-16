@@ -61,6 +61,11 @@ const (
 	AgentTask  string = "task"
 )
 
+const (
+	AgentPermissionModeInherit = "inherit"
+	AgentPermissionModePrompt  = "prompt"
+)
+
 type SelectedModel struct {
 	// The model id as used by the provider API.
 	// Required.
@@ -553,22 +558,25 @@ type Agent struct {
 	ID          string `json:"id,omitempty"`
 	Name        string `json:"name,omitempty"`
 	Description string `json:"description,omitempty"`
-	// This is the id of the system prompt used by the agent
-	Disabled bool `json:"disabled,omitempty"`
+	// Prompt is the path to a custom system prompt template.
+	Prompt   string `json:"prompt,omitempty" jsonschema:"description=Path to a custom system prompt template for this agent"`
+	Disabled bool   `json:"disabled,omitempty"`
 
-	Model SelectedModelType `json:"model" jsonschema:"required,description=The model type to use for this agent,enum=large,enum=small,default=large"`
+	Model          SelectedModelType `json:"model,omitempty" jsonschema:"description=Model profile key used for this agent,default=large"`
+	SmallModel     SelectedModelType `json:"small_model,omitempty" jsonschema:"description=Model profile key used for summaries and titles,default=small"`
+	PermissionMode string            `json:"permission_mode,omitempty" jsonschema:"description=Permission behavior for this agent,enum=inherit,enum=prompt,default=inherit"`
 
-	// The available tools for the agent
-	//  if this is nil, all tools are available
+	// The available tools for the agent.
+	// If this is nil, no tools are available for user-defined agents.
 	AllowedTools []string `json:"allowed_tools,omitempty"`
 
-	// this tells us which MCPs are available for this agent
-	//  if this is empty all mcps are available
-	//  the string array is the list of tools from the AllowedMCP the agent has available
-	//  if the string array is nil, all tools from the AllowedMCP are available
+	// This tells us which MCPs are available for this agent.
+	// If this is empty all MCPs are available.
+	// The string array is the list of tools from the AllowedMCP the agent has available.
+	// If the string array is nil, all tools from the AllowedMCP are available.
 	AllowedMCP map[string][]string `json:"allowed_mcp,omitempty"`
 
-	// Overrides the context paths for this agent
+	// Overrides the context paths for this agent.
 	ContextPaths []string `json:"context_paths,omitempty"`
 }
 
@@ -683,7 +691,7 @@ type Config struct {
 
 	Hooks map[string][]HookConfig `json:"hooks,omitempty" jsonschema:"description=User-defined shell commands that fire on hook events (e.g. PreToolUse)"`
 
-	Agents map[string]Agent `json:"-"`
+	Agents map[string]Agent `json:"agents,omitempty"`
 }
 
 // cloneForWrite returns a copy of c that the store's typed field mutators
@@ -702,6 +710,7 @@ func (c *Config) cloneForWrite() *Config {
 	nc.Models = maps.Clone(c.Models)
 	nc.RecentModels = maps.Clone(c.RecentModels)
 	nc.MCP = maps.Clone(c.MCP)
+	nc.Agents = maps.Clone(c.Agents)
 	if c.Options != nil {
 		opts := *c.Options
 		if c.Options.TUI != nil {
@@ -866,26 +875,99 @@ func (c *Config) SetupAgents() {
 
 	agents := map[string]Agent{
 		AgentCoder: {
-			ID:           AgentCoder,
-			Name:         "Coder",
-			Description:  "An agent that helps with executing coding tasks.",
-			Model:        SelectedModelTypeLarge,
-			ContextPaths: c.Options.ContextPaths,
-			AllowedTools: allowedTools,
+			ID:             AgentCoder,
+			Name:           "Coder",
+			Description:    "An agent that helps with executing coding tasks.",
+			Model:          SelectedModelTypeLarge,
+			SmallModel:     SelectedModelTypeSmall,
+			PermissionMode: AgentPermissionModeInherit,
+			ContextPaths:   c.Options.ContextPaths,
+			AllowedTools:   allowedTools,
 		},
 
 		AgentTask: {
-			ID:           AgentTask,
-			Name:         "Task",
-			Description:  "An agent that helps with searching for context and finding implementation details.",
-			Model:        SelectedModelTypeLarge,
-			ContextPaths: c.Options.ContextPaths,
-			AllowedTools: resolveReadOnlyTools(allowedTools),
-			// NO MCPs or LSPs by default
+			ID:             AgentTask,
+			Name:           "Task",
+			Description:    "An agent that helps with searching for context and finding implementation details.",
+			Model:          SelectedModelTypeLarge,
+			SmallModel:     SelectedModelTypeSmall,
+			PermissionMode: AgentPermissionModeInherit,
+			ContextPaths:   c.Options.ContextPaths,
+			AllowedTools:   resolveReadOnlyTools(allowedTools),
+			// No MCPs or LSPs by default.
 			AllowedMCP: map[string][]string{},
 		},
 	}
+
+	// Built-in profiles remain available, while user-defined profiles can
+	// override them or add additional delegation targets.
+	for id, configured := range c.Agents {
+		base, isBuiltin := agents[id]
+		if isBuiltin {
+			if configured.Name == "" {
+				configured.Name = base.Name
+			}
+			if configured.Description == "" {
+				configured.Description = base.Description
+			}
+			if configured.Model == "" {
+				configured.Model = base.Model
+			}
+			if configured.SmallModel == "" {
+				configured.SmallModel = base.SmallModel
+			}
+			if configured.PermissionMode == "" {
+				configured.PermissionMode = base.PermissionMode
+			}
+			if configured.ContextPaths == nil {
+				configured.ContextPaths = base.ContextPaths
+			}
+			if configured.AllowedTools == nil {
+				configured.AllowedTools = base.AllowedTools
+			}
+			if configured.AllowedMCP == nil {
+				configured.AllowedMCP = base.AllowedMCP
+			}
+		} else {
+			if configured.Model == "" {
+				configured.Model = SelectedModelTypeLarge
+			}
+			if configured.SmallModel == "" {
+				configured.SmallModel = SelectedModelTypeSmall
+			}
+			if configured.PermissionMode == "" {
+				configured.PermissionMode = AgentPermissionModeInherit
+			}
+		}
+		if configured.Name == "" {
+			configured.Name = id
+		}
+		if configured.AllowedMCP == nil {
+			configured.AllowedMCP = map[string][]string{}
+		}
+		configured.ID = id
+		if configured.Disabled {
+			delete(agents, id)
+			continue
+		}
+		agents[id] = configured
+	}
 	c.Agents = agents
+}
+
+// ValidateAgents checks user-configured agent profile policies.
+func (c *Config) ValidateAgents() error {
+	for id, agent := range c.Agents {
+		if id == "" {
+			return fmt.Errorf("agent profile name cannot be empty")
+		}
+		switch agent.PermissionMode {
+		case "", AgentPermissionModeInherit, AgentPermissionModePrompt:
+		default:
+			return fmt.Errorf("agent %q: invalid permission mode %q", id, agent.PermissionMode)
+		}
+	}
+	return nil
 }
 
 func (c *ProviderConfig) TestConnection(resolver VariableResolver) error {

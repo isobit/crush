@@ -3,7 +3,9 @@ package mcpoauth
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -399,4 +401,56 @@ func TestHandler_BackgroundAuthorizeRefused(t *testing.T) {
 
 	err = authorizeWith401(t, h, base, mcpURL)
 	require.ErrorIs(t, err, ErrInteractiveAuthRequired)
+}
+
+// freePort returns a currently-free localhost TCP port. There is an
+// inherent race between releasing it and rebinding, which is acceptable for
+// these single-process tests.
+func freePort(t *testing.T) int {
+	t.Helper()
+	ln, err := net.Listen("tcp", "localhost:0")
+	require.NoError(t, err)
+	port := ln.Addr().(*net.TCPAddr).Port
+	require.NoError(t, ln.Close())
+	return port
+}
+
+// TestHandler_CloseReleasesCallbackPort proves the callback listener holds
+// its port only until Close, and that Close is idempotent. This is what lets
+// many concurrent Crush instances share the small candidate port range
+// instead of each holding a port for its whole session.
+func TestHandler_CloseReleasesCallbackPort(t *testing.T) {
+	_, mcpURL := newFakeAS(t, fakeASOpts{clientID: "c", accessToken: "a"})
+
+	port := freePort(t)
+	h, err := NewHandler("test", mcpURL, nil, nil, func(*oauth.Token) {}, true, port)
+	require.NoError(t, err)
+
+	// While the handler owns the callback port, it cannot be rebound.
+	_, bindErr := net.Listen("tcp", fmt.Sprintf("localhost:%d", port))
+	require.Error(t, bindErr, "callback port should be held while the handler is open")
+
+	// Closing releases the port; a second close is a harmless no-op.
+	h.Close()
+	h.Close()
+
+	ln, err := net.Listen("tcp", fmt.Sprintf("localhost:%d", port))
+	require.NoError(t, err, "callback port should be free after Close")
+	require.NoError(t, ln.Close())
+}
+
+// TestHandler_BackgroundBindsNoCallbackPort proves a background
+// (non-interactive) handler never binds a callback port, since it never
+// opens a browser. This keeps startup connections from occupying ports.
+func TestHandler_BackgroundBindsNoCallbackPort(t *testing.T) {
+	_, mcpURL := newFakeAS(t, fakeASOpts{clientID: "c", accessToken: "a"})
+
+	port := freePort(t)
+	h, err := NewHandler("test", mcpURL, nil, nil, func(*oauth.Token) {}, false, port)
+	require.NoError(t, err)
+	t.Cleanup(h.Close)
+
+	ln, err := net.Listen("tcp", fmt.Sprintf("localhost:%d", port))
+	require.NoError(t, err, "background handler must not bind a callback port")
+	require.NoError(t, ln.Close())
 }

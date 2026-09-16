@@ -655,6 +655,16 @@ func createSession(ctx context.Context, cfg *config.ConfigStore, name string, m 
 		return nil, err
 	}
 
+	// The OAuth callback listener is only needed for the browser round-trip
+	// that happens synchronously inside Connect. Release its port as soon as
+	// Connect returns, on every path: refreshes use the token endpoint, and
+	// ClientSession.Close remains an idempotent backstop at teardown. This
+	// also frees the port when a valid saved token means Connect never
+	// triggers the browser flow, and on the Connect error path below.
+	if oauthHandler != nil {
+		defer oauthHandler.Close()
+	}
+
 	// Wrap the transport so channel notifications can be intercepted. The
 	// gate starts undecided: notifications that arrive during capability
 	// negotiation are buffered. After Connect resolves, the gate is opened

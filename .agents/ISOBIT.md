@@ -376,6 +376,26 @@ pulling a new upstream release, use this list to ensure nothing is lost.
 - Re-recording cassettes requires `CRUSH_HYPER_API_KEY`; without that key,
   tests are expected to fail when their checked-in cassettes no longer match.
 
+### MCP OAuth Callback Port Release
+
+- **Files**: `internal/oauth/mcp/handler.go`,
+  `internal/agent/tools/mcp/init.go`
+- The OAuth callback HTTP listener used for the browser redirect is bound
+  only for interactive handlers, and the connect flow closes the handler
+  (`defer oauthHandler.Close()` in `createSession`) as soon as `Connect`
+  returns, on every path. The listener is only needed for the browser
+  round-trip that happens synchronously inside `Connect`; refreshes use the
+  token endpoint. Previously the port was held for the whole MCP session.
+- Releasing after `Connect` (rather than inside `Authorize`) also frees the
+  port when a valid saved token means the browser flow never runs, and on
+  the `Connect` error path (which previously leaked the port until exit).
+- Background (non-interactive) handlers skip binding a callback port
+  entirely, since they never open a browser.
+- `Handler.Close` / `callbackReceiver.close` are idempotent; the port is
+  freed even if the serve goroutine never started.
+- Fixes port exhaustion when running many concurrent Crush instances with
+  OAuth MCP servers (the candidate range is only 40704-40713).
+
 ---
 
 ## Notes

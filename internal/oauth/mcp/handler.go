@@ -109,38 +109,52 @@ func NewHandler(
 		errChan:  make(chan error, 1),
 	}
 
-	lc := &net.ListenConfig{}
-	var listener net.Listener
+	// The callback listener is only needed while the interactive browser
+	// flow runs during Connect. Background (non-interactive) handlers never
+	// open a browser, so they skip binding a port entirely instead of
+	// holding one open for the whole session. Interactive handlers bind now;
+	// the connect flow closes the handler as soon as Connect returns (see
+	// createSession), releasing the port instead of holding it for the whole
+	// session, so many concurrent Crush instances don't exhaust the small
+	// candidate range.
 	var port int
-	if callbackPort > 0 {
-		// A fixed port was requested (e.g. for providers that enforce
-		// exact-match redirect URIs). Bind it directly; if it's busy the
-		// user needs to free it or pick another.
-		var err error
-		listener, err = lc.Listen(context.Background(), "tcp", fmt.Sprintf("localhost:%d", callbackPort))
-		if err != nil {
-			receiver.close()
-			return nil, fmt.Errorf("failed to bind OAuth callback port %d: %w", callbackPort, err)
-		}
-		port = callbackPort
-	} else {
-		for _, p := range callbackPorts {
+	if interactive {
+		lc := &net.ListenConfig{}
+		var listener net.Listener
+		if callbackPort > 0 {
+			// A fixed port was requested (e.g. for providers that enforce
+			// exact-match redirect URIs). Bind it directly; if it's busy the
+			// user needs to free it or pick another.
 			var err error
-			listener, err = lc.Listen(context.Background(), "tcp", fmt.Sprintf("localhost:%d", p))
-			if err == nil {
-				port = p
-				break
+			listener, err = lc.Listen(context.Background(), "tcp", fmt.Sprintf("localhost:%d", callbackPort))
+			if err != nil {
+				receiver.close()
+				return nil, fmt.Errorf("failed to bind OAuth callback port %d: %w", callbackPort, err)
+			}
+			port = callbackPort
+		} else {
+			for _, p := range callbackPorts {
+				var err error
+				listener, err = lc.Listen(context.Background(), "tcp", fmt.Sprintf("localhost:%d", p))
+				if err == nil {
+					port = p
+					break
+				}
+			}
+			if listener == nil {
+				receiver.close()
+				return nil, fmt.Errorf("failed to start OAuth callback listener: all candidate ports in use")
 			}
 		}
-		if listener == nil {
-			receiver.close()
-			return nil, fmt.Errorf("failed to start OAuth callback listener: all candidate ports in use")
-		}
+		receiver.listener = listener
+		go receiver.serve(listener)
+	} else if callbackPort > 0 {
+		port = callbackPort
+	} else {
+		port = callbackPorts[0]
 	}
 
 	redirectURL := fmt.Sprintf("http://localhost:%d/callback", port)
-
-	go receiver.serve(listener)
 
 	h := &Handler{
 		receiver:       receiver,
@@ -346,18 +360,23 @@ func (h *Handler) persist(cfg *oauth2.Config, tok *oauth2.Token) {
 	h.onTokenRefresh(out)
 }
 
-// Close shuts down the callback server.
+// Close shuts down the OAuth callback listener, releasing its port. It is
+// idempotent and safe to call once the browser round-trip is done, since
+// token refreshes use the token endpoint and never the callback. It does
+// not affect the persisted token or the token source.
 func (h *Handler) Close() {
 	h.receiver.close()
 }
 
 type callbackReceiver struct {
-	handler  *Handler
-	authChan chan *auth.AuthorizationResult
-	errChan  chan error
-	server   *http.Server
-	mu       sync.Mutex
-	once     sync.Once
+	handler   *Handler
+	authChan  chan *auth.AuthorizationResult
+	errChan   chan error
+	listener  net.Listener
+	server    *http.Server
+	mu        sync.Mutex
+	once      sync.Once
+	closeOnce sync.Once
 }
 
 func (r *callbackReceiver) serve(listener net.Listener) {
@@ -428,11 +447,20 @@ func (r *callbackReceiver) fetchAuthorizationCode(ctx context.Context, args *aut
 }
 
 func (r *callbackReceiver) close() {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if r.server != nil {
-		_ = r.server.Close()
-	}
+	r.closeOnce.Do(func() {
+		r.mu.Lock()
+		srv := r.server
+		ln := r.listener
+		r.mu.Unlock()
+		// Closing the server also closes its listener; fall back to the
+		// bare listener if serving never started.
+		switch {
+		case srv != nil:
+			_ = srv.Close()
+		case ln != nil:
+			_ = ln.Close()
+		}
+	})
 }
 
 // metadataFixupRoundTripper normalizes trailing-slash issuers in OAuth

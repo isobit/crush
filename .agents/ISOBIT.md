@@ -355,6 +355,8 @@ pulling a new upstream release, use this list to ensure nothing is lost.
   `web_search` directly to the top-level coder agent in addition to
   sub-agents.
 - Uses the official `github.com/kagisearch/kagi-openapi-golang` client.
+- Kagi failures preserve the underlying client error and include the HTTP status,
+  optional `X-Kagi-Trace`, and up to 8 KiB of response text for diagnostics.
 - Sub-agents (e.g. `agentic_fetch`) automatically inherit the backend
   selection since they receive the tool from the same constructor.
 - Separate description template (`web_search_kagi.md.tpl`) is shown when

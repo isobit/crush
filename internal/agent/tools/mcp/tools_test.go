@@ -109,6 +109,17 @@ func TestFilterTools(t *testing.T) {
 		require.Equal(t, "tool_a", result[0].Name)
 	})
 
+	t.Run("glob filters", func(t *testing.T) {
+		t.Parallel()
+		result := filterTools(config.MCPConfig{
+			EnabledTools:  []string{"tool_*"},
+			DisabledTools: []string{"*_c"},
+		}, tools)
+		require.Len(t, result, 2)
+		require.Equal(t, "tool_a", result[0].Name)
+		require.Equal(t, "tool_b", result[1].Name)
+	})
+
 	t.Run("enabled with non-existent tool returns empty", func(t *testing.T) {
 		t.Parallel()
 		result := filterTools(config.MCPConfig{EnabledTools: []string{"non_existent"}}, tools)

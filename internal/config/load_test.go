@@ -2408,3 +2408,33 @@ func TestConfig_ValidateAgents(t *testing.T) {
 		})
 	}
 }
+
+func TestConfig_SetupAgentsFiltersAgentToolGlobs(t *testing.T) {
+	cfg := &Config{
+		Options: &Options{},
+		Agents: map[string]Agent{
+			"researcher": {AllowedTools: []string{"lsp_*"}},
+		},
+	}
+	cfg.SetupAgents()
+
+	require.Equal(t, []string{"lsp_diagnostics", "lsp_references", "lsp_restart", "lsp_symbols", "lsp_definition", "lsp_call_hierarchy", "lsp_rename", "lsp_replace_symbol"}, cfg.Agents["researcher"].AllowedTools)
+}
+
+func TestConfig_setupAgentsWithGlobDisabledTools(t *testing.T) {
+	cfg := &Config{
+		Options: &Options{DisabledTools: []string{"lsp_*"}},
+	}
+	cfg.SetupAgents()
+
+	require.NotContains(t, cfg.Agents[AgentCoder].AllowedTools, "lsp_definition")
+	require.NotContains(t, cfg.Agents[AgentCoder].AllowedTools, "lsp_rename")
+	require.Contains(t, cfg.Agents[AgentCoder].AllowedTools, "grep")
+}
+
+func TestConfig_ValidateAgentsRejectsInvalidGlob(t *testing.T) {
+	cfg := &Config{
+		Options: &Options{DisabledTools: []string{"["}},
+	}
+	require.Error(t, cfg.ValidateAgents())
+}

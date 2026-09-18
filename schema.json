@@ -42,9 +42,14 @@
         },
         "allowed_tools": {
           "items": {
-            "type": "string"
+            "type": "string",
+            "examples": [
+              "lsp_*",
+              "view"
+            ]
           },
-          "type": "array"
+          "type": "array",
+          "description": "Glob patterns for tools available to this agent"
         },
         "allowed_mcp": {
           "additionalProperties": {
@@ -330,21 +335,21 @@
           "items": {
             "type": "string",
             "examples": [
-              "get-library-doc"
+              "get-*"
             ]
           },
           "type": "array",
-          "description": "List of tools from this MCP server to disable"
+          "description": "Glob patterns for tools from this MCP server to disable"
         },
         "enabled_tools": {
           "items": {
             "type": "string",
             "examples": [
-              "get-library-doc"
+              "search-*"
             ]
           },
           "type": "array",
-          "description": "Allow list of tools from this MCP server"
+          "description": "Glob patterns for tools from this MCP server to allow"
         },
         "timeout": {
           "type": "integer",
@@ -565,11 +570,11 @@
             "type": "string",
             "examples": [
               "bash",
-              "sourcegraph"
+              "lsp_*"
             ]
           },
           "type": "array",
-          "description": "List of built-in tools to disable and hide from the agent"
+          "description": "Glob patterns for built-in tools to disable and hide from the agent"
         },
         "disable_provider_auto_update": {
           "type": "boolean",
@@ -637,11 +642,12 @@
           "items": {
             "type": "string",
             "examples": [
-              "crush-config"
+              "crush-config",
+              "project-*"
             ]
           },
           "type": "array",
-          "description": "List of skill names to disable and hide from the agent"
+          "description": "Glob patterns for skill names to disable and hide from the agent"
         },
         "sandbox": {
           "$ref": "#/$defs/SandboxOptions",
@@ -658,11 +664,11 @@
             "type": "string",
             "examples": [
               "bash",
-              "view"
+              "lsp_*"
             ]
           },
           "type": "array",
-          "description": "List of tools that don't require permission prompts"
+          "description": "Glob patterns for tools that don't require permission prompts"
         }
       },
       "additionalProperties": false,

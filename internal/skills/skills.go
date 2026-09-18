@@ -15,6 +15,7 @@ import (
 	"sync"
 
 	"github.com/charlievieth/fastwalk"
+	"github.com/charmbracelet/crush/internal/globmatch"
 	"github.com/charmbracelet/crush/internal/pubsub"
 	"gopkg.in/yaml.v3"
 )
@@ -387,20 +388,15 @@ func ApproxTokenCount(s string) int {
 	return (len(s) + 3) / 4
 }
 
-// Filter removes skills whose names appear in the disabled list.
+// Filter removes skills whose names match the disabled glob patterns.
 func Filter(all []*Skill, disabled []string) []*Skill {
 	if len(disabled) == 0 {
 		return all
 	}
 
-	disabledSet := make(map[string]bool, len(disabled))
-	for _, name := range disabled {
-		disabledSet[name] = true
-	}
-
 	result := make([]*Skill, 0, len(all))
 	for _, s := range all {
-		if !disabledSet[s.Name] {
+		if !globmatch.Any(disabled, s.Name) {
 			result = append(result, s)
 		}
 	}

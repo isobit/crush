@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/charmbracelet/crush/internal/globmatch"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -55,6 +56,13 @@ func TestPermissionService_AllowedCommands(t *testing.T) {
 			action:       "execute",
 			expected:     false,
 		},
+		{
+			name:         "glob pattern in allowlist",
+			allowedTools: []string{"lsp_*"},
+			toolName:     "lsp_definition",
+			action:       "read",
+			expected:     true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -69,7 +77,7 @@ func TestPermissionService_AllowedCommands(t *testing.T) {
 			commandKey := tt.toolName + ":" + tt.action
 			allowed := false
 			for _, cmd := range ps.allowedTools {
-				if cmd == commandKey || cmd == tt.toolName {
+				if globmatch.Match(cmd, commandKey) || globmatch.Match(cmd, tt.toolName) {
 					allowed = true
 					break
 				}

@@ -7,11 +7,11 @@ import (
 	"fmt"
 	"iter"
 	"log/slog"
-	"slices"
 	"strings"
 
 	"github.com/charmbracelet/crush/internal/config"
 	"github.com/charmbracelet/crush/internal/csync"
+	"github.com/charmbracelet/crush/internal/globmatch"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -174,7 +174,7 @@ func filterTools(mcpCfg config.MCPConfig, tools []*Tool) []*Tool {
 	if len(mcpCfg.EnabledTools) > 0 {
 		filtered := make([]*Tool, 0, len(mcpCfg.EnabledTools))
 		for _, tool := range tools {
-			if slices.Contains(mcpCfg.EnabledTools, tool.Name) {
+			if globmatch.Any(mcpCfg.EnabledTools, tool.Name) {
 				filtered = append(filtered, tool)
 			}
 		}
@@ -184,7 +184,7 @@ func filterTools(mcpCfg config.MCPConfig, tools []*Tool) []*Tool {
 	if len(mcpCfg.DisabledTools) > 0 {
 		filtered := make([]*Tool, 0, len(tools))
 		for _, tool := range tools {
-			if !slices.Contains(mcpCfg.DisabledTools, tool.Name) {
+			if !globmatch.Any(mcpCfg.DisabledTools, tool.Name) {
 				filtered = append(filtered, tool)
 			}
 		}

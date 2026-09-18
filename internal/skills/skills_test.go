@@ -508,6 +508,7 @@ func TestFilter(t *testing.T) {
 		{"filter one", []string{"b"}, 2},
 		{"filter all", []string{"a", "b", "c"}, 0},
 		{"filter nonexistent", []string{"d"}, 3},
+		{"glob filter", []string{"*"}, 0},
 	}
 
 	for _, tt := range tests {

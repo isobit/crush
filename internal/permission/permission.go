@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 
 	"github.com/charmbracelet/crush/internal/csync"
+	"github.com/charmbracelet/crush/internal/globmatch"
 	"github.com/charmbracelet/crush/internal/pubsub"
 	"github.com/google/uuid"
 )
@@ -271,7 +272,7 @@ func (s *permissionService) Request(ctx context.Context, opts CreatePermissionRe
 
 	// Check if the tool/action combination is in the allowlist.
 	commandKey := opts.ToolName + ":" + opts.Action
-	if !prompt && (slices.Contains(s.allowedTools, commandKey) || slices.Contains(s.allowedTools, opts.ToolName)) {
+	if !prompt && (globmatch.Any(s.allowedTools, commandKey) || globmatch.Any(s.allowedTools, opts.ToolName)) {
 		return true, nil
 	}
 

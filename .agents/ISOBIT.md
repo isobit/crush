@@ -332,11 +332,12 @@ pulling a new upstream release, use this list to ensure nothing is lost.
 - Other MCP tools, writes outside the working directory, elevated or unsandboxed Bash, network access, and agent-requested additional writable paths still require permission. Configured writable paths are allowed in the sandboxed tier; sandbox filesystem restrictions remain enforced.
 
 
-### Configurable Agent Profiles
+### Configurable Agent Profiles and Glob Policies
 
-- **Files**: `internal/config/config.go`, `internal/agent/agent_tool.go`, `internal/agent/agent_tool_test.go`, `internal/agent/coordinator.go`, `internal/agent/prompt/`, `internal/permission/permission.go`, `internal/ui/chat/agent.go`, `README.md`
+- **Files**: `internal/config/config.go`, `internal/globmatch/`, `internal/agent/agent_tool.go`, `internal/agent/agent_tool_test.go`, `internal/agent/coordinator.go`, `internal/agent/prompt/`, `internal/agent/tools/mcp/`, `internal/permission/permission.go`, `internal/skills/`, `internal/ui/chat/agent.go`, `README.md`
 - Named agent profiles can select models, custom prompt templates, tool and MCP allowlists, context paths, and inherited or prompt-only permission behavior.
 - The `agent` tool description now lists every configured profile and its description, and defaults to the read-only `task` profile when no profile is selected.
+- Tool, MCP, permission, disabled-tool, and disabled-skill lists use shared `path.Match`-style glob semantics; global disabled filters remain hard bounds.
 - Prompt-only child profiles bypass runtime auto-approval shortcuts, including permissive mode and `--yolo`; inherited profiles retain the parent permission policy.
 ### Kagi Search Integration
 

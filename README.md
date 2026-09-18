@@ -558,6 +558,32 @@ The `agent` tool defaults to `task` when `agent` is omitted. Child agents cannot
 
 With `--permissive`, child agents using `permission_mode: "inherit"` follow the same bounded rules as the parent: in-project writes and contained offline sandboxed Bash are automatic, while network or unsandboxed Bash, external writes, and write-capable MCP calls still prompt.
 
+Agent, MCP, permission, disabled-tool, and disabled-skill lists support `path.Match`-style globs. For example, `lsp_*` matches all LSP tools and `docs-*` matches MCP servers with names beginning with `docs-`. Omitted `allowed_mcp` means all MCPs; an explicit empty object disables all MCPs. Disabled filters remain hard upper bounds.
+
+```jsonc
+{
+  "options": {
+    "disabled_tools": ["lsp_*"],
+    "disabled_skills": ["experimental-*"]
+  },
+  "permissions": {
+    "allowed_tools": ["view", "lsp_diagnostics", "bash:execute_sandboxed"]
+  },
+  "mcp": {
+    "docs": {
+      "enabled_tools": ["search*", "get-*"],
+      "disabled_tools": ["delete*"]
+    }
+  },
+  "agents": {
+    "general": {
+      "allowed_tools": ["bash", "edit", "lsp_*"] ,
+      "allowed_mcp": {"docs-*": ["search*", "get-*"]}
+    }
+  }
+}
+```
+
 ### Bash Sandbox
 
 On Linux, Bash commands can run inside a bubblewrap sandbox. Configure

@@ -14,6 +14,7 @@ import (
 
 	"charm.land/catwalk/pkg/catwalk"
 	"github.com/charmbracelet/crush/internal/csync"
+	"github.com/charmbracelet/crush/internal/globmatch"
 	"github.com/charmbracelet/crush/internal/oauth"
 	"github.com/charmbracelet/crush/internal/oauth/copilot"
 	"github.com/invopop/jsonschema"
@@ -198,8 +199,8 @@ type MCPConfig struct {
 	Type          MCPType           `json:"type" jsonschema:"required,description=Type of MCP connection,enum=stdio,enum=sse,enum=http,default=stdio"`
 	URL           string            `json:"url,omitempty" jsonschema:"description=URL for HTTP or SSE MCP servers,format=uri,example=http://localhost:3000/mcp"`
 	Disabled      bool              `json:"disabled,omitempty" jsonschema:"description=Whether this MCP server is disabled,default=false"`
-	DisabledTools []string          `json:"disabled_tools,omitempty" jsonschema:"description=List of tools from this MCP server to disable,example=get-library-doc"`
-	EnabledTools  []string          `json:"enabled_tools,omitempty" jsonschema:"description=Allow list of tools from this MCP server,example=get-library-doc"`
+	DisabledTools []string          `json:"disabled_tools,omitempty" jsonschema:"description=Glob patterns for tools from this MCP server to disable,example=get-*"`
+	EnabledTools  []string          `json:"enabled_tools,omitempty" jsonschema:"description=Glob patterns for tools from this MCP server to allow,example=search-*"`
 	Timeout       int               `json:"timeout,omitempty" jsonschema:"description=Timeout in seconds for MCP server connections,default=15,example=30,example=60,example=120"`
 
 	// Headers are HTTP headers for HTTP/SSE MCP servers. Values run
@@ -280,7 +281,7 @@ const (
 )
 
 type Permissions struct {
-	AllowedTools []string `json:"allowed_tools,omitempty" jsonschema:"description=List of tools that don't require permission prompts,example=bash,example=view"`
+	AllowedTools []string `json:"allowed_tools,omitempty" jsonschema:"description=Glob patterns for tools that don't require permission prompts,example=bash,example=lsp_*"`
 }
 
 type TrailerStyle string
@@ -319,7 +320,7 @@ type Options struct {
 	// resolved against the working directory; absolute paths are used
 	// verbatim. After defaulting the stored value is always absolute.
 	DataDirectory             string          `json:"data_directory,omitempty" jsonschema:"description=Directory for storing application data. Relative paths are resolved against the working directory; absolute paths are used as-is.,default=.crush,example=.crush"`
-	DisabledTools             []string        `json:"disabled_tools,omitempty" jsonschema:"description=List of built-in tools to disable and hide from the agent,example=bash,example=sourcegraph"`
+	DisabledTools             []string        `json:"disabled_tools,omitempty" jsonschema:"description=Glob patterns for built-in tools to disable and hide from the agent,example=bash,example=lsp_*"`
 	DisableProviderAutoUpdate bool            `json:"disable_provider_auto_update,omitempty" jsonschema:"description=Disable providers auto-update,default=false"`
 	DisableDefaultProviders   bool            `json:"disable_default_providers,omitempty" jsonschema:"description=Ignore all default/embedded providers. When enabled\\, providers must be fully specified in the config file with base_url\\, models\\, and api_key - no merging with defaults occurs,default=false"`
 	Attribution               *Attribution    `json:"attribution,omitempty" jsonschema:"description=Attribution settings for generated content"`
@@ -330,7 +331,7 @@ type Options struct {
 	HashlineEdit              *bool           `json:"hashline_edit,omitempty" jsonschema:"description=Enable hashline-addressed editing mode. When enabled the view tool emits LINE#HASH| prefixed output and hashline_edit replaces edit/multiedit,default=false"`
 	DisableNotifications      bool            `json:"disable_notifications,omitempty" jsonschema:"description=Deprecated: Use notification_style instead. Disable desktop notifications,default=false"`
 	NotificationStyle         string          `json:"notification_style,omitempty" jsonschema:"description=Notification style to use. Options: auto (default), native, osc, bell, disabled. Auto selects based on environment: native for local sessions, osc for SSH (with automatic OSC 99/777 detection).,enum=auto,enum=native,enum=osc,enum=bell,enum=disabled,default=auto"`
-	DisabledSkills            []string        `json:"disabled_skills,omitempty" jsonschema:"description=List of skill names to disable and hide from the agent,example=crush-config"`
+	DisabledSkills            []string        `json:"disabled_skills,omitempty" jsonschema:"description=Glob patterns for skill names to disable and hide from the agent,example=crush-config,example=project-*"`
 	Sandbox                   *SandboxOptions `json:"sandbox,omitempty" jsonschema:"description=Sandbox options for bash command isolation via bubblewrap"`
 }
 
@@ -566,14 +567,15 @@ type Agent struct {
 	SmallModel     SelectedModelType `json:"small_model,omitempty" jsonschema:"description=Model profile key used for summaries and titles,default=small"`
 	PermissionMode string            `json:"permission_mode,omitempty" jsonschema:"description=Permission behavior for this agent,enum=inherit,enum=prompt,default=inherit"`
 
-	// The available tools for the agent.
+	// The available tools for the agent. Glob patterns are supported.
 	// If this is nil, no tools are available for user-defined agents.
-	AllowedTools []string `json:"allowed_tools,omitempty"`
+	AllowedTools []string `json:"allowed_tools,omitempty" jsonschema:"description=Glob patterns for tools available to this agent,example=lsp_*,example=view"`
 
-	// This tells us which MCPs are available for this agent.
-	// If this is empty all MCPs are available.
-	// The string array is the list of tools from the AllowedMCP the agent has available.
-	// If the string array is nil, all tools from the AllowedMCP are available.
+	// This tells us which MCPs are available for this agent. Glob patterns are supported.
+	// If this is nil all MCPs are available.
+	// An empty map disables all MCPs.
+	// The string array is the list of glob patterns for tools from matching MCPs.
+	// If the string array is empty, all tools from matching MCPs are available.
 	AllowedMCP map[string][]string `json:"allowed_mcp,omitempty"`
 
 	// Overrides the context paths for this agent.
@@ -838,26 +840,31 @@ func resolveAllowedTools(allTools []string, disabledTools []string) []string {
 	if disabledTools == nil {
 		return allTools
 	}
-	// filter out disabled tools (exclude mode)
+	// Filter out disabled tools using exclude-mode glob matching.
 	return filterSlice(allTools, disabledTools, false)
 }
 
 func resolveReadOnlyTools(tools []string) []string {
 	readOnlyTools := []string{"glob", "grep", "ls", "lsp_call_hierarchy", "lsp_definition", "lsp_symbols", "sourcegraph", "view"}
-	// filter to only include tools that are in allowedtools (include mode)
+	// Filter to only include tools that are in the allowlist.
 	return filterSlice(tools, readOnlyTools, true)
 }
 
 func filterSlice(data []string, mask []string, include bool) []string {
 	var filtered []string
 	for _, s := range data {
-		// if include is true, we include items that ARE in the mask
-		// if include is false, we include items that are NOT in the mask
-		if include == slices.Contains(mask, s) {
+		matches := globmatch.Any(mask, s)
+		if include == matches {
 			filtered = append(filtered, s)
 		}
 	}
 	return filtered
+}
+func resolveAgentTools(requested, available []string) []string {
+	if requested == nil {
+		return nil
+	}
+	return filterSlice(available, requested, true)
 }
 
 func (c *Config) SetupAgents() {
@@ -939,11 +946,11 @@ func (c *Config) SetupAgents() {
 				configured.PermissionMode = AgentPermissionModeInherit
 			}
 		}
+		if configured.AllowedTools != nil {
+			configured.AllowedTools = resolveAgentTools(configured.AllowedTools, allowedTools)
+		}
 		if configured.Name == "" {
 			configured.Name = id
-		}
-		if configured.AllowedMCP == nil {
-			configured.AllowedMCP = map[string][]string{}
 		}
 		configured.ID = id
 		if configured.Disabled {
@@ -955,11 +962,40 @@ func (c *Config) SetupAgents() {
 	c.Agents = agents
 }
 
-// ValidateAgents checks user-configured agent profile policies.
+// ValidateAgents checks user-configured agent profiles and glob policies.
 func (c *Config) ValidateAgents() error {
+	if c.Options != nil {
+		if err := globmatch.Validate("options.disabled_tools", c.Options.DisabledTools); err != nil {
+			return err
+		}
+		if err := globmatch.Validate("options.disabled_skills", c.Options.DisabledSkills); err != nil {
+			return err
+		}
+	}
+	if c.Permissions != nil {
+		if err := globmatch.Validate("permissions.allowed_tools", c.Permissions.AllowedTools); err != nil {
+			return err
+		}
+	}
+	for mcpName, mcpConfig := range c.MCP {
+		if err := globmatch.Validate(fmt.Sprintf("mcp.%s.enabled_tools", mcpName), mcpConfig.EnabledTools); err != nil {
+			return err
+		}
+		if err := globmatch.Validate(fmt.Sprintf("mcp.%s.disabled_tools", mcpName), mcpConfig.DisabledTools); err != nil {
+			return err
+		}
+	}
 	for id, agent := range c.Agents {
 		if id == "" {
 			return fmt.Errorf("agent profile name cannot be empty")
+		}
+		if err := globmatch.Validate(fmt.Sprintf("agents.%s.allowed_tools", id), agent.AllowedTools); err != nil {
+			return err
+		}
+		for mcp, patterns := range agent.AllowedMCP {
+			if err := globmatch.Validate(fmt.Sprintf("agents.%s.allowed_mcp.%s", id, mcp), append([]string{mcp}, patterns...)); err != nil {
+				return err
+			}
 		}
 		switch agent.PermissionMode {
 		case "", AgentPermissionModeInherit, AgentPermissionModePrompt:

@@ -28,6 +28,7 @@ import (
 	"github.com/charmbracelet/crush/internal/discover"
 	"github.com/charmbracelet/crush/internal/event"
 	"github.com/charmbracelet/crush/internal/filetracker"
+	"github.com/charmbracelet/crush/internal/globmatch"
 	"github.com/charmbracelet/crush/internal/history"
 	"github.com/charmbracelet/crush/internal/hooks"
 	"github.com/charmbracelet/crush/internal/log"
@@ -679,7 +680,7 @@ func (c *coordinator) buildAgent(ctx context.Context, prompt *prompt.Prompt, age
 
 func (c *coordinator) buildTools(ctx context.Context, agent config.Agent, isSubAgent bool) ([]fantasy.AgentTool, error) {
 	var allTools []fantasy.AgentTool
-	if !isSubAgent && slices.Contains(agent.AllowedTools, AgentToolName) {
+	if !isSubAgent && globmatch.Any(agent.AllowedTools, AgentToolName) {
 		agentTool, err := c.agentTool()
 		if err != nil {
 			return nil, err
@@ -687,7 +688,7 @@ func (c *coordinator) buildTools(ctx context.Context, agent config.Agent, isSubA
 		allTools = append(allTools, agentTool)
 	}
 
-	if slices.Contains(agent.AllowedTools, tools.AgenticFetchToolName) {
+	if globmatch.Any(agent.AllowedTools, tools.AgenticFetchToolName) {
 		agenticFetchTool, err := c.agenticFetchTool(ctx, nil)
 		if err != nil {
 			return nil, err
@@ -775,7 +776,7 @@ func (c *coordinator) buildTools(ctx context.Context, agent config.Agent, isSubA
 
 	var filteredTools []fantasy.AgentTool
 	for _, tool := range allTools {
-		if slices.Contains(agent.AllowedTools, tool.Info().Name) {
+		if globmatch.Any(agent.AllowedTools, tool.Info().Name) {
 			filteredTools = append(filteredTools, tool)
 		}
 	}
@@ -793,10 +794,10 @@ func (c *coordinator) buildTools(ctx context.Context, agent config.Agent, isSubA
 		}
 
 		for mcp, tools := range agent.AllowedMCP {
-			if mcp != tool.MCP() {
+			if !globmatch.Match(mcp, tool.MCP()) {
 				continue
 			}
-			if len(tools) == 0 || slices.Contains(tools, tool.MCPToolName()) {
+			if len(tools) == 0 || globmatch.Any(tools, tool.MCPToolName()) {
 				filteredTools = append(filteredTools, tool)
 				break
 			}

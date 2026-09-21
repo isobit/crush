@@ -123,7 +123,7 @@ func (w *AppWorkspace) AgentRetry(ctx context.Context, sessionID, messageID stri
 	if err != nil {
 		return err
 	}
-	_, err = w.app.AgentCoordinator.Run(ctx, sessionID, retry.Content, retry.Attachments...)
+	_, err = w.app.AgentCoordinator.Run(ctx, sessionID, retry.ContinuationPrompt(), retry.Attachments...)
 	return err
 }
 

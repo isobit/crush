@@ -36,7 +36,7 @@ func (b *Backend) RetryMessage(ctx context.Context, workspaceID, sessionID, mess
 	if err != nil {
 		return err
 	}
-	return b.SendMessage(workspaceID, proto.AgentMessage{SessionID: sessionID, Prompt: retry.Content, Attachments: proto.AttachmentsFromMessage(retry.Attachments)})
+	return b.SendMessage(workspaceID, proto.AgentMessage{SessionID: sessionID, Prompt: retry.ContinuationPrompt(), Attachments: proto.AttachmentsFromMessage(retry.Attachments)})
 }
 
 func (b *Backend) SendMessage(workspaceID string, msg proto.AgentMessage) error {

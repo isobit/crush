@@ -46,7 +46,6 @@ func newTestService(t *testing.T, opts ...ServiceOption) (Service, string) {
 	sess, err := sessions.Create(t.Context(), "test")
 	require.NoError(t, err)
 
-	opts = append(opts, WithDatabase(conn))
 	svc := NewService(q, opts...)
 	return svc, sess.ID
 }
@@ -78,7 +77,7 @@ func collect(ctx context.Context, sub <-chan pubsub.Event[Message]) *eventCollec
 	return c
 }
 
-func TestRetryRemovesFailedTurn(t *testing.T) {
+func TestRetryPreservesFailedTurn(t *testing.T) {
 	t.Parallel()
 
 	svc, sessionID := newTestService(t)
@@ -92,19 +91,21 @@ func TestRetryRemovesFailedTurn(t *testing.T) {
 	require.NoError(t, err)
 	tool, err := svc.Create(t.Context(), sessionID, CreateMessageParams{Role: Tool})
 	require.NoError(t, err)
-	failed, err := svc.Create(t.Context(), sessionID, CreateMessageParams{Role: Assistant, Parts: []ContentPart{Finish{Reason: FinishReasonError}}})
+	failed, err := svc.Create(t.Context(), sessionID, CreateMessageParams{Role: Assistant, Parts: []ContentPart{Finish{Reason: FinishReasonError, Message: "Provider Error", Details: "connection reset"}}})
 	require.NoError(t, err)
 
 	retry, err := svc.Retry(t.Context(), sessionID, failed.ID)
 	require.NoError(t, err)
 	require.Equal(t, "Fix this", retry.Content)
 	require.Equal(t, []Attachment{{FilePath: "/tmp/image.png", FileName: "image.png", MimeType: "image/png", Content: []byte("image")}}, retry.Attachments)
+	require.Equal(t, "Provider Error\nconnection reset", retry.Failure)
 
 	messages, err := svc.List(t.Context(), sessionID)
 	require.NoError(t, err)
-	require.Empty(t, messages)
-	require.NotEmpty(t, user.ID)
-	require.NotEmpty(t, tool.ID)
+	require.Len(t, messages, 3)
+	require.Equal(t, user.ID, messages[0].ID)
+	require.Equal(t, tool.ID, messages[1].ID)
+	require.Equal(t, failed.ID, messages[2].ID)
 }
 
 func (c *eventCollector) snapshot() []pubsub.Event[Message] {

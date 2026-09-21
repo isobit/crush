@@ -64,9 +64,11 @@ pulling a new upstream release, use this list to ensure nothing is lost.
 ### Chat — Retry Failed Messages
 
 - **Files**: `internal/ui/model/ui.go`, `internal/ui/model/keys.go`,
-  `internal/message/message.go`, `internal/backend/agent.go`
-- Pressing `r` invokes a transactional server-side history rewrite that removes
-  the failed turn, then resubmits its original prompt and binary attachments.
+  `internal/message/message.go`, `internal/workspace/app_workspace.go`,
+  `internal/backend/agent.go`
+- Pressing `r` validates the failed turn, preserves the original prompt, failed
+  assistant message, and tool results, then starts a continuation prompt that
+  tells the agent to resume from the existing partial workspace and history.
 
 ### Vi-Style Editor Keybindings
 

@@ -34,6 +34,12 @@ type CreateMessageParams struct {
 type Retry struct {
 	Content     string
 	Attachments []Attachment
+	Failure     string
+}
+
+// ContinuationPrompt explains how a retry should resume a failed turn.
+func (r Retry) ContinuationPrompt() string {
+	return fmt.Sprintf("The previous attempt to complete this request failed. The original request and partial work are already in the conversation history.\n\nFailure reason:\n%s\n\nContinue from the existing partial workspace and conversation history. Do not repeat work that is already complete. Inspect the current state and finish the original request.", r.Failure)
 }
 
 // Service is the public interface to the message store.
@@ -111,7 +117,6 @@ type pendingState struct {
 
 type service struct {
 	*pubsub.Broker[Message]
-	db       *sql.DB
 	q        db.Querier
 	debounce time.Duration
 
@@ -128,12 +133,6 @@ type ServiceOption func(*service)
 func WithDebounce(d time.Duration) ServiceOption {
 	return func(s *service) {
 		s.debounce = d
-	}
-}
-
-func WithDatabase(database *sql.DB) ServiceOption {
-	return func(s *service) {
-		s.db = database
 	}
 }
 
@@ -154,8 +153,8 @@ func (s *service) Retry(ctx context.Context, sessionID, messageID string) (Retry
 	if err := s.FlushAll(ctx); err != nil {
 		return Retry{}, err
 	}
-	// Retry currently loads the session to identify the user-turn boundary.
-	// Revisit this if large sessions make retries noticeably slow.
+	// Retry only validates the failed turn. The original messages and tool
+	// results remain in history so the next run can continue from that state.
 	messages, err := s.List(ctx, sessionID)
 	if err != nil {
 		return Retry{}, err
@@ -164,30 +163,14 @@ func (s *service) Retry(ctx context.Context, sessionID, messageID string) (Retry
 		if assistantMessage.ID != messageID || assistantMessage.Role != Assistant || assistantMessage.FinishReason() != FinishReasonError {
 			continue
 		}
+		finish := assistantMessage.FinishPart()
+		if finish == nil {
+			return Retry{}, errors.New("failed assistant message has no finish details")
+		}
 		for userIndex := assistantIndex - 1; userIndex >= 0; userIndex-- {
 			userMessage := messages[userIndex]
 			if userMessage.Role != User {
 				continue
-			}
-			if s.db == nil {
-				return Retry{}, errors.New("message retries require a database connection")
-			}
-			tx, err := s.db.BeginTx(ctx, nil)
-			if err != nil {
-				return Retry{}, fmt.Errorf("beginning retry transaction: %w", err)
-			}
-			defer tx.Rollback() //nolint:errcheck
-			qtx := db.New(tx)
-			for index := userIndex; index <= assistantIndex; index++ {
-				if err := qtx.DeleteMessage(ctx, messages[index].ID); err != nil {
-					return Retry{}, err
-				}
-			}
-			if err := tx.Commit(); err != nil {
-				return Retry{}, fmt.Errorf("committing retry transaction: %w", err)
-			}
-			for index := userIndex; index <= assistantIndex; index++ {
-				s.Publish(pubsub.DeletedEvent, messages[index].Clone())
 			}
 			attachments := make([]Attachment, 0)
 			for _, binaryContent := range userMessage.BinaryContent() {
@@ -196,7 +179,8 @@ func (s *service) Retry(ctx context.Context, sessionID, messageID string) (Retry
 				}
 				attachments = append(attachments, Attachment{FilePath: binaryContent.Path, FileName: filepath.Base(binaryContent.Path), MimeType: binaryContent.MIMEType, Content: binaryContent.Data})
 			}
-			return Retry{Content: userMessage.Content().Text, Attachments: attachments}, nil
+			failure := strings.TrimSpace(strings.Join([]string{finish.Message, finish.Details}, "\n"))
+			return Retry{Content: userMessage.Content().Text, Attachments: attachments, Failure: failure}, nil
 		}
 	}
 	return Retry{}, errors.New("failed message has no preceding user message")

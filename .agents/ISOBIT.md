@@ -268,6 +268,9 @@ pulling a new upstream release, use this list to ensure nothing is lost.
   unavailable. Network is always off by default and there is no config gate
   for running unsandboxed; both are requested per-command by the model and
   gated by action permissions.
+- Network/download utilities such as `curl` are allowed in an active sandbox,
+  where namespace isolation controls access; they remain blocked when
+  execution is unsandboxed.
 - The root filesystem is bind-mounted read-only (`--ro-bind / /`). Only the
   working directory, `/tmp`, `/dev`, `/proc`, and configured `WritablePaths`
   are writable, and those writes go straight to the real filesystem. There is

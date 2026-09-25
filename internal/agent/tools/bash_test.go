@@ -327,3 +327,27 @@ func TestTruncateOutputEmoji(t *testing.T) {
 	require.True(t, utf8.ValidString(out), "truncated output must stay valid UTF-8")
 	require.Contains(t, out, "lines truncated")
 }
+
+func TestBlockFuncsAllowNetworkCommandsOnlyInSandbox(t *testing.T) {
+	t.Parallel()
+
+	options := BashSandboxOptions{BlockedCommands: []string{"terraform"}}
+
+	for _, tt := range []struct {
+		name          string
+		sandboxActive bool
+		curlBlocked   bool
+	}{
+		{name: "sandbox active", sandboxActive: true, curlBlocked: false},
+		{name: "sandbox inactive", sandboxActive: false, curlBlocked: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			blockers := blockFuncs(options, tt.sandboxActive)
+			require.Equal(t, tt.curlBlocked, blockers[0]([]string{"curl"}))
+			require.True(t, blockers[0]([]string{"terraform"}))
+			require.True(t, blockers[0]([]string{"sudo"}))
+		})
+	}
+}

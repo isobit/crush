@@ -91,7 +91,7 @@ type bashDescriptionData struct {
 }
 
 var bannedCommands = []string{
-	// Network/Download tools
+	// Network/Download tools.
 	"alias",
 	"aria2c",
 	"axel",
@@ -112,12 +112,12 @@ var bannedCommands = []string{
 	"wget",
 	"xh",
 
-	// System administration
+	// System administration.
 	"doas",
 	"su",
 	"sudo",
 
-	// Package managers
+	// Package managers.
 	"apk",
 	"apt",
 	"apt-cache",
@@ -139,7 +139,7 @@ var bannedCommands = []string{
 	"yum",
 	"zypper",
 
-	// System modification
+	// System modification.
 	"at",
 	"batch",
 	"chkconfig",
@@ -152,7 +152,7 @@ var bannedCommands = []string{
 	"systemctl",
 	"umount",
 
-	// Network configuration
+	// Network configuration.
 	"firewall-cmd",
 	"ifconfig",
 	"ip",
@@ -163,9 +163,43 @@ var bannedCommands = []string{
 	"ufw",
 }
 
+// Network clients are constrained by bwrap while sandboxing is active.
+var sandboxBypassCommands = map[string]struct{}{
+	"aria2c":      {},
+	"axel":        {},
+	"chrome":      {},
+	"curl":        {},
+	"curlie":      {},
+	"firefox":     {},
+	"http-prompt": {},
+	"httpie":      {},
+	"links":       {},
+	"lynx":        {},
+	"nc":          {},
+	"safari":      {},
+	"scp":         {},
+	"ssh":         {},
+	"telnet":      {},
+	"w3m":         {},
+	"wget":        {},
+	"xh":          {},
+}
+
+func defaultBlockedCommands(sandboxActive bool) []string {
+	commands := make([]string, 0, len(bannedCommands))
+	for _, command := range bannedCommands {
+		if sandboxActive {
+			if _, ok := sandboxBypassCommands[command]; ok {
+				continue
+			}
+		}
+		commands = append(commands, command)
+	}
+	return commands
+}
+
 func bashDescription(attribution *config.Attribution, modelID string, sandboxEnabled bool, bashCfg config.ToolBash) string {
-	banned := append([]string(nil), bannedCommands...)
-	banned = append(banned, bashCfg.BlockedCommands...)
+	banned := append(defaultBlockedCommands(sandboxEnabled), bashCfg.BlockedCommands...)
 	for _, rule := range bashCfg.BlockedArguments {
 		pattern := rule.Command
 		if len(rule.Arguments) > 0 {
@@ -194,9 +228,8 @@ func bashDescription(attribution *config.Attribution, modelID string, sandboxEna
 	return out.String()
 }
 
-func blockFuncs(opts BashSandboxOptions) []shell.BlockFunc {
-	blockedCommands := append([]string(nil), bannedCommands...)
-	blockedCommands = append(blockedCommands, opts.BlockedCommands...)
+func blockFuncs(opts BashSandboxOptions, sandboxActive bool) []shell.BlockFunc {
+	blockedCommands := append(defaultBlockedCommands(sandboxActive), opts.BlockedCommands...)
 	blockers := []shell.BlockFunc{shell.CommandsBlocker(blockedCommands)}
 
 	for _, rule := range opts.BlockedArguments {
@@ -342,7 +375,7 @@ func NewBashTool(permissions permission.Service, workingDir string, attribution 
 				bgManager := shell.GetBackgroundShellManager()
 				bgManager.Cleanup()
 				// Use background context so it continues after tool returns
-				bgShell, err := bgManager.Start(context.Background(), execWorkingDir, blockFuncs(sandboxOpts), params.Command, params.Description, sandboxCfg)
+				bgShell, err := bgManager.Start(context.Background(), execWorkingDir, blockFuncs(sandboxOpts, sandboxActive), params.Command, params.Description, sandboxCfg)
 				if err != nil {
 					return fantasy.ToolResponse{}, fmt.Errorf("error starting background shell: %w", err)
 				}
@@ -397,7 +430,7 @@ func NewBashTool(permissions permission.Service, workingDir string, attribution 
 			// Start with detached context so it can survive if moved to background
 			bgManager := shell.GetBackgroundShellManager()
 			bgManager.Cleanup()
-			bgShell, err := bgManager.Start(context.Background(), execWorkingDir, blockFuncs(sandboxOpts), params.Command, params.Description, sandboxCfg)
+			bgShell, err := bgManager.Start(context.Background(), execWorkingDir, blockFuncs(sandboxOpts, sandboxActive), params.Command, params.Description, sandboxCfg)
 			if err != nil {
 				return fantasy.ToolResponse{}, fmt.Errorf("error starting shell: %w", err)
 			}

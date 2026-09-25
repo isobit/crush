@@ -76,8 +76,9 @@ type Models struct {
 	com          *common.Common
 	isOnboarding bool
 
-	modelType ModelType
-	providers []catwalk.Provider
+	modelType    ModelType
+	setAsDefault bool
+	providers    []catwalk.Provider
 
 	keyMap struct {
 		Tab      key.Binding
@@ -86,6 +87,7 @@ type Models struct {
 		Edit     key.Binding
 		Next     key.Binding
 		Previous key.Binding
+		Default  key.Binding
 		Close    key.Binding
 	}
 	list  *ModelsList
@@ -101,6 +103,7 @@ func NewModels(com *common.Common, isOnboarding bool) (*Models, error) {
 	m := &Models{}
 	m.com = com
 	m.isOnboarding = isOnboarding
+	m.setAsDefault = isOnboarding
 
 	help := help.New()
 	help.Styles = t.DialogHelpStyles()
@@ -139,6 +142,10 @@ func NewModels(com *common.Common, isOnboarding bool) (*Models, error) {
 	m.keyMap.Previous = key.NewBinding(
 		key.WithKeys("up", "ctrl+p"),
 		key.WithHelp("↑", "previous item"),
+	)
+	m.keyMap.Default = key.NewBinding(
+		key.WithKeys("ctrl+d"),
+		key.WithHelp("ctrl+d", "set as default"),
 	)
 	m.keyMap.Close = CloseKey
 
@@ -183,6 +190,10 @@ func (m *Models) HandleMsg(msg tea.Msg) Action {
 				m.list.SelectNext()
 			}
 			m.list.ScrollToSelected()
+		case key.Matches(msg, m.keyMap.Default):
+			if !m.isOnboarding {
+				m.setAsDefault = !m.setAsDefault
+			}
 		case key.Matches(msg, m.keyMap.Select, m.keyMap.Edit):
 			selectedItem := m.list.SelectedItem()
 			if selectedItem == nil {
@@ -200,6 +211,7 @@ func (m *Models) HandleMsg(msg tea.Msg) Action {
 				Provider:       modelItem.prov,
 				Model:          modelItem.SelectedModel(),
 				ModelType:      modelItem.SelectedModelType(),
+				SetAsDefault:   m.setAsDefault,
 				ReAuthenticate: isEdit,
 			}
 		case key.Matches(msg, m.keyMap.Tab):
@@ -261,7 +273,11 @@ func (m *Models) Draw(scr uv.Screen, area uv.Rectangle) *tea.Cursor {
 	innerWidth := width - t.Dialog.View.GetHorizontalFrameSize()
 	m.input.SetWidth(dialogInputTextWidth(t, m.input, innerWidth))
 
-	listHeight, listTotalHeight, _ := sizeDialogList(t, m.list, innerWidth, height)
+	listDialogHeight := height
+	if !m.isOnboarding {
+		listDialogHeight--
+	}
+	listHeight, listTotalHeight, _ := sizeDialogList(t, m.list, innerWidth, listDialogHeight)
 
 	rc := NewRenderContext(t, width)
 	rc.Title = "Switch Model"
@@ -278,6 +294,13 @@ func (m *Models) Draw(scr uv.Screen, area uv.Rectangle) *tea.Cursor {
 	listView := t.Dialog.List.Height(m.list.Height()).Render(m.list.Render())
 	listView = joinScrollbar(t, listView, listHeight, listTotalHeight, listHeight, m.list.Offset())
 	rc.AddPart(listView)
+	if !m.isOnboarding {
+		defaultLabel := "[ ] Set as default"
+		if m.setAsDefault {
+			defaultLabel = "[x] Set as default"
+		}
+		rc.AddPart(t.Dialog.PrimaryText.Render(defaultLabel + "  (ctrl+d)"))
+	}
 
 	rc.Help = renderDialogHelp(t, &m.help, m, innerWidth)
 
@@ -308,6 +331,7 @@ func (m *Models) ShortHelp() []key.Binding {
 	h := []key.Binding{
 		m.keyMap.UpDown,
 		m.keyMap.Tab,
+		m.keyMap.Default,
 		m.keyMap.Select,
 	}
 	if m.isSelectedConfigured() {

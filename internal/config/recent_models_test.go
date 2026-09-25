@@ -156,3 +156,20 @@ func TestUpdatePreferredModel_TypeIsolation(t *testing.T) {
 	require.Len(t, store.Config().RecentModels[SelectedModelTypeSmall], 1)
 	require.Equal(t, smallModel, store.Config().RecentModels[SelectedModelTypeSmall][0])
 }
+
+func TestOverridePreferredModel_IsInMemoryOnly(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	cfg := &Config{}
+	cfg.setDefaults(dir, "")
+	store := testStoreWithPath(cfg, dir)
+
+	selected := SelectedModel{Provider: "openai", Model: "gpt-4o"}
+	store.OverridePreferredModel(SelectedModelTypeLarge, selected)
+
+	require.Equal(t, selected, store.Config().Models[SelectedModelTypeLarge])
+	require.Empty(t, store.Config().RecentModels[SelectedModelTypeLarge])
+	_, err := os.Stat(store.globalDataPath)
+	require.ErrorIs(t, err, fs.ErrNotExist)
+}

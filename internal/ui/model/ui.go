@@ -2146,14 +2146,20 @@ func (m *UI) handleSelectModel(msg dialog.ActionSelectModel) tea.Cmd {
 
 	if !isConfigured() || msg.ReAuthenticate {
 		m.dialog.CloseDialog(dialog.ModelsID)
-		if cmd := m.openAuthenticationDialog(msg.Provider, msg.Model, msg.ModelType); cmd != nil {
+		if cmd := m.openAuthenticationDialog(msg.Provider, msg.Model, msg.ModelType, msg.SetAsDefault); cmd != nil {
 			cmds = append(cmds, cmd)
 		}
 		return tea.Batch(cmds...)
 	}
 
-	if err := m.com.Workspace.UpdatePreferredModel(config.ScopeGlobal, msg.ModelType, msg.Model); err != nil {
-		cmds = append(cmds, util.ReportError(err))
+	var updateModelErr error
+	if msg.SetAsDefault {
+		updateModelErr = m.com.Workspace.UpdatePreferredModel(config.ScopeGlobal, msg.ModelType, msg.Model)
+	} else {
+		updateModelErr = m.com.Workspace.OverridePreferredModel(msg.ModelType, msg.Model)
+	}
+	if updateModelErr != nil {
+		cmds = append(cmds, util.ReportError(updateModelErr))
 	} else {
 		if msg.ModelType == config.SelectedModelTypeLarge {
 			// Swap the theme live based on the newly selected large
@@ -2165,7 +2171,13 @@ func (m *UI) handleSelectModel(msg dialog.ActionSelectModel) tea.Cmd {
 		if _, ok := cfg.Models[config.SelectedModelTypeSmall]; !ok {
 			// Ensure small model is set is unset.
 			smallModel := m.com.Workspace.GetDefaultSmallModel(providerID)
-			if err := m.com.Workspace.UpdatePreferredModel(config.ScopeGlobal, config.SelectedModelTypeSmall, smallModel); err != nil {
+			var err error
+			if msg.SetAsDefault {
+				err = m.com.Workspace.UpdatePreferredModel(config.ScopeGlobal, config.SelectedModelTypeSmall, smallModel)
+			} else {
+				err = m.com.Workspace.OverridePreferredModel(config.SelectedModelTypeSmall, smallModel)
+			}
+			if err != nil {
 				cmds = append(cmds, util.ReportError(err))
 			}
 		}
@@ -2205,7 +2217,7 @@ func (m *UI) handleSelectModel(msg dialog.ActionSelectModel) tea.Cmd {
 	return tea.Batch(cmds...)
 }
 
-func (m *UI) openAuthenticationDialog(provider catwalk.Provider, model config.SelectedModel, modelType config.SelectedModelType) tea.Cmd {
+func (m *UI) openAuthenticationDialog(provider catwalk.Provider, model config.SelectedModel, modelType config.SelectedModelType, setAsDefault bool) tea.Cmd {
 	var (
 		dlg dialog.Dialog
 		cmd tea.Cmd
@@ -2215,11 +2227,11 @@ func (m *UI) openAuthenticationDialog(provider catwalk.Provider, model config.Se
 
 	switch provider.ID {
 	case "hyper":
-		dlg, cmd = dialog.NewOAuthHyper(m.com, isOnboarding, provider, model, modelType)
+		dlg, cmd = dialog.NewOAuthHyper(m.com, isOnboarding, provider, model, modelType, setAsDefault)
 	case catwalk.InferenceProviderCopilot:
-		dlg, cmd = dialog.NewOAuthCopilot(m.com, isOnboarding, provider, model, modelType)
+		dlg, cmd = dialog.NewOAuthCopilot(m.com, isOnboarding, provider, model, modelType, setAsDefault)
 	default:
-		dlg, cmd = dialog.NewAPIKeyInput(m.com, isOnboarding, provider, model, modelType)
+		dlg, cmd = dialog.NewAPIKeyInput(m.com, isOnboarding, provider, model, modelType, setAsDefault)
 	}
 
 	if m.dialog.ContainsDialog(dlg.ID()) {
@@ -4529,7 +4541,7 @@ func (m *UI) handleReAuthenticate(providerID string) tea.Cmd {
 	if !ok {
 		return nil
 	}
-	return m.openAuthenticationDialog(providerCfg.ToProvider(), cfg.Models[agentCfg.Model], agentCfg.Model)
+	return m.openAuthenticationDialog(providerCfg.ToProvider(), cfg.Models[agentCfg.Model], agentCfg.Model, false)
 }
 
 // newSession clears the current session state and prepares for a new session.

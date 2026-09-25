@@ -61,6 +61,23 @@ func (c *Client) UpdatePreferredModel(ctx context.Context, id string, scope conf
 	return nil
 }
 
+// OverridePreferredModel changes the active preferred model without
+// persisting it.
+func (c *Client) OverridePreferredModel(ctx context.Context, id string, modelType config.SelectedModelType, model config.SelectedModel) error {
+	rsp, err := c.post(ctx, fmt.Sprintf("/workspaces/%s/config/model/override", id), nil, jsonBody(proto.ConfigModelOverrideRequest{
+		ModelType: modelType,
+		Model:     model,
+	}), http.Header{"Content-Type": []string{"application/json"}})
+	if err != nil {
+		return fmt.Errorf("failed to override preferred model: %w", err)
+	}
+	defer rsp.Body.Close()
+	if rsp.StatusCode != http.StatusOK {
+		return fmt.Errorf("failed to override preferred model: status code %d", rsp.StatusCode)
+	}
+	return nil
+}
+
 // SetCompactMode sets compact mode on the server.
 func (c *Client) SetCompactMode(ctx context.Context, id string, scope config.Scope, enabled bool) error {
 	rsp, err := c.post(ctx, fmt.Sprintf("/workspaces/%s/config/compact", id), nil, jsonBody(struct {

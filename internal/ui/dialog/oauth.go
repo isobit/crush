@@ -48,6 +48,7 @@ type OAuth struct {
 	provider      catwalk.Provider
 	model         config.SelectedModel
 	modelType     config.SelectedModelType
+	setAsDefault  bool
 	oAuthProvider OAuthProvider
 
 	State OAuthState
@@ -80,6 +81,7 @@ func newOAuth(
 	provider catwalk.Provider,
 	model config.SelectedModel,
 	modelType config.SelectedModelType,
+	setAsDefault bool,
 	oAuthProvider OAuthProvider,
 ) (*OAuth, tea.Cmd) {
 	t := com.Styles
@@ -90,6 +92,7 @@ func newOAuth(
 	m.provider = provider
 	m.model = model
 	m.modelType = modelType
+	m.setAsDefault = setAsDefault
 	m.oAuthProvider = oAuthProvider
 	m.width = 0 // Set dynamically in Draw().
 	m.State = OAuthStateInitializing
@@ -468,8 +471,9 @@ func (m *OAuth) saveCredential() tea.Cmd {
 // selection, which closes the dialog.
 func (m *OAuth) confirmAndSelectModel() Action {
 	return ActionSelectModel{
-		Provider:  m.provider,
-		Model:     m.model,
-		ModelType: m.modelType,
+		Provider:     m.provider,
+		Model:        m.model,
+		ModelType:    m.modelType,
+		SetAsDefault: m.setAsDefault,
 	}
 }

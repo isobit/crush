@@ -36,9 +36,10 @@ type APIKeyInput struct {
 	com          *common.Common
 	isOnboarding bool
 
-	provider  catwalk.Provider
-	model     config.SelectedModel
-	modelType config.SelectedModelType
+	provider     catwalk.Provider
+	model        config.SelectedModel
+	modelType    config.SelectedModelType
+	setAsDefault bool
 
 	width int
 	state APIKeyInputState
@@ -61,6 +62,7 @@ func NewAPIKeyInput(
 	provider catwalk.Provider,
 	model config.SelectedModel,
 	modelType config.SelectedModelType,
+	setAsDefault bool,
 ) (*APIKeyInput, tea.Cmd) {
 	t := com.Styles
 
@@ -70,6 +72,7 @@ func NewAPIKeyInput(
 	m.provider = provider
 	m.model = model
 	m.modelType = modelType
+	m.setAsDefault = setAsDefault
 	m.width = 0 // Set dynamically in Draw().
 
 	m.input = textinput.New()
@@ -313,8 +316,9 @@ func (m *APIKeyInput) saveKeyAndContinue() Action {
 	}
 
 	return ActionSelectModel{
-		Provider:  m.provider,
-		Model:     m.model,
-		ModelType: m.modelType,
+		Provider:     m.provider,
+		Model:        m.model,
+		ModelType:    m.modelType,
+		SetAsDefault: m.setAsDefault,
 	}
 }

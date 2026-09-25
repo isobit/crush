@@ -28,6 +28,13 @@ type ConfigModelRequest struct {
 	Model     config.SelectedModel     `json:"model"`
 }
 
+// ConfigModelOverrideRequest represents a request to change the active model
+// without persisting it.
+type ConfigModelOverrideRequest struct {
+	ModelType config.SelectedModelType `json:"model_type"`
+	Model     config.SelectedModel     `json:"model"`
+}
+
 // ConfigCompactRequest represents a request to set compact mode.
 type ConfigCompactRequest struct {
 	Scope   config.Scope `json:"scope"`

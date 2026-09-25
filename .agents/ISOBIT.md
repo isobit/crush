@@ -408,6 +408,12 @@ pulling a new upstream release, use this list to ensure nothing is lost.
 - Fixes port exhaustion when running many concurrent Crush instances with
   OAuth MCP servers (the candidate range is only 40704-40713).
 
+### Ephemeral Model Selection
+
+- **Files**: `internal/config/store.go`, `internal/proto/requests.go`, `internal/backend/config.go`, `internal/client/config.go`, `internal/server/config.go`, `internal/workspace/`, `internal/ui/dialog/models.go`, `internal/ui/model/ui.go`
+- The model switcher updates the active model in memory by default; `ctrl+d` toggles `Set as default` to also persist the selection and recent-model history.
+- Temporary model overrides are propagated through the client/server API and expire when the server process exits. Onboarding selections remain persistent.
+
 ---
 
 ## Notes

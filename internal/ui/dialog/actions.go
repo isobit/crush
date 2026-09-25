@@ -36,11 +36,12 @@ type ActionSelectSession struct {
 	Session session.Session
 }
 
-// ActionSelectModel is a message indicating a model has been selected.
+// ActionSelectModel is a message indicating that a model has been selected.
 type ActionSelectModel struct {
 	Provider       catwalk.Provider
 	Model          config.SelectedModel
 	ModelType      config.SelectedModelType
+	SetAsDefault   bool
 	ReAuthenticate bool
 }
 

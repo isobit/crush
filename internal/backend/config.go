@@ -79,6 +79,18 @@ func (b *Backend) UpdatePreferredModel(workspaceID string, scope config.Scope, m
 	return nil
 }
 
+// OverridePreferredModel changes the active preferred model without
+// persisting it.
+func (b *Backend) OverridePreferredModel(workspaceID string, modelType config.SelectedModelType, model config.SelectedModel) error {
+	ws, err := b.GetWorkspace(workspaceID)
+	if err != nil {
+		return err
+	}
+	ws.Cfg.OverridePreferredModel(modelType, model)
+	publishConfigChanged(ws)
+	return nil
+}
+
 // SetCompactMode sets the compact mode setting and persists it.
 func (b *Backend) SetCompactMode(workspaceID string, scope config.Scope, enabled bool) error {
 	ws, err := b.GetWorkspace(workspaceID)

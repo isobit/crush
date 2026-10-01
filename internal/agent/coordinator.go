@@ -41,7 +41,6 @@ import (
 	"github.com/charmbracelet/crush/internal/question"
 	"github.com/charmbracelet/crush/internal/session"
 	"github.com/charmbracelet/crush/internal/skills"
-	"golang.org/x/sync/errgroup"
 
 	"charm.land/fantasy/providers/anthropic"
 	"charm.land/fantasy/providers/azure"
@@ -132,8 +131,6 @@ type coordinator struct {
 	allSkills    []*skills.Skill // Pre-filter: all discovered after dedup.
 	activeSkills []*skills.Skill // Post-filter: active skills only.
 	skillTracker *skills.Tracker
-
-	readyWg errgroup.Group
 }
 
 // CoordinatorOptions holds the dependencies for NewCoordinator. Using a
@@ -222,10 +219,6 @@ func (c *coordinator) RunAccepted(ctx context.Context, accept *AcceptedRun, sess
 // dispatchMu; when nil (the in-process/local path) no accept tracking
 // applies.
 func (c *coordinator) run(ctx context.Context, accept *AcceptedRun, sessionID string, prompt string, attachments ...message.Attachment) (*fantasy.AgentResult, error) {
-	if err := c.readyWg.Wait(); err != nil {
-		return nil, err
-	}
-
 	// Wait for MCP initialization to complete before building the tool list.
 	// Without this, slow-to-start MCP servers (e.g. stdio Python via uv) may
 	// not have registered their tools yet when buildTools reads the registry,
@@ -632,25 +625,12 @@ func (c *coordinator) buildAgent(ctx context.Context, prompt *prompt.Prompt, age
 		RunComplete:          c.runComplete,
 	})
 
-	// The readiness goroutines below perform one-time setup — building the
-	// system prompt and the (MCP-gated) tool list — whose results the
-	// coordinator needs for its whole lifetime, so they must survive the
-	// caller's context being canceled. Several entry points build an agent
-	// from a short-lived HTTP request context: the server's
-	// InitAgent/UpdateAgent handlers, and UpdateModels -> buildTools ->
-	// agentTool -> buildAgent for the sub-agent. Because mcp.WaitForInit
-	// blocks until MCP initialization finishes, a slow MCP server keeps one
-	// of these goroutines parked past the request; when the handler returns
-	// and cancels its context, WaitForInit would observe the cancellation,
-	// the errgroup would record context.Canceled, and every later run would
-	// fail at readyWg.Wait() before emitting anything — the client/server
-	// session hangs with no visible response. WithoutCancel drops
-	// cancellation while keeping context values; the work is bounded
-	// (WaitForInit by MCP init timeouts, the rest is local) so it always
-	// completes.
+	// Build readiness state asynchronously, but let setup survive short-lived
+	// request contexts such as the server's InitAgent/UpdateAgent handlers. MCP
+	// initialization has its own timeout; the remaining work is local.
 	initCtx := context.WithoutCancel(ctx)
 
-	c.readyWg.Go(func() error {
+	result.AddReadyTask(func() error {
 		systemPrompt, err := prompt.Build(initCtx, large.Model.Provider(), large.Model.Model(), c.cfg)
 		if err != nil {
 			return err
@@ -659,7 +639,7 @@ func (c *coordinator) buildAgent(ctx context.Context, prompt *prompt.Prompt, age
 		return nil
 	})
 
-	c.readyWg.Go(func() error {
+	result.AddReadyTask(func() error {
 		// Wait for MCP servers to finish registering their tools before
 		// building the initial tool list. This ensures the first tool set
 		// (used if anything reads it before run() rebuilds) includes all

@@ -26,6 +26,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"golang.org/x/sync/errgroup"
+
 	"charm.land/catwalk/pkg/catwalk"
 	"charm.land/fantasy"
 	"charm.land/fantasy/providers/anthropic"
@@ -139,6 +141,8 @@ type SessionAgent interface {
 	SetModels(large Model, small Model)
 	SetTools(tools []fantasy.AgentTool)
 	SetSystemPrompt(systemPrompt string)
+	WaitReady() error
+	AddReadyTask(fn func() error)
 	Cancel(sessionID string)
 	CancelAll()
 	IsSessionBusy(sessionID string) bool
@@ -173,6 +177,7 @@ type sessionAgent struct {
 	maxRetries         *int
 	systemPromptPrefix *csync.Value[string]
 	systemPrompt       *csync.Value[string]
+	readyWg            errgroup.Group
 	tools              *csync.Slice[fantasy.AgentTool]
 
 	isSubAgent           bool
@@ -570,8 +575,20 @@ func ValidateCall(call SessionAgentCall) error {
 	return nil
 }
 
+// WaitReady waits for the system prompt and tool list to finish building.
+func (a *sessionAgent) WaitReady() error {
+	return a.readyWg.Wait()
+}
+
+func (a *sessionAgent) AddReadyTask(fn func() error) {
+	a.readyWg.Go(fn)
+}
+
 func (a *sessionAgent) Run(ctx context.Context, call SessionAgentCall) (result *fantasy.AgentResult, retErr error) {
 	if err := ValidateCall(call); err != nil {
+		return nil, err
+	}
+	if err := a.WaitReady(); err != nil {
 		return nil, err
 	}
 	if a.permissionMode == permission.PermissionModePrompt {

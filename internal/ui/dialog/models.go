@@ -90,9 +90,10 @@ type Models struct {
 		Default  key.Binding
 		Close    key.Binding
 	}
-	list  *ModelsList
-	input textinput.Model
-	help  help.Model
+	list             *ModelsList
+	input            textinput.Model
+	help             help.Model
+	scrollToSelected bool
 }
 
 var _ Dialog = (*Models)(nil)
@@ -278,6 +279,10 @@ func (m *Models) Draw(scr uv.Screen, area uv.Rectangle) *tea.Cursor {
 		listDialogHeight--
 	}
 	listHeight, listTotalHeight, _ := sizeDialogList(t, m.list, innerWidth, listDialogHeight)
+	if m.scrollToSelected {
+		m.list.ScrollToSelected()
+		m.scrollToSelected = false
+	}
 
 	rc := NewRenderContext(t, width)
 	rc.Title = "Switch Model"
@@ -366,6 +371,8 @@ func (m *Models) setProviderItems() error {
 	cfg := m.com.Config()
 
 	var selectedItemID string
+	var currentItem *ModelItem
+	currentShownInRecent := false
 	selectedType := m.modelType.Config()
 	currentModel := cfg.Models[selectedType]
 	recentItems := cfg.RecentModels[selectedType]
@@ -406,9 +413,11 @@ func (m *Models) setProviderItems() error {
 			group := NewModelGroup(t, name, true)
 			for _, model := range p.Models {
 				item := NewModelItem(t, provider, model, m.modelType, false)
+				item.SetCurrent(model.ID == currentModel.Model && string(provider.ID) == currentModel.Provider)
 				group.AppendItems(item)
 				itemsMap[item.ID()] = item
 				if model.ID == currentModel.Model && string(provider.ID) == currentModel.Provider {
+					currentItem = item
 					selectedItemID = item.ID()
 				}
 			}
@@ -459,9 +468,11 @@ func (m *Models) setProviderItems() error {
 		group := NewModelGroup(t, name, providerConfigured)
 		for _, model := range displayProvider.Models {
 			item := NewModelItem(t, provider, model, m.modelType, false)
+			item.SetCurrent(model.ID == currentModel.Model && string(provider.ID) == currentModel.Provider)
 			group.AppendItems(item)
 			itemsMap[item.ID()] = item
 			if model.ID == currentModel.Model && string(provider.ID) == currentModel.Provider {
+				currentItem = item
 				selectedItemID = item.ID()
 			}
 		}
@@ -480,13 +491,20 @@ func (m *Models) setProviderItems() error {
 				continue
 			}
 
-			// Show provider for recent items
+			// Show provider for recent items.
+			isCurrent := !currentShownInRecent && recent.Model == currentModel.Model && recent.Provider == currentModel.Provider
+			if isCurrent {
+				currentShownInRecent = true
+				if currentItem != nil {
+					currentItem.SetCurrent(false)
+				}
+			}
 			item = NewModelItem(t, item.prov, item.model, m.modelType, true)
-			item.showProvider = true
+			item.SetCurrent(isCurrent)
 
 			validRecentItems = append(validRecentItems, recent)
 			recentGroup.AppendItems(item)
-			if recent.Model == currentModel.Model && recent.Provider == currentModel.Provider {
+			if isCurrent {
 				selectedItemID = item.ID()
 			}
 		}
@@ -507,11 +525,11 @@ func (m *Models) setProviderItems() error {
 	m.list.SetGroups(groups...)
 	m.list.SetSelectedItem(selectedItemID)
 	if selectedItemID != "" {
-		m.list.ScrollToSelected()
+		m.scrollToSelected = true
 	} else {
 		m.list.ScrollToTop()
+		m.scrollToSelected = false
 	}
-
 	// Update placeholder based on model type
 	if !m.isOnboarding {
 		m.input.Placeholder = m.modelType.Placeholder()

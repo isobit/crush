@@ -113,6 +113,14 @@ func TestModelItem_MutatorsBumpVersion(t *testing.T) {
 		item.SetFocused(true)
 	})
 
+	require.NotContains(t, item.Render(80), "Active")
+	requireBump(t, "SetCurrent[true]", item, func() {
+		item.SetCurrent(true)
+	})
+	require.Contains(t, item.Render(80), "Active")
+	require.Contains(t, item.Render(80), "OpenAI")
+	require.NotContains(t, item.Render(80), "✓")
+
 	match := fuzzy.Match{
 		Str:            "GPT-4",
 		Index:          0,

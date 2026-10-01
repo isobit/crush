@@ -21,6 +21,12 @@ pulling a new upstream release, use this list to ensure nothing is lost.
 - The system prompt requires matching skills to be loaded once before the first task-performing tool call, and treats follow-up edits and tests as the same task.
 
 
+### Model Switcher — Active Model Indicator
+
+- **Files**: `internal/ui/dialog/models.go`, `internal/ui/dialog/models_item.go`
+- The model currently in use is marked with an `Active` label, separate from list focus, including in the recently used section.
+
+
 ### Theme — Isobit Styles
 
 - **Files**: `internal/ui/styles/isobit.go`, `internal/ui/styles/themes.go`

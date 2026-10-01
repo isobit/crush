@@ -77,6 +77,7 @@ type ModelItem struct {
 	t            *styles.Styles
 	m            fuzzy.Match
 	focused      bool
+	current      bool
 	showProvider bool
 }
 
@@ -129,8 +130,14 @@ func (m *ModelItem) ID() string {
 // Render implements ListItem.
 func (m *ModelItem) Render(width int) string {
 	var providerInfo string
+	if m.current {
+		providerInfo = "Active"
+	}
 	if m.showProvider {
-		providerInfo = string(m.prov.Name)
+		if providerInfo != "" {
+			providerInfo += " · "
+		}
+		providerInfo += string(m.prov.Name)
 	}
 	styles := ListItemStyles{
 		ItemBlurred:     m.t.Dialog.NormalItem,
@@ -148,6 +155,18 @@ func (m *ModelItem) SetFocused(focused bool) {
 	}
 	m.cache = nil
 	m.focused = focused
+	if m.Versioned != nil {
+		m.Bump()
+	}
+}
+
+// SetCurrent marks this item as the model currently in use.
+func (m *ModelItem) SetCurrent(current bool) {
+	if m.current == current {
+		return
+	}
+	m.cache = nil
+	m.current = current
 	if m.Versioned != nil {
 		m.Bump()
 	}

@@ -15,10 +15,11 @@ pulling a new upstream release, use this list to ensure nothing is lost.
 
 ## Active Customizations
 
-### Coder Prompt Comment Guidance
+### Coder Prompt Guidance
 
 - **File**: `internal/agent/templates/coder.md.tpl`
 - The system prompt requires matching skills to be loaded once before the first task-performing tool call, and treats follow-up edits and tests as the same task.
+- Verification guidance favors focused checks after cohesive changes and defers expensive builds or broad suites until implementation is ready.
 
 
 ### Model Switcher — Active Model Indicator

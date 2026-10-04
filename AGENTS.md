@@ -94,6 +94,10 @@ internal/
   - Update specific package:
     `go test ./internal/tui/components/core -update` (in this case,
     we're updating "core")
+- **Update Markdown Behavior Docs**: `go test ./... -markdiff.update`
+  (or `MARKDIFF_UPDATE=1`) rewrites `testdata/markdiff/**/*.md` files
+  produced by `internal/markdiff`. Use markdiff when a test's behavior is
+  best reviewed as prose plus captured output; see its package docs.
 - **Lint**: `task lint:fix`
 - **Format**: `task fmt` (`gofumpt -w .`)
 - **Modernize**: `task modernize` (runs `modernize` which makes code

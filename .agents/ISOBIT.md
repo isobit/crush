@@ -395,6 +395,18 @@ pulling a new upstream release, use this list to ensure nothing is lost.
   display for human review (one-line summary in header, full code block
   in body when multi-line).
 
+### Markdown Behavior Documents (`markdiff`)
+
+- **Files**: `internal/markdiff/`, `AGENTS.md`
+- Test helper that builds a Markdown document explaining the system under
+  test and capturing its output (text, code, JSON, lists, tables, diffs,
+  quotes, collapsible details). On cleanup it is compared with
+  `testdata/markdiff/<TestName>[/<subtest>].md`; mismatches fail with a
+  unified diff, and `-markdiff.update`, `MARKDIFF_UPDATE=1`, or a boolean
+  `-update` flag registered by another package rewrites it.
+- Document and section summaries are required so reviewers can understand
+  captured behavior from the Markdown alone.
+
 ### Agent Test VCR Cassettes
 
 - **Files**: `internal/agent/agent.go`, `internal/agent/common_test.go`,

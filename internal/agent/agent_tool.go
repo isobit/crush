@@ -40,7 +40,38 @@ func availableAgentDescription(agents map[string]config.Agent) string {
 		if description == "" {
 			description = "No description provided."
 		}
-		profiles = append(profiles, fmt.Sprintf("- %s: %s", id, description))
+
+		availableTools := make([]string, 0, len(agent.AllowedTools))
+		for _, tool := range agent.AllowedTools {
+			if tool != AgentToolName && tool != tools.QuestionToolName {
+				availableTools = append(availableTools, tool)
+			}
+		}
+		sort.Strings(availableTools)
+		if len(availableTools) == 0 {
+			availableTools = append(availableTools, "none")
+		}
+
+		profile := fmt.Sprintf("- %s: %s\n  Tools: %s", id, description, strings.Join(availableTools, ", "))
+		if agent.AllowedMCP == nil {
+			profile += "\n  MCP access: unrestricted (if configured)"
+		} else if len(agent.AllowedMCP) == 0 {
+			profile += "\n  MCP access: none"
+		} else {
+			mcpServers := make([]string, 0, len(agent.AllowedMCP))
+			for server, allowedMCPTools := range agent.AllowedMCP {
+				toolNames := append([]string(nil), allowedMCPTools...)
+				sort.Strings(toolNames)
+				if len(toolNames) == 0 {
+					mcpServers = append(mcpServers, server+" (all tools)")
+					continue
+				}
+				mcpServers = append(mcpServers, fmt.Sprintf("%s (tools: %s)", server, strings.Join(toolNames, ", ")))
+			}
+			sort.Strings(mcpServers)
+			profile += fmt.Sprintf("\n  MCP access: %s", strings.Join(mcpServers, ", "))
+		}
+		profiles = append(profiles, profile)
 	}
 
 	return strings.Join(append([]string{agentToolDescription, "", "Available agent profiles:"}, profiles...), "\n")

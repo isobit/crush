@@ -50,6 +50,12 @@ pulling a new upstream release, use this list to ensure nothing is lost.
 - `LabeledPath()` helper in `elements.go` renders `label path` in the
   sidebar's muted style.
 
+### Worktree Data Directory Sharing
+
+- **Files**: `internal/config/load.go`, `internal/config/load_test.go`
+- Linked git worktrees use the `.crush` directory from the main checkout
+  by default when no `.crush` exists in the linked worktree itself.
+
 ### Sidebar — Configurable Width
 
 - **Files**: `internal/ui/model/ui.go`, `internal/config/`

@@ -597,7 +597,12 @@ func (c *Config) setDefaults(workingDir, dataDir string) {
 	} else if c.Options.DataDirectory == "" {
 		if path, ok := fsext.LookupClosestBounded(workingDir, projectBoundary(workingDir), defaultDataDirectory); ok {
 			c.Options.DataDirectory = path
-		} else {
+		} else if root := worktreeRoot(workingDir); root != "" {
+			if mainRoot := mainWorktreeRoot(workingDir); mainRoot != "" && mainRoot != root {
+				c.Options.DataDirectory = filepath.Join(mainRoot, defaultDataDirectory)
+			}
+		}
+		if c.Options.DataDirectory == "" {
 			c.Options.DataDirectory = filepath.Join(workingDir, defaultDataDirectory)
 		}
 	}
@@ -1256,6 +1261,41 @@ func worktreeRoot(dir string) string {
 	root := computeWorktreeRoot(dir)
 	worktreeRootCache.Store(dir, root)
 	return root
+}
+
+// mainWorktreeRoot returns the primary working tree path for the repository
+// containing dir, or an empty string when it cannot be determined.
+func mainWorktreeRoot(dir string) string {
+	cmd := exec.CommandContext(context.Background(), "git", "worktree", "list", "--porcelain")
+	cmd.Dir = dir
+	out, err := cmd.Output()
+	if err != nil {
+		return ""
+	}
+
+	var root string
+	for _, line := range strings.Split(string(out), "\n") {
+		switch {
+		case strings.HasPrefix(line, "worktree "):
+			root = strings.TrimPrefix(line, "worktree ")
+		case line == "bare":
+			root = ""
+		case line == "" && root != "":
+			abs, err := filepath.Abs(root)
+			if err != nil {
+				return ""
+			}
+			return abs
+		}
+	}
+	if root == "" {
+		return ""
+	}
+	abs, err := filepath.Abs(root)
+	if err != nil {
+		return ""
+	}
+	return abs
 }
 
 func computeWorktreeRoot(dir string) string {

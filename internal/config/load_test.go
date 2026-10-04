@@ -320,6 +320,43 @@ func TestConfig_setDefaults(t *testing.T) {
 		)
 	})
 
+	t.Run("uses main checkout data directory from a linked worktree", func(t *testing.T) {
+		if _, err := exec.LookPath("git"); err != nil {
+			t.Skip("git not available")
+		}
+
+		parent := t.TempDir()
+		mainCheckout := filepath.Join(parent, "main")
+		linkedWorktree := filepath.Join(parent, "linked")
+		require.NoError(t, os.Mkdir(mainCheckout, 0o755))
+
+		runGit := func(dir string, args ...string) {
+			cmd := exec.CommandContext(t.Context(), "git", args...)
+			cmd.Dir = dir
+			output, err := cmd.CombinedOutput()
+			require.NoError(t, err, "%s", output)
+		}
+		runGit(mainCheckout, "init", "-q")
+		runGit(mainCheckout, "-c", "user.name=Test", "-c", "user.email=test", "commit", "--allow-empty", "-qm", "initial")
+		runGit(mainCheckout, "worktree", "add", "-q", "-b", "linked", linkedWorktree, "HEAD")
+
+		cfg := &Config{}
+		cfg.setDefaults(linkedWorktree, "")
+		require.Equal(t, filepath.Join(mainCheckout, defaultDataDirectory), cfg.Options.DataDirectory)
+
+		workingDir := filepath.Join(linkedWorktree, "pkg")
+		require.NoError(t, os.Mkdir(workingDir, 0o755))
+		cfg = &Config{}
+		cfg.setDefaults(workingDir, "")
+		require.Equal(t, filepath.Join(mainCheckout, defaultDataDirectory), cfg.Options.DataDirectory)
+
+		localDataDir := filepath.Join(linkedWorktree, defaultDataDirectory)
+		require.NoError(t, os.Mkdir(localDataDir, 0o755))
+		cfg = &Config{}
+		cfg.setDefaults(workingDir, "")
+		require.Equal(t, localDataDir, cfg.Options.DataDirectory)
+	})
+
 	t.Run("does not climb out of git worktree to find .crush", func(t *testing.T) {
 		if _, err := exec.LookPath("git"); err != nil {
 			t.Skip("git not available")

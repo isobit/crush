@@ -103,10 +103,11 @@ func newKagiSearchTool(apiKey string) fantasy.AgentTool {
 			}
 
 			results, err := searchKagi(ctx, kagiClient, params.Query, maxResults)
-			slog.Debug("Kagi search completed", "query", params.Query, "results", len(results), "err", err)
 			if err != nil {
+				slog.Error("Kagi search failed", "error", err)
 				return fantasy.NewTextErrorResponse("Failed to search: " + err.Error()), nil
 			}
+			slog.Debug("Kagi search completed", "query", params.Query, "results", len(results))
 
 			return fantasy.NewTextResponse(formatSearchResults(results)), nil
 		},

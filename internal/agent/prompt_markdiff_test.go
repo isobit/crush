@@ -7,9 +7,11 @@ import (
 	"testing"
 	"time"
 
+	"charm.land/fantasy"
 	"github.com/charmbracelet/crush/internal/agent/prompt"
 	"github.com/charmbracelet/crush/internal/config"
 	"github.com/charmbracelet/crush/internal/markdiff"
+	"github.com/charmbracelet/crush/internal/permission"
 	"github.com/stretchr/testify/require"
 )
 
@@ -80,4 +82,20 @@ func TestCoderPromptMarkdiff(t *testing.T) {
 	profilesSection := doc.Section("Available agent profiles",
 		"The agent tool description lists built-in profiles and configured custom profiles in stable order.")
 	profilesSection.Code("text", agentDescription)
+
+	toolCoordinator := &coordinator{
+		cfg:         cfg,
+		permissions: permission.NewPermissionService(workingDir, true, nil),
+	}
+	agentTools, err := toolCoordinator.buildTools(context.Background(), cfg.Config().Agents[config.AgentCoder], false)
+	require.NoError(t, err)
+	toolInfos := make([]fantasy.ToolInfo, 0, len(agentTools))
+	for _, tool := range agentTools {
+		toolInfos = append(toolInfos, tool.Info())
+	}
+	toolsDoc := markdiff.New(t, "Tool metadata in model requests",
+		"Shows the tool metadata Crush provides to the model separately from conversation text. The YAML is a readable snapshot, not the API payload or a literal prompt message.",
+		markdiff.WithPath("testdata/markdiff/ToolInfoMarkdiff.md"))
+	toolsDoc.Text("Do not read this block as prompt text or as the literal provider payload. It serializes Crush's local ToolInfo objects for review. For a model request, provider adapters translate relevant fields into structured tool/function definitions, including parameter schemas, separate from conversation messages; the exact API payload varies by provider.")
+	toolsDoc.YAML(toolInfos)
 }

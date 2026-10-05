@@ -52,6 +52,21 @@ Rendered Markdown:
 ```
 ````
 
+## YAML
+
+Structured values can be captured in YAML when its compact, readable presentation helps reviewers.
+
+Rendered Markdown:
+
+````markdown
+```yaml
+name: <crush>
+tags:
+  - a
+  - b
+```
+````
+
 ## Lists
 
 Multi-line items stay inside their marker, and empty lists are explicit.

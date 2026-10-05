@@ -78,6 +78,9 @@ func TestBuilder(t *testing.T) {
 	show("JSON", "Values are encoded as indented JSON without HTML escaping.", func(b *Body) {
 		b.JSON(map[string]any{"name": "<crush>", "tags": []string{"a", "b"}})
 	})
+	show("YAML", "Structured values can be captured in YAML when its compact, readable presentation helps reviewers.", func(b *Body) {
+		b.YAML(map[string]any{"name": "<crush>", "tags": []string{"a", "b"}})
+	})
 	show("Lists", "Multi-line items stay inside their marker, and empty lists are explicit.", func(b *Body) {
 		b.List("one", "two\ncontinued")
 		b.NumberedList("first", "second")

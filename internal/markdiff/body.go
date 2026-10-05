@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/aymanbagabas/go-udiff"
+	"gopkg.in/yaml.v3"
 )
 
 // maxHeadingLevel is the deepest heading Markdown supports.
@@ -113,9 +114,8 @@ func (b *Body) Code(lang, content string) {
 	b.add(codeBlock(lang, content))
 }
 
-// JSON adds v as an indented JSON code block. It is a convenient way to
-// capture structured values; prefer it over %v formatting, whose output is
-// harder to read and less stable.
+// JSON adds v as an indented JSON code block. Use it when JSON is the format
+// under test; for compact, human-readable captures, use [Body.YAML].
 func (b *Body) JSON(v any) {
 	b.tb.Helper()
 	var buf bytes.Buffer
@@ -127,6 +127,24 @@ func (b *Body) JSON(v any) {
 		return
 	}
 	b.Code("json", buf.String())
+}
+
+// YAML adds v as a two-space-indented YAML code block for a compact,
+// human-readable representation of structured values.
+func (b *Body) YAML(v any) {
+	b.tb.Helper()
+	var buf bytes.Buffer
+	enc := yaml.NewEncoder(&buf)
+	enc.SetIndent(2)
+	if err := enc.Encode(v); err != nil {
+		b.tb.Fatalf("markdiff: encoding YAML: %v", err)
+		return
+	}
+	if err := enc.Close(); err != nil {
+		b.tb.Fatalf("markdiff: encoding YAML: %v", err)
+		return
+	}
+	b.Code("yaml", buf.String())
 }
 
 // Diff adds a unified diff between before and after as a diff code block.

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"image/color"
 	"io"
+	"strings"
 	"sync"
 
 	"charm.land/lipgloss/v2"
@@ -77,10 +78,26 @@ func Formatter(bgColor color.Color, processValue func(string) string) chroma.For
 				s = s.Foreground(lipgloss.Color(entry.Colour.String()))
 			}
 
-			if _, err := fmt.Fprint(w, s.Render(value)); err != nil {
+			if _, err := io.WriteString(w, renderToken(s, value)); err != nil {
 				return err
 			}
 		}
 		return nil
 	})
+}
+
+// renderToken styles each source line independently so Lip Gloss cannot carry
+// block alignment or padding from one Chroma token line into the next.
+func renderToken(style lipgloss.Style, value string) string {
+	var rendered strings.Builder
+	for value != "" {
+		line, rest, hasNewline := strings.Cut(value, "\n")
+		line = strings.TrimSuffix(line, "\r")
+		_, _ = fmt.Fprint(&rendered, style.Render(line))
+		if hasNewline {
+			_, _ = rendered.WriteString("\n")
+		}
+		value = rest
+	}
+	return rendered.String()
 }

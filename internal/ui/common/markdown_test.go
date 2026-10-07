@@ -43,7 +43,9 @@ func TestMarkdownCodeBlockIndentRepro(t *testing.T) {
 	require.NotContains(t, privateStateLine, "}", "the following source line was appended to the comment line")
 
 	letLine := lineContaining(t, plain, "let job_factory")
-	require.True(t, strings.HasPrefix(letLine, "      let job_factory"), "the source indentation was lost: %q", letLine)
+	require.Equal(t, 6, len(letLine)-len(strings.TrimLeft(letLine, " ")), "the source indentation changed: %q", letLine)
+	spawnLine := lineContaining(t, plain, "spawn_actor")
+	require.Equal(t, 6, len(spawnLine)-len(strings.TrimLeft(spawnLine, " ")), "the source indentation changed: %q", spawnLine)
 }
 
 func lineContaining(t *testing.T, content, fragment string) string {

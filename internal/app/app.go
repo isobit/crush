@@ -476,10 +476,12 @@ func (app *App) overrideModelsForNonInteractive(ctx context.Context, largeModel,
 		}
 		largeProviderID = found.provider
 		slog.Info("Overriding large model for non-interactive run", "provider", found.provider, "model", found.modelID)
-		app.config.OverridePreferredModel(config.SelectedModelTypeLarge, config.SelectedModel{
+		if err := app.config.OverridePreferredModel(config.SelectedModelTypeLarge, config.SelectedModel{
 			Provider: found.provider,
 			Model:    found.modelID,
-		})
+		}); err != nil {
+			return err
+		}
 	}
 
 	// Override small model.
@@ -490,15 +492,19 @@ func (app *App) overrideModelsForNonInteractive(ctx context.Context, largeModel,
 			return err
 		}
 		slog.Info("Overriding small model for non-interactive run", "provider", found.provider, "model", found.modelID)
-		app.config.OverridePreferredModel(config.SelectedModelTypeSmall, config.SelectedModel{
+		if err := app.config.OverridePreferredModel(config.SelectedModelTypeSmall, config.SelectedModel{
 			Provider: found.provider,
 			Model:    found.modelID,
-		})
+		}); err != nil {
+			return err
+		}
 
 	case largeModel != "":
 		// No small model specified, but large model was - use provider's default.
 		smallCfg := app.GetDefaultSmallModel(largeProviderID)
-		app.config.OverridePreferredModel(config.SelectedModelTypeSmall, smallCfg)
+		if err := app.config.OverridePreferredModel(config.SelectedModelTypeSmall, smallCfg); err != nil {
+			return err
+		}
 	}
 
 	return app.AgentCoordinator.UpdateModels(ctx)

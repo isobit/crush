@@ -372,8 +372,7 @@ func (w *AppWorkspace) UpdatePreferredModel(scope config.Scope, modelType config
 }
 
 func (w *AppWorkspace) OverridePreferredModel(modelType config.SelectedModelType, model config.SelectedModel) error {
-	w.store.OverridePreferredModel(modelType, model)
-	return nil
+	return w.store.OverridePreferredModel(modelType, model)
 }
 
 func (w *AppWorkspace) SetCompactMode(scope config.Scope, enabled bool) error {

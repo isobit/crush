@@ -157,7 +157,7 @@ func TestUpdatePreferredModel_TypeIsolation(t *testing.T) {
 	require.Equal(t, smallModel, store.Config().RecentModels[SelectedModelTypeSmall][0])
 }
 
-func TestOverridePreferredModel_IsInMemoryOnly(t *testing.T) {
+func TestOverridePreferredModel_PersistsRecentButNotPreferred(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
@@ -165,11 +165,23 @@ func TestOverridePreferredModel_IsInMemoryOnly(t *testing.T) {
 	cfg.setDefaults(dir, "")
 	store := testStoreWithPath(cfg, dir)
 
-	selected := SelectedModel{Provider: "openai", Model: "gpt-4o"}
-	store.OverridePreferredModel(SelectedModelTypeLarge, selected)
+	defaultModel := SelectedModel{Provider: "openai", Model: "gpt-4o"}
+	temporaryModel := SelectedModel{Provider: "anthropic", Model: "claude"}
+	require.NoError(t, store.UpdatePreferredModel(ScopeGlobal, SelectedModelTypeLarge, defaultModel))
+	require.NoError(t, store.OverridePreferredModel(SelectedModelTypeLarge, temporaryModel))
 
-	require.Equal(t, selected, store.Config().Models[SelectedModelTypeLarge])
-	require.Empty(t, store.Config().RecentModels[SelectedModelTypeLarge])
-	_, err := os.Stat(store.globalDataPath)
-	require.ErrorIs(t, err, fs.ErrNotExist)
+	require.Equal(t, temporaryModel, store.Config().Models[SelectedModelTypeLarge])
+	require.Equal(t, []SelectedModel{temporaryModel, defaultModel}, store.Config().RecentModels[SelectedModelTypeLarge])
+
+	diskConfig := readConfigJSON(t, store.globalDataPath)
+	models := diskConfig["models"].(map[string]any)
+	largeModel := models[string(SelectedModelTypeLarge)].(map[string]any)
+	require.Equal(t, defaultModel.Model, largeModel["model"])
+
+	recentModels := readRecentModels(t, store.globalDataPath)
+	largeRecent := recentModels[string(SelectedModelTypeLarge)].([]any)
+	require.Len(t, largeRecent, 2)
+	temporaryRecent := largeRecent[0].(map[string]any)
+	require.Equal(t, temporaryModel.Provider, temporaryRecent["provider"])
+	require.Equal(t, temporaryModel.Model, temporaryRecent["model"])
 }

@@ -380,16 +380,23 @@ func (s *ConfigStore) updateLocked(scope Scope, mutate func(*Config) map[string]
 	return nil
 }
 
-// OverridePreferredModel sets the preferred model for the given type in
-// memory only, without persisting. It is for per-run overrides (such as the
-// non-interactive --model flags) that must not be written to the user's
-// config file.
-func (s *ConfigStore) OverridePreferredModel(modelType SelectedModelType, model SelectedModel) {
-	s.mutateInMemory(func(c *Config) {
+// OverridePreferredModel updates the active preferred model in memory without
+// persisting it. The model is still added to the global recent-models list.
+func (s *ConfigStore) OverridePreferredModel(modelType SelectedModelType, model SelectedModel) error {
+	return s.update(ScopeGlobal, func(c *Config) map[string]any {
 		if c.Models == nil {
 			c.Models = make(map[SelectedModelType]SelectedModel)
 		}
 		c.Models[modelType] = model
+
+		if updated, changed := nextRecentModels(c, modelType, model); changed {
+			if c.RecentModels == nil {
+				c.RecentModels = make(map[SelectedModelType][]SelectedModel)
+			}
+			c.RecentModels[modelType] = updated
+			return map[string]any{fmt.Sprintf("recent_models.%s", modelType): updated}
+		}
+		return nil
 	})
 }
 

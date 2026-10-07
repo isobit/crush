@@ -25,8 +25,10 @@ pulling a new upstream release, use this list to ensure nothing is lost.
 
 ### Model Switcher — Active Model Indicator
 
-- **Files**: `internal/ui/dialog/models.go`, `internal/ui/dialog/models_item.go`
+- **Files**: `internal/ui/dialog/models.go`, `internal/ui/dialog/models_item.go`,
+  `internal/config/store.go`
 - The model currently in use is marked with an `Active` label, separate from list focus, including in the recently used section.
+- Temporarily selected models are recorded in the recent-models list without changing the saved preferred model.
 
 
 ### Theme — Isobit Styles

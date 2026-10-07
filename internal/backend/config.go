@@ -79,14 +79,16 @@ func (b *Backend) UpdatePreferredModel(workspaceID string, scope config.Scope, m
 	return nil
 }
 
-// OverridePreferredModel changes the active preferred model without
-// persisting it.
+// OverridePreferredModel changes the active preferred model without persisting it.
+// It records the model in the global recent-models list.
 func (b *Backend) OverridePreferredModel(workspaceID string, modelType config.SelectedModelType, model config.SelectedModel) error {
 	ws, err := b.GetWorkspace(workspaceID)
 	if err != nil {
 		return err
 	}
-	ws.Cfg.OverridePreferredModel(modelType, model)
+	if err := ws.Cfg.OverridePreferredModel(modelType, model); err != nil {
+		return err
+	}
 	publishConfigChanged(ws)
 	return nil
 }

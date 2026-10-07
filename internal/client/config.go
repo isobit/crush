@@ -61,8 +61,8 @@ func (c *Client) UpdatePreferredModel(ctx context.Context, id string, scope conf
 	return nil
 }
 
-// OverridePreferredModel changes the active preferred model without
-// persisting it.
+// OverridePreferredModel changes the active preferred model without persisting it.
+// It records the model in the global recent-models list.
 func (c *Client) OverridePreferredModel(ctx context.Context, id string, modelType config.SelectedModelType, model config.SelectedModel) error {
 	rsp, err := c.post(ctx, fmt.Sprintf("/workspaces/%s/config/model/override", id), nil, jsonBody(proto.ConfigModelOverrideRequest{
 		ModelType: modelType,

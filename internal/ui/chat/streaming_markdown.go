@@ -72,6 +72,16 @@ func (s *streamingMarkdown) Render(content string, width int, renderer *glamour.
 		}
 		return strings.TrimSuffix(out, "\n")
 	}
+	// Rendering changes source offsets, so Mermaid documents must skip the
+	// stable-prefix cache and render as a whole.
+	if rendered, ok := common.RenderMermaidDiagrams(content, width); ok {
+		out, err := renderer.Render(rendered)
+		s.Reset()
+		if err != nil {
+			return content
+		}
+		return strings.TrimSuffix(out, "\n")
+	}
 
 	// Width change OR content not a prefix-extension: drop cache,
 	// full render, optionally try to seed a fresh boundary on this

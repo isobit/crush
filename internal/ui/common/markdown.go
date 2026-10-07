@@ -137,3 +137,13 @@ func LockMarkdownRenderer(r *glamour.TermRenderer) *sync.Mutex {
 	rendererLocks[r] = mu
 	return mu
 }
+
+// RenderMarkdown renders markdown after converting supported Mermaid fences.
+// It serializes access to the shared Glamour renderer.
+func RenderMarkdown(r *glamour.TermRenderer, content string, width int) (string, error) {
+	content, _ = RenderMermaidDiagrams(content, width)
+	mu := LockMarkdownRenderer(r)
+	mu.Lock()
+	defer mu.Unlock()
+	return r.Render(content)
+}

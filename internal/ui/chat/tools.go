@@ -1115,10 +1115,7 @@ func toolOutputMarkdownContent(sty *styles.Styles, content string, width int, ex
 	}
 
 	renderer := common.QuietMarkdownRenderer(sty, width)
-	mu := common.LockMarkdownRenderer(renderer)
-	mu.Lock()
-	rendered, err := renderer.Render(content)
-	mu.Unlock()
+	rendered, err := common.RenderMarkdown(renderer, content, width)
 	if err != nil {
 		return toolOutputPlainContent(sty, content, width, expanded)
 	}

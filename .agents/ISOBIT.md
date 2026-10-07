@@ -444,6 +444,17 @@ pulling a new upstream release, use this list to ensure nothing is lost.
 - The model switcher updates the active model in memory by default; `ctrl+d` toggles `Set as default` to also persist the selection and recent-model history.
 - Temporary model overrides are propagated through the client/server API and expire when the server process exits. Onboarding selections remain persistent.
 
+### Mermaid Diagram Rendering
+
+- **Files**: `internal/ui/common/mermaid.go`, `internal/ui/common/mermaid_test.go`,
+  `internal/ui/common/markdown.go`, `internal/ui/chat/streaming_markdown.go`,
+  `internal/ui/chat/streaming_mermaid_test.go`, `internal/ui/chat/user.go`,
+  `internal/ui/chat/tools.go`, `internal/ui/dialog/question_*.go`, `go.mod`
+- Complete Mermaid code fences in rendered Markdown are converted to terminal
+  diagrams using `github.com/AlexanderGrooff/mermaid-ascii`. Invalid and
+  unfinished diagrams remain source code; streaming Markdown bypasses prefix
+  caching when it contains a rendered diagram.
+
 ---
 
 ## Notes

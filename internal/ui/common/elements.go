@@ -46,6 +46,11 @@ type ModelContextInfo struct {
 	ModelContext   int64
 	Cost           float64
 	EstimatedUsage bool
+
+	// Lifetime session token totals, used to show the cache hit rate.
+	TotalInputTokens       int64
+	TotalCachedInputTokens int64
+	TotalOutputTokens      int64
 }
 
 // ModelInfo renders model information including name, provider, reasoning
@@ -86,6 +91,9 @@ func ModelInfo(t *styles.Styles, modelName, providerName, reasoningInfo string, 
 	if context != nil {
 		formattedInfo := formatTokensAndCost(t, context.ContextUsed, context.ModelContext, context.Cost, context.EstimatedUsage)
 		parts = append(parts, lipgloss.NewStyle().PaddingLeft(2).Render(formattedInfo))
+		if usageTotals := formatUsageTotals(t, context); usageTotals != "" {
+			parts = append(parts, lipgloss.NewStyle().PaddingLeft(2).Render(usageTotals))
+		}
 	}
 
 	if providerName == hyper.DisplayName && hyperCredits != nil {
@@ -103,22 +111,7 @@ func ModelInfo(t *styles.Styles, modelName, providerName, reasoningInfo string, 
 // formatTokensAndCost formats token usage and cost with appropriate units
 // (K/M) and percentage of context window.
 func formatTokensAndCost(t *styles.Styles, tokens, contextWindow int64, cost float64, estimated bool) string {
-	var formattedTokens string
-	switch {
-	case tokens >= 1_000_000:
-		formattedTokens = fmt.Sprintf("%.1fM", float64(tokens)/1_000_000)
-	case tokens >= 1_000:
-		formattedTokens = fmt.Sprintf("%.1fK", float64(tokens)/1_000)
-	default:
-		formattedTokens = fmt.Sprintf("%d", tokens)
-	}
-
-	if strings.HasSuffix(formattedTokens, ".0K") {
-		formattedTokens = strings.Replace(formattedTokens, ".0K", "K", 1)
-	}
-	if strings.HasSuffix(formattedTokens, ".0M") {
-		formattedTokens = strings.Replace(formattedTokens, ".0M", "M", 1)
-	}
+	formattedTokens := formatTokenCount(tokens)
 
 	var percentage float64
 	if contextWindow > 0 {
@@ -139,6 +132,41 @@ func formatTokensAndCost(t *styles.Styles, tokens, contextWindow int64, cost flo
 	}
 
 	return fmt.Sprintf("%s %s", formattedTokens, formattedCost)
+}
+
+// formatTokenCount abbreviates a token count with K/M suffixes.
+func formatTokenCount(tokens int64) string {
+	var formatted string
+	switch {
+	case tokens >= 1_000_000:
+		formatted = fmt.Sprintf("%.1fM", float64(tokens)/1_000_000)
+	case tokens >= 1_000:
+		formatted = fmt.Sprintf("%.1fK", float64(tokens)/1_000)
+	default:
+		formatted = fmt.Sprintf("%d", tokens)
+	}
+
+	if strings.HasSuffix(formatted, ".0K") {
+		formatted = strings.Replace(formatted, ".0K", "K", 1)
+	}
+	if strings.HasSuffix(formatted, ".0M") {
+		formatted = strings.Replace(formatted, ".0M", "M", 1)
+	}
+	return formatted
+}
+
+// formatUsageTotals renders lifetime input, cached input, and output tokens.
+func formatUsageTotals(t *styles.Styles, usage *ModelContextInfo) string {
+	input := usage.TotalInputTokens
+	cached := usage.TotalCachedInputTokens
+	output := usage.TotalOutputTokens
+	if input == 0 && cached == 0 && output == 0 {
+		return ""
+	}
+
+	firstLine := fmt.Sprintf("%s in, %s cache reads", formatTokenCount(input), formatTokenCount(cached))
+	secondLine := fmt.Sprintf("%s out", formatTokenCount(output))
+	return t.ModelInfo.TokenCount.Render(firstLine) + "\n" + t.ModelInfo.TokenCount.Render(secondLine)
 }
 
 // FormatCredits formats an integer with comma separators for thousands.

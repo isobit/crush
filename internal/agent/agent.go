@@ -1883,7 +1883,8 @@ func (a *sessionAgent) GenerateTitle(ctx context.Context, sessionID string, user
 
 	// Atomically update only title and usage fields to avoid overriding other
 	// concurrent session updates.
-	saveErr := a.sessions.UpdateTitleAndUsage(ctx, sessionID, title, promptTokens, completionTokens, cost)
+	saveErr := a.sessions.UpdateTitleAndUsage(ctx, sessionID, title, promptTokens, completionTokens,
+		uncachedInputTokens(resp.TotalUsage), resp.TotalUsage.CacheReadTokens, resp.TotalUsage.OutputTokens, cost)
 	if saveErr != nil {
 		slog.Error("Failed to save session title and usage", "error", saveErr)
 		return
@@ -1953,6 +1954,9 @@ func (a *sessionAgent) updateSessionUsage(model Model, session *session.Session,
 	}
 
 	session.Cost += cost
+	if !estimated {
+		addUsageTotals(session, usage)
+	}
 	updateSessionTokenCounters(session, usage)
 }
 
@@ -1963,6 +1967,19 @@ func updateSessionTokenCounters(session *session.Session, usage fantasy.Usage) {
 	if promptTokens := usage.InputTokens + usage.CacheReadTokens; promptTokens != 0 {
 		session.PromptTokens = promptTokens
 	}
+}
+
+// addUsageTotals accumulates the session's lifetime token counts. Cache
+// writes count as uncached input since they are not cache hits.
+func addUsageTotals(session *session.Session, usage fantasy.Usage) {
+	session.TotalInputTokens += uncachedInputTokens(usage)
+	session.TotalCachedInputTokens += usage.CacheReadTokens
+	session.TotalOutputTokens += usage.OutputTokens
+}
+
+// uncachedInputTokens returns input tokens that were not served from cache.
+func uncachedInputTokens(usage fantasy.Usage) int64 {
+	return usage.InputTokens + usage.CacheCreationTokens
 }
 
 func summaryCompletionTokens(usage fantasy.Usage, summaryMessage message.Message) int64 {

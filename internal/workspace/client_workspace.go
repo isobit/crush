@@ -1014,17 +1014,20 @@ func protoToMCPEventType(t proto.MCPEventType) mcp.EventType {
 // payload directly before this conversion runs.
 func protoToSession(s proto.Session) session.Session {
 	return session.Session{
-		ID:               s.ID,
-		ParentSessionID:  s.ParentSessionID,
-		Title:            s.Title,
-		SummaryMessageID: s.SummaryMessageID,
-		MessageCount:     s.MessageCount,
-		PromptTokens:     s.PromptTokens,
-		CompletionTokens: s.CompletionTokens,
-		Cost:             s.Cost,
-		Todos:            protoToTodos(s.Todos),
-		CreatedAt:        s.CreatedAt,
-		UpdatedAt:        s.UpdatedAt,
+		ID:                     s.ID,
+		ParentSessionID:        s.ParentSessionID,
+		Title:                  s.Title,
+		SummaryMessageID:       s.SummaryMessageID,
+		MessageCount:           s.MessageCount,
+		PromptTokens:           s.PromptTokens,
+		CompletionTokens:       s.CompletionTokens,
+		TotalInputTokens:       s.TotalInputTokens,
+		TotalCachedInputTokens: s.TotalCachedInputTokens,
+		TotalOutputTokens:      s.TotalOutputTokens,
+		Cost:                   s.Cost,
+		Todos:                  protoToTodos(s.Todos),
+		CreatedAt:              s.CreatedAt,
+		UpdatedAt:              s.UpdatedAt,
 	}
 }
 
@@ -1135,17 +1138,20 @@ func protoToFiles(files []proto.File) []history.File {
 
 func sessionToProto(s session.Session) proto.Session {
 	return proto.Session{
-		ID:               s.ID,
-		ParentSessionID:  s.ParentSessionID,
-		Title:            s.Title,
-		SummaryMessageID: s.SummaryMessageID,
-		MessageCount:     s.MessageCount,
-		PromptTokens:     s.PromptTokens,
-		CompletionTokens: s.CompletionTokens,
-		Cost:             s.Cost,
-		Todos:            todosToProto(s.Todos),
-		CreatedAt:        s.CreatedAt,
-		UpdatedAt:        s.UpdatedAt,
+		ID:                     s.ID,
+		ParentSessionID:        s.ParentSessionID,
+		Title:                  s.Title,
+		SummaryMessageID:       s.SummaryMessageID,
+		MessageCount:           s.MessageCount,
+		PromptTokens:           s.PromptTokens,
+		CompletionTokens:       s.CompletionTokens,
+		TotalInputTokens:       s.TotalInputTokens,
+		TotalCachedInputTokens: s.TotalCachedInputTokens,
+		TotalOutputTokens:      s.TotalOutputTokens,
+		Cost:                   s.Cost,
+		Todos:                  todosToProto(s.Todos),
+		CreatedAt:              s.CreatedAt,
+		UpdatedAt:              s.UpdatedAt,
 	}
 }
 

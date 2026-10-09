@@ -66,6 +66,14 @@ pulling a new upstream release, use this list to ensure nothing is lost.
 - `cfg.Options.TUI.SidebarWidth` (set via `crush.json`) overrides the
   default sidebar width of 32 columns.
 
+### Sidebar — Session Token Totals
+
+- **Files**: `internal/session/session.go`, `internal/db/migrations/20261008000000_add_usage_totals_to_sessions.sql`, `internal/db/sql/sessions.sql`, `internal/agent/agent.go`, `internal/agent/coordinator.go`, `internal/ui/common/elements.go`, `internal/ui/model/sidebar.go`, `internal/proto/session.go`
+- Sessions persist lifetime input, cached input, and output token totals,
+  rolled up from sub-agent sessions. Estimated usage is excluded.
+- The sidebar shows them under the cost line as two lines,
+  `X in, Y cache reads` and `W out`. Cache writes count as uncached input.
+
 ### Chat — Scroll Indicator
 
 - **Files**: `internal/ui/model/ui.go`

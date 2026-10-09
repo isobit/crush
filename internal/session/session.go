@@ -48,18 +48,21 @@ func HasIncompleteTodos(todos []Todo) bool {
 }
 
 type Session struct {
-	ID               string
-	ParentSessionID  string
-	Title            string
-	MessageCount     int64
-	PromptTokens     int64
-	CompletionTokens int64
-	EstimatedUsage   bool
-	SummaryMessageID string
-	Cost             float64
-	Todos            []Todo
-	CreatedAt        int64
-	UpdatedAt        int64
+	ID                     string
+	ParentSessionID        string
+	Title                  string
+	MessageCount           int64
+	PromptTokens           int64
+	CompletionTokens       int64
+	TotalInputTokens       int64
+	TotalCachedInputTokens int64
+	TotalOutputTokens      int64
+	EstimatedUsage         bool
+	SummaryMessageID       string
+	Cost                   float64
+	Todos                  []Todo
+	CreatedAt              int64
+	UpdatedAt              int64
 }
 
 type Service interface {
@@ -71,7 +74,7 @@ type Service interface {
 	GetLast(ctx context.Context) (Session, error)
 	List(ctx context.Context) ([]Session, error)
 	Save(ctx context.Context, session Session) (Session, error)
-	UpdateTitleAndUsage(ctx context.Context, sessionID, title string, promptTokens, completionTokens int64, cost float64) error
+	UpdateTitleAndUsage(ctx context.Context, sessionID, title string, promptTokens, completionTokens, totalInputTokens, totalCachedInputTokens, totalOutputTokens int64, cost float64) error
 	Rename(ctx context.Context, id string, title string) error
 	Delete(ctx context.Context, id string) error
 
@@ -195,10 +198,13 @@ func (s *service) Save(ctx context.Context, session Session) (Session, error) {
 	}
 
 	dbSession, err := s.q.UpdateSession(ctx, db.UpdateSessionParams{
-		ID:               session.ID,
-		Title:            session.Title,
-		PromptTokens:     session.PromptTokens,
-		CompletionTokens: session.CompletionTokens,
+		ID:                     session.ID,
+		Title:                  session.Title,
+		PromptTokens:           session.PromptTokens,
+		CompletionTokens:       session.CompletionTokens,
+		TotalInputTokens:       session.TotalInputTokens,
+		TotalCachedInputTokens: session.TotalCachedInputTokens,
+		TotalOutputTokens:      session.TotalOutputTokens,
 		SummaryMessageID: sql.NullString{
 			String: session.SummaryMessageID,
 			Valid:  session.SummaryMessageID != "",
@@ -222,13 +228,16 @@ func (s *service) Save(ctx context.Context, session Session) (Session, error) {
 
 // UpdateTitleAndUsage updates only the title and usage fields atomically.
 // This is safer than fetching, modifying, and saving the entire session.
-func (s *service) UpdateTitleAndUsage(ctx context.Context, sessionID, title string, promptTokens, completionTokens int64, cost float64) error {
+func (s *service) UpdateTitleAndUsage(ctx context.Context, sessionID, title string, promptTokens, completionTokens, totalInputTokens, totalCachedInputTokens, totalOutputTokens int64, cost float64) error {
 	if err := s.q.UpdateSessionTitleAndUsage(ctx, db.UpdateSessionTitleAndUsageParams{
-		ID:               sessionID,
-		Title:            title,
-		PromptTokens:     promptTokens,
-		CompletionTokens: completionTokens,
-		Cost:             cost,
+		ID:                     sessionID,
+		Title:                  title,
+		PromptTokens:           promptTokens,
+		CompletionTokens:       completionTokens,
+		TotalInputTokens:       totalInputTokens,
+		TotalCachedInputTokens: totalCachedInputTokens,
+		TotalOutputTokens:      totalOutputTokens,
+		Cost:                   cost,
 	}); err != nil {
 		return err
 	}
@@ -301,17 +310,20 @@ func (s *service) fromDBItem(item db.Session) Session {
 		slog.Error("Failed to unmarshal todos", "session_id", item.ID, "error", err)
 	}
 	return Session{
-		ID:               item.ID,
-		ParentSessionID:  item.ParentSessionID.String,
-		Title:            item.Title,
-		MessageCount:     item.MessageCount,
-		PromptTokens:     item.PromptTokens,
-		CompletionTokens: item.CompletionTokens,
-		SummaryMessageID: item.SummaryMessageID.String,
-		Cost:             item.Cost,
-		Todos:            todos,
-		CreatedAt:        item.CreatedAt,
-		UpdatedAt:        item.UpdatedAt,
+		ID:                     item.ID,
+		ParentSessionID:        item.ParentSessionID.String,
+		Title:                  item.Title,
+		MessageCount:           item.MessageCount,
+		PromptTokens:           item.PromptTokens,
+		CompletionTokens:       item.CompletionTokens,
+		TotalInputTokens:       item.TotalInputTokens,
+		TotalCachedInputTokens: item.TotalCachedInputTokens,
+		TotalOutputTokens:      item.TotalOutputTokens,
+		SummaryMessageID:       item.SummaryMessageID.String,
+		Cost:                   item.Cost,
+		Todos:                  todos,
+		CreatedAt:              item.CreatedAt,
+		UpdatedAt:              item.UpdatedAt,
 	}
 }
 

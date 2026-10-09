@@ -337,3 +337,20 @@ func TestUpdateSessionUsageAddsProviderCost(t *testing.T) {
 	require.Equal(t, int64(2000), currentSession.CompletionTokens)
 	require.False(t, currentSession.EstimatedUsage)
 }
+
+func TestAddUsageTotalsTreatsCacheWritesAsUncachedInput(t *testing.T) {
+	t.Parallel()
+
+	sess := &session.Session{}
+	addUsageTotals(sess, fantasy.Usage{
+		InputTokens:         100,
+		CacheCreationTokens: 50,
+		CacheReadTokens:     400,
+		OutputTokens:        30,
+	})
+	addUsageTotals(sess, fantasy.Usage{InputTokens: 10, CacheReadTokens: 90, OutputTokens: 5})
+
+	require.Equal(t, int64(160), sess.TotalInputTokens)
+	require.Equal(t, int64(490), sess.TotalCachedInputTokens)
+	require.Equal(t, int64(35), sess.TotalOutputTokens)
+}

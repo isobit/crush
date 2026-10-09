@@ -48,7 +48,10 @@ SET
     completion_tokens = ?,
     summary_message_id = ?,
     cost = ?,
-    todos = ?
+    todos = ?,
+    total_input_tokens = ?,
+    total_cached_input_tokens = ?,
+    total_output_tokens = ?
 WHERE id = ?
 RETURNING *;
 
@@ -58,6 +61,9 @@ SET
     title = ?,
     prompt_tokens = prompt_tokens + ?,
     completion_tokens = completion_tokens + ?,
+    total_input_tokens = total_input_tokens + ?,
+    total_cached_input_tokens = total_cached_input_tokens + ?,
+    total_output_tokens = total_output_tokens + ?,
     cost = cost + ?,
     updated_at = strftime('%s', 'now')
 WHERE id = ?;

@@ -1485,7 +1485,8 @@ func subAgentOutput(result *fantasy.AgentResult) string {
 	return result.Response.Content.Text()
 }
 
-// updateParentSessionCost accumulates the cost from a child session to its parent session.
+// updateParentSessionCost rolls up a child session's cost and token totals
+// into its parent session.
 func (c *coordinator) updateParentSessionCost(ctx context.Context, childSessionID, parentSessionID string) error {
 	childSession, err := c.sessions.Get(ctx, childSessionID)
 	if err != nil {
@@ -1498,6 +1499,9 @@ func (c *coordinator) updateParentSessionCost(ctx context.Context, childSessionI
 	}
 
 	parentSession.Cost += childSession.Cost
+	parentSession.TotalInputTokens += childSession.TotalInputTokens
+	parentSession.TotalCachedInputTokens += childSession.TotalCachedInputTokens
+	parentSession.TotalOutputTokens += childSession.TotalOutputTokens
 
 	if _, err := c.sessions.Save(ctx, parentSession); err != nil {
 		return fmt.Errorf("save parent session: %w", err)

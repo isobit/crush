@@ -1,6 +1,10 @@
 package dialog
 
 import (
+	"fmt"
+	"math"
+	"strconv"
+
 	"charm.land/catwalk/pkg/catwalk"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/crush/internal/config"
@@ -73,12 +77,14 @@ type ModelItem struct {
 	model     catwalk.Model
 	modelType ModelType
 
-	cache        map[int]string
-	t            *styles.Styles
-	m            fuzzy.Match
-	focused      bool
-	current      bool
-	showProvider bool
+	cache         map[int]string
+	t             *styles.Styles
+	m             fuzzy.Match
+	focused       bool
+	current       bool
+	showProvider  bool
+	priceInWidth  int
+	priceOutWidth int
 }
 
 // Finished implements list.Item. Model items are render-stable
@@ -127,6 +133,59 @@ func (m *ModelItem) ID() string {
 	return modelKey(string(m.prov.ID), m.model.ID)
 }
 
+// modelPriceLabel renders a model's input and output cost per million
+// tokens as two table columns, e.g. `3.00  15.00`. Each number is
+// right-justified to the given width so the columns line up across rows. It
+// returns an empty string when the model has no pricing information.
+func modelPriceLabel(model catwalk.Model, inWidth, outWidth int) string {
+	if model.CostPer1MIn == 0 && model.CostPer1MOut == 0 {
+		return ""
+	}
+	return fmt.Sprintf("%*s  %*s",
+		inWidth, formatPrice(model.CostPer1MIn),
+		outWidth, formatPrice(model.CostPer1MOut))
+}
+
+// alignPriceColumns sets the price widths of every item in groups to the
+// widest prices present, so the price columns line up when rendered.
+func alignPriceColumns(groups []ModelGroup) {
+	var inWidth, outWidth int
+	for _, g := range groups {
+		for _, item := range g.Items {
+			if item.model.CostPer1MIn == 0 && item.model.CostPer1MOut == 0 {
+				continue
+			}
+			inWidth = max(inWidth, len(formatPrice(item.model.CostPer1MIn)))
+			outWidth = max(outWidth, len(formatPrice(item.model.CostPer1MOut)))
+		}
+	}
+	for _, g := range groups {
+		for _, item := range g.Items {
+			item.SetPriceWidths(inWidth, outWidth)
+		}
+	}
+}
+
+// modelPriceHeader renders the column header that labels the price shown on
+// each model row. It reuses the item renderer so the header lines up with
+// the rows beneath it.
+func modelPriceHeader(t *styles.Styles, width int) string {
+	styles := ListItemStyles{
+		ItemBlurred:     t.Dialog.NormalItem,
+		ItemFocused:     t.Dialog.NormalItem,
+		InfoTextBlurred: t.Dialog.ListItem.InfoBlurred,
+		InfoTextFocused: t.Dialog.ListItem.InfoBlurred,
+	}
+	return renderItemWithSuffix(styles, "", "", " In/Out ($/M) ", false, width, nil, nil)
+}
+
+// formatPrice renders a price number with exactly two decimal places. Values
+// are rounded first because catwalk stores some costs as float artifacts such
+// as 0.39999999999999997.
+func formatPrice(v float64) string {
+	return strconv.FormatFloat(math.Round(v*100)/100, 'f', 2, 64)
+}
+
 // Render implements ListItem.
 func (m *ModelItem) Render(width int) string {
 	var providerInfo string
@@ -139,13 +198,19 @@ func (m *ModelItem) Render(width int) string {
 		}
 		providerInfo += string(m.prov.Name)
 	}
+	// The price is pinned to the right edge rather than joined to the info
+	// column, so a long provider name truncates before the price does.
+	var suffix string
+	if price := modelPriceLabel(m.model, m.priceInWidth, m.priceOutWidth); price != "" {
+		suffix = " " + price + " "
+	}
 	styles := ListItemStyles{
 		ItemBlurred:     m.t.Dialog.NormalItem,
 		ItemFocused:     m.t.Dialog.SelectedItem,
 		InfoTextBlurred: m.t.Dialog.ListItem.InfoBlurred,
 		InfoTextFocused: m.t.Dialog.ListItem.InfoFocused,
 	}
-	return renderItem(styles, m.model.Name, providerInfo, m.focused, width, m.cache, &m.m)
+	return renderItemWithSuffix(styles, m.model.Name, providerInfo, suffix, m.focused, width, m.cache, &m.m)
 }
 
 // SetFocused implements ListItem.
@@ -179,6 +244,20 @@ func (m *ModelItem) SetMatch(fm fuzzy.Match) {
 	}
 	m.cache = nil
 	m.m = fm
+	if m.Versioned != nil {
+		m.Bump()
+	}
+}
+
+// SetPriceWidths sets the column widths used to align this item's price with
+// the other items in the picker.
+func (m *ModelItem) SetPriceWidths(inWidth, outWidth int) {
+	if m.priceInWidth == inWidth && m.priceOutWidth == outWidth {
+		return
+	}
+	m.cache = nil
+	m.priceInWidth = inWidth
+	m.priceOutWidth = outWidth
 	if m.Versioned != nil {
 		m.Bump()
 	}

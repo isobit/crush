@@ -29,6 +29,7 @@ pulling a new upstream release, use this list to ensure nothing is lost.
   `internal/config/store.go`
 - The model currently in use is marked with an `Active` label, separate from list focus, including in the recently used section.
 - Temporarily selected models are recorded in the recent-models list without changing the saved preferred model.
+- The picker shows each model's input and output cost per million tokens as two table columns with two decimal places (e.g. `3.00  15.00`) under a right-aligned `In/Out ($/M)` column header above the list. Numbers are padded to the widest value in the picker so the columns line up.
 
 
 ### Theme — Isobit Styles

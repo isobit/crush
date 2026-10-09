@@ -163,6 +163,12 @@ type ListItemStyles struct {
 }
 
 func renderItem(t ListItemStyles, title string, info string, focused bool, width int, cache map[int]string, m *fuzzy.Match) string {
+	return renderItemWithSuffix(t, title, info, "", focused, width, cache, m)
+}
+
+// renderItemWithSuffix is renderItem with a pinned suffix at the far right of
+// the row. The suffix is never truncated; the info column yields to it.
+func renderItemWithSuffix(t ListItemStyles, title, info, suffix string, focused bool, width int, cache map[int]string, m *fuzzy.Match) string {
 	if cache == nil {
 		cache = make(map[int]string)
 	}
@@ -182,28 +188,40 @@ func renderItem(t ListItemStyles, title string, info string, focused bool, width
 	// padding pushes the line past the list width and it wraps.
 	lineWidth := max(0, width-style.GetHorizontalFrameSize())
 
+	// Info and suffix segments carry the row background too. Their own ANSI
+	// resets would otherwise clear the highlight behind them on a focused row.
+	segmentStyle := t.InfoTextBlurred
+	if focused {
+		segmentStyle = t.InfoTextFocused
+	}
+	segmentStyle = segmentStyle.Background(style.GetBackground())
+
+	var suffixText string
+	var suffixWidth int
+	if suffix != "" {
+		suffixText = segmentStyle.Render(suffix)
+		suffixWidth = lipgloss.Width(suffixText)
+	}
+
 	var infoText string
 	var infoWidth int
 	if len(info) > 0 {
 		// Cap the info column so a long value (e.g. a provider name) can
 		// truncate instead of overflowing the row or squeezing the title
-		// to nothing; the title keeps at least half the width.
-		if maxInfo := lineWidth / 2; lipgloss.Width(info)+2 > maxInfo {
+		// to nothing; the title keeps at least half the width. The suffix
+		// is never truncated, so the info column gives way to it first.
+		maxInfo := min(lineWidth/2, max(0, lineWidth-suffixWidth))
+		if lipgloss.Width(info)+2 > maxInfo {
 			info = ansi.Truncate(info, max(0, maxInfo-2), "…")
 		}
-		infoText = fmt.Sprintf(" %s ", info)
-		if focused {
-			infoText = t.InfoTextFocused.Render(infoText)
-		} else {
-			infoText = t.InfoTextBlurred.Render(infoText)
-		}
+		infoText = segmentStyle.Render(fmt.Sprintf(" %s ", info))
 
 		infoWidth = lipgloss.Width(infoText)
 	}
 
-	title = ansi.Truncate(title, max(0, lineWidth-infoWidth), "…")
+	title = ansi.Truncate(title, max(0, lineWidth-infoWidth-suffixWidth), "…")
 	titleWidth := lipgloss.Width(title)
-	gap := strings.Repeat(" ", max(0, lineWidth-titleWidth-infoWidth))
+	gap := strings.Repeat(" ", max(0, lineWidth-titleWidth-infoWidth-suffixWidth))
 	content := title
 	if m != nil && len(m.MatchedIndexes) > 0 {
 		var lastPos int
@@ -234,7 +252,7 @@ func renderItem(t ListItemStyles, title string, info string, focused bool, width
 		content = strings.Join(parts, "")
 	}
 
-	content = style.Render(content + gap + infoText)
+	content = style.Render(content + gap + infoText + suffixText)
 	cache[width] = content
 	return content
 }

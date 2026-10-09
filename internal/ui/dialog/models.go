@@ -278,7 +278,7 @@ func (m *Models) Draw(scr uv.Screen, area uv.Rectangle) *tea.Cursor {
 	if !m.isOnboarding {
 		listDialogHeight--
 	}
-	listHeight, listTotalHeight, _ := sizeDialogList(t, m.list, innerWidth, listDialogHeight)
+	listHeight, listTotalHeight, listWidth := sizeDialogList(t, m.list, innerWidth, listDialogHeight-1)
 	if m.scrollToSelected {
 		m.list.ScrollToSelected()
 		m.scrollToSelected = false
@@ -296,6 +296,7 @@ func (m *Models) Draw(scr uv.Screen, area uv.Rectangle) *tea.Cursor {
 	inputView := t.Dialog.InputPrompt.Render(m.input.View())
 	rc.AddPart(inputView)
 
+	rc.AddPart(modelPriceHeader(t, listWidth))
 	listView := t.Dialog.List.Height(m.list.Height()).Render(m.list.Render())
 	listView = joinScrollbar(t, listView, listHeight, listTotalHeight, listHeight, m.list.Offset())
 	rc.AddPart(listView)
@@ -522,6 +523,7 @@ func (m *Models) setProviderItems() error {
 	}
 
 	// Set model groups in the list.
+	alignPriceColumns(groups)
 	m.list.SetGroups(groups...)
 	m.list.SetSelectedItem(selectedItemID)
 	if selectedItemID != "" {

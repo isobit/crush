@@ -368,6 +368,7 @@ pulling a new upstream release, use this list to ensure nothing is lost.
 - Named agent profiles can select models, custom prompt templates, tool and MCP allowlists, context paths, and inherited or prompt-only permission behavior.
 - The `agent` tool description now lists every configured profile and its description, and defaults to the read-only `task` profile when no profile is selected.
 - Tool, MCP, permission, disabled-tool, and disabled-skill lists use shared `path.Match`-style glob semantics; global disabled filters remain hard bounds.
+- The `agentic_fetch` sub-agent applies global `disabled_tools` to its own built-in tools (`web_fetch`, `web_search`, `glob`, `grep`, `sourcegraph`, `view`), so disabled tools cannot be reached through it (`internal/agent/agentic_fetch_tool.go`).
 - Prompt-only child profiles bypass runtime auto-approval shortcuts, including permissive mode and `--yolo`; inherited profiles retain the parent permission policy.
 ### Kagi Search Integration
 

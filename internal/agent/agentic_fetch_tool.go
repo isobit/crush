@@ -7,12 +7,14 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"slices"
 	"time"
 
 	"charm.land/fantasy"
 
 	"github.com/charmbracelet/crush/internal/agent/prompt"
 	"github.com/charmbracelet/crush/internal/agent/tools"
+	"github.com/charmbracelet/crush/internal/globmatch"
 	"github.com/charmbracelet/crush/internal/permission"
 )
 
@@ -49,6 +51,14 @@ func validateAgenticFetchParams(ctx context.Context, params tools.AgenticFetchPa
 
 //go:embed templates/agentic_fetch_prompt.md.tpl
 var agenticFetchPromptTmpl []byte
+
+// filterDisabledTools drops tools matching any disabled_tools glob so the
+// sub-agent cannot reach tools the user has turned off.
+func filterDisabledTools(agentTools []fantasy.AgentTool, disabled []string) []fantasy.AgentTool {
+	return slices.DeleteFunc(agentTools, func(t fantasy.AgentTool) bool {
+		return globmatch.Any(disabled, t.Info().Name)
+	})
+}
 
 func (c *coordinator) agenticFetchTool(_ context.Context, client *http.Client) (fantasy.AgentTool, error) {
 	if client == nil {
@@ -172,6 +182,7 @@ func (c *coordinator) agenticFetchTool(_ context.Context, client *http.Client) (
 				tools.NewSourcegraphTool(client),
 				tools.NewViewTool(c.lspManager, c.permissions, c.filetracker, nil, tmpDir, false),
 			}
+			fetchTools = filterDisabledTools(fetchTools, c.cfg.Config().Options.DisabledTools)
 
 			// Sub-agent tools run without hook interception. The top-level
 			// `agentic_fetch` call itself is already wrapped from the coder's

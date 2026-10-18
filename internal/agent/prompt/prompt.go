@@ -14,8 +14,8 @@ import (
 
 	"github.com/charmbracelet/crush/internal/config"
 	"github.com/charmbracelet/crush/internal/filepathext"
+	"github.com/charmbracelet/crush/internal/git"
 	"github.com/charmbracelet/crush/internal/home"
-	"github.com/charmbracelet/crush/internal/shell"
 	"github.com/charmbracelet/crush/internal/skills"
 )
 
@@ -93,7 +93,7 @@ func (p *Prompt) Build(ctx context.Context, provider, model string, store *confi
 		return "", fmt.Errorf("parsing template: %w", err)
 	}
 	var sb strings.Builder
-	d, err := p.promptData(ctx, provider, model, store)
+	d, err := p.promptData(provider, model, store)
 	if err != nil {
 		return "", err
 	}
@@ -170,7 +170,7 @@ func loadContextFiles(paths []string, store *config.ConfigStore) map[string][]Co
 	return files
 }
 
-func (p *Prompt) promptData(ctx context.Context, provider, model string, store *config.ConfigStore) (PromptDat, error) {
+func (p *Prompt) promptData(provider, model string, store *config.ConfigStore) (PromptDat, error) {
 	workingDir := cmp.Or(p.workingDir, store.WorkingDir())
 	platform := cmp.Or(p.platform, runtime.GOOS)
 
@@ -230,11 +230,7 @@ func (p *Prompt) promptData(ctx context.Context, provider, model string, store *
 		HashlineEdit:  hashlineEdit,
 	}
 	if isGit {
-		var err error
-		data.GitStatus, err = getGitStatus(ctx, store.WorkingDir())
-		if err != nil {
-			return PromptDat{}, err
-		}
+		data.GitStatus = getGitStatus(store.WorkingDir())
 	}
 
 	for _, files := range contextFiles {
@@ -251,56 +247,24 @@ func isGitRepo(dir string) bool {
 	return err == nil
 }
 
-func getGitStatus(ctx context.Context, dir string) (string, error) {
-	sh := shell.NewShell(&shell.Options{
-		WorkingDir: dir,
-	})
-	branch, err := getGitBranch(ctx, sh)
-	if err != nil {
-		return "", err
+// getGitStatus summarizes the repository state for the system prompt. It
+// returns "" when dir is not a git repository.
+func getGitStatus(dir string) string {
+	var b strings.Builder
+	if branch := git.CurrentBranch(dir); branch != "" {
+		fmt.Fprintf(&b, "Current branch: %s\n", branch)
 	}
-	status, err := getGitStatusSummary(ctx, sh)
-	if err != nil {
-		return "", err
+	if status, ok := git.StatusShort(dir, 20); ok {
+		if status == "" {
+			b.WriteString("Status: clean\n")
+		} else {
+			fmt.Fprintf(&b, "Status:\n%s\n", status)
+		}
 	}
-	commits, err := getGitRecentCommits(ctx, sh)
-	if err != nil {
-		return "", err
+	if commits, ok := git.RecentCommits(dir, 3); ok && commits != "" {
+		fmt.Fprintf(&b, "Recent commits:\n%s\n", commits)
 	}
-	return branch + status + commits, nil
-}
-
-func getGitBranch(ctx context.Context, sh *shell.Shell) (string, error) {
-	out, _, err := sh.Exec(ctx, "git branch --show-current 2>/dev/null")
-	if err != nil {
-		return "", nil
-	}
-	out = strings.TrimSpace(out)
-	if out == "" {
-		return "", nil
-	}
-	return fmt.Sprintf("Current branch: %s\n", out), nil
-}
-
-func getGitStatusSummary(ctx context.Context, sh *shell.Shell) (string, error) {
-	out, _, err := sh.Exec(ctx, "git status --short 2>/dev/null | head -20")
-	if err != nil {
-		return "", nil
-	}
-	out = strings.TrimSpace(out)
-	if out == "" {
-		return "Status: clean\n", nil
-	}
-	return fmt.Sprintf("Status:\n%s\n", out), nil
-}
-
-func getGitRecentCommits(ctx context.Context, sh *shell.Shell) (string, error) {
-	out, _, err := sh.Exec(ctx, "git log --oneline -n 3 2>/dev/null")
-	if err != nil || out == "" {
-		return "", nil
-	}
-	out = strings.TrimSpace(out)
-	return fmt.Sprintf("Recent commits:\n%s\n", out), nil
+	return b.String()
 }
 
 func (p *Prompt) Name() string {

@@ -1,6 +1,8 @@
 package agent
 
 import (
+	"slices"
+
 	"github.com/charmbracelet/crush/internal/agent/tools"
 	"github.com/charmbracelet/crush/internal/config"
 	"github.com/charmbracelet/crush/internal/shell"
@@ -33,12 +35,20 @@ func sandboxWritablePathsFromConfig(opts *config.Options) []string {
 
 // buildBashSandboxOptions constructs sandbox options from config for the
 // bash tool.
-func buildBashSandboxOptions(opts *config.Options, bashCfg config.ToolBash) tools.BashSandboxOptions {
+func buildBashSandboxOptions(cfg *config.Config) tools.BashSandboxOptions {
+	opts := cfg.Options
+	writablePaths := sandboxWritablePathsFromConfig(opts)
+	// Git needs write access to the shared metadata directory from linked
+	// worktrees, so it is granted by default rather than per command.
+	if gitDir := cfg.Git.LinkedWorktreeCommonDir; gitDir != "" && !slices.Contains(writablePaths, gitDir) {
+		writablePaths = append(slices.Clone(writablePaths), gitDir)
+	}
+
 	return tools.BashSandboxOptions{
 		Mode:             sandboxModeFromConfig(opts),
-		WritablePaths:    sandboxWritablePathsFromConfig(opts),
-		BlockedCommands:  bashCfg.BlockedCommands,
-		BlockedArguments: bashCfg.BlockedArguments,
+		WritablePaths:    writablePaths,
+		BlockedCommands:  cfg.Tools.Bash.BlockedCommands,
+		BlockedArguments: cfg.Tools.Bash.BlockedArguments,
 		HiddenPaths:      sandboxHiddenPathsFromConfig(opts),
 	}
 }

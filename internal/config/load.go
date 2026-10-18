@@ -8,7 +8,6 @@ import (
 	"log/slog"
 	"maps"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"runtime"
@@ -25,6 +24,7 @@ import (
 	"github.com/charmbracelet/crush/internal/env"
 	"github.com/charmbracelet/crush/internal/filepathext"
 	"github.com/charmbracelet/crush/internal/fsext"
+	"github.com/charmbracelet/crush/internal/git"
 	"github.com/charmbracelet/crush/internal/home"
 	"github.com/charmbracelet/crush/internal/shell"
 	powernapConfig "github.com/charmbracelet/x/powernap/pkg/config"
@@ -145,7 +145,7 @@ func Load(workingDir, dataDir string, debug bool, opts ...LoadOption) (*ConfigSt
 		return nil, fmt.Errorf("invalid agent configuration: %w", err)
 	}
 
-	if !isInsideWorktree() {
+	if cfg.Git.WorktreeRoot == "" {
 		const depth = 2
 		const items = 100
 		slog.Warn("No git repository detected in working directory, will limit file walk operations", "depth", depth, "items", items)
@@ -576,6 +576,7 @@ func (c *Config) configureProviders(ctx context.Context, store *ConfigStore, env
 }
 
 func (c *Config) setDefaults(workingDir, dataDir string) {
+	c.Git = detectGitInfo(workingDir)
 	if c.Options == nil {
 		c.Options = &Options{}
 	}
@@ -597,10 +598,8 @@ func (c *Config) setDefaults(workingDir, dataDir string) {
 	} else if c.Options.DataDirectory == "" {
 		if path, ok := fsext.LookupClosestBounded(workingDir, projectBoundary(workingDir), defaultDataDirectory); ok {
 			c.Options.DataDirectory = path
-		} else if root := worktreeRoot(workingDir); root != "" {
-			if mainRoot := mainWorktreeRoot(workingDir); mainRoot != "" && mainRoot != root {
-				c.Options.DataDirectory = filepath.Join(mainRoot, defaultDataDirectory)
-			}
+		} else if c.Git.WorktreeRoot != "" && c.Git.MainWorktreeRoot != "" && c.Git.MainWorktreeRoot != c.Git.WorktreeRoot {
+			c.Options.DataDirectory = filepath.Join(c.Git.MainWorktreeRoot, defaultDataDirectory)
 		}
 		if c.Options.DataDirectory == "" {
 			c.Options.DataDirectory = filepath.Join(workingDir, defaultDataDirectory)
@@ -1234,89 +1233,17 @@ func assignIfNil[T any](ptr **T, val T) {
 	}
 }
 
-func isInsideWorktree() bool {
-	bts, err := exec.CommandContext(
-		context.Background(),
-		"git", "rev-parse",
-		"--is-inside-work-tree",
-	).CombinedOutput()
-	return err == nil && strings.TrimSpace(string(bts)) == "true"
-}
-
-// worktreeRoot returns the absolute path of the git working tree root for
-// dir, or the empty string if dir is not inside a working tree (bare
-// repositories, missing git binary, plain directories, or any other
-// failure mode). Linked worktrees and submodules each report their own
-// top-level, which is what callers want when bounding lookups.
-// worktreeRootCache memoizes the git worktree root per directory. The root
-// is stable for the life of the process, so we avoid re-shelling out to
-// "git rev-parse" on every config reload. Keyed by the requested dir; the
-// value is the resolved root ("" when dir is not in a git worktree).
-var worktreeRootCache sync.Map // map[string]string
-
-func worktreeRoot(dir string) string {
-	if cached, ok := worktreeRootCache.Load(dir); ok {
-		return cached.(string)
+// detectGitInfo reads the repository layout around dir. Git is queried here,
+// once per load, so the rest of the config and sandbox code can read the
+// result from Config instead of invoking git.
+func detectGitInfo(dir string) GitInfo {
+	info := GitInfo{WorktreeRoot: git.WorktreeRoot(dir)}
+	if info.WorktreeRoot == "" {
+		return info
 	}
-	root := computeWorktreeRoot(dir)
-	worktreeRootCache.Store(dir, root)
-	return root
-}
-
-// mainWorktreeRoot returns the primary working tree path for the repository
-// containing dir, or an empty string when it cannot be determined.
-func mainWorktreeRoot(dir string) string {
-	cmd := exec.CommandContext(context.Background(), "git", "worktree", "list", "--porcelain")
-	cmd.Dir = dir
-	out, err := cmd.Output()
-	if err != nil {
-		return ""
-	}
-
-	var root string
-	for _, line := range strings.Split(string(out), "\n") {
-		switch {
-		case strings.HasPrefix(line, "worktree "):
-			root = strings.TrimPrefix(line, "worktree ")
-		case line == "bare":
-			root = ""
-		case line == "" && root != "":
-			abs, err := filepath.Abs(root)
-			if err != nil {
-				return ""
-			}
-			return abs
-		}
-	}
-	if root == "" {
-		return ""
-	}
-	abs, err := filepath.Abs(root)
-	if err != nil {
-		return ""
-	}
-	return abs
-}
-
-func computeWorktreeRoot(dir string) string {
-	cmd := exec.CommandContext(
-		context.Background(),
-		"git", "rev-parse", "--show-toplevel",
-	)
-	cmd.Dir = dir
-	out, err := cmd.Output()
-	if err != nil {
-		return ""
-	}
-	root := strings.TrimSpace(string(out))
-	if root == "" {
-		return ""
-	}
-	abs, err := filepath.Abs(root)
-	if err != nil {
-		return ""
-	}
-	return abs
+	info.MainWorktreeRoot = git.MainWorktreeRoot(dir)
+	info.LinkedWorktreeCommonDir = git.LinkedWorktreeCommonDir(dir)
+	return info
 }
 
 // projectBoundary returns the directory at which an upward configuration
@@ -1325,7 +1252,7 @@ func computeWorktreeRoot(dir string) string {
 // fallback keeps Crush from silently adopting state files placed above
 // the current project.
 func projectBoundary(dir string) string {
-	if root := worktreeRoot(dir); root != "" {
+	if root := git.WorktreeRoot(dir); root != "" {
 		return root
 	}
 	abs, err := filepath.Abs(dir)
@@ -1392,7 +1319,7 @@ func ProjectSkillsDir(workingDir string) []string {
 
 	// When the working directory is inside a git repository, also look at
 	// the repository root so monorepo-level .agents/skills are found.
-	if root := worktreeRoot(workingDir); root != "" && root != workingDir {
+	if root := git.WorktreeRoot(workingDir); root != "" && root != workingDir {
 		for _, sub := range projectSkillSubdirs {
 			dirs = append(dirs, filepath.Join(root, sub))
 		}

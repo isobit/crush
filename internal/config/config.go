@@ -694,6 +694,23 @@ type Config struct {
 	Hooks map[string][]HookConfig `json:"hooks,omitempty" jsonschema:"description=User-defined shell commands that fire on hook events (e.g. PreToolUse)"`
 
 	Agents map[string]Agent `json:"agents,omitempty"`
+
+	// Git is the repository layout around the working directory. It is
+	// derived at load time and excluded from serialized config.
+	Git GitInfo `json:"-"`
+}
+
+// GitInfo describes the git repository around the working directory. It is
+// derived when the config loads and is never written to disk.
+type GitInfo struct {
+	// WorktreeRoot is the working tree containing the working directory, or
+	// empty when it is not inside one.
+	WorktreeRoot string
+	// MainWorktreeRoot is the primary checkout of the repository, or empty.
+	MainWorktreeRoot string
+	// LinkedWorktreeCommonDir is the repository's shared git directory when
+	// the working directory is a linked worktree, or empty otherwise.
+	LinkedWorktreeCommonDir string
 }
 
 // cloneForWrite returns a copy of c that the store's typed field mutators

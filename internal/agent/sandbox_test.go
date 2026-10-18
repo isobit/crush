@@ -97,17 +97,38 @@ func TestSandboxWritablePathsFromConfig(t *testing.T) {
 func TestBuildBashSandboxOptions(t *testing.T) {
 	t.Parallel()
 
-	opts := buildBashSandboxOptions(&config.Options{
-		Sandbox: &config.SandboxOptions{
-			Mode:          ptr("on"),
-			WritablePaths: []string{"/home/user/.cache"},
-			HiddenPaths:   []string{"/home/user/.aws"},
+	opts := buildBashSandboxOptions(&config.Config{
+		Options: &config.Options{
+			Sandbox: &config.SandboxOptions{
+				Mode:          ptr("on"),
+				WritablePaths: []string{"/home/user/.cache"},
+				HiddenPaths:   []string{"/home/user/.aws"},
+			},
 		},
-	}, config.ToolBash{
-		BlockedCommands: []string{"terraform"},
+		Tools: config.Tools{
+			Bash: config.ToolBash{BlockedCommands: []string{"terraform"}},
+		},
 	})
 
 	require.Equal(t, shell.SandboxModeOn, opts.Mode)
 	require.Equal(t, []string{"/home/user/.cache"}, opts.WritablePaths)
 	require.Equal(t, []string{"/home/user/.aws"}, opts.HiddenPaths)
+}
+
+func TestBuildBashSandboxOptionsGrantsLinkedWorktreeGitDir(t *testing.T) {
+	t.Parallel()
+
+	cfg := &config.Config{
+		Options: &config.Options{
+			Sandbox: &config.SandboxOptions{WritablePaths: []string{"/home/user/.cache"}},
+		},
+		Git: config.GitInfo{LinkedWorktreeCommonDir: "/repo/.git"},
+	}
+
+	opts := buildBashSandboxOptions(cfg)
+	require.Equal(t, []string{"/home/user/.cache", "/repo/.git"}, opts.WritablePaths)
+	require.Equal(t, []string{"/home/user/.cache"}, cfg.Options.Sandbox.WritablePaths, "config must not be mutated")
+
+	cfg.Options.Sandbox.WritablePaths = []string{"/repo/.git"}
+	require.Equal(t, []string{"/repo/.git"}, buildBashSandboxOptions(cfg).WritablePaths, "git dir should not be duplicated")
 }

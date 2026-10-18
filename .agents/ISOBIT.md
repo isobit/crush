@@ -56,9 +56,17 @@ pulling a new upstream release, use this list to ensure nothing is lost.
 
 ### Worktree Data Directory Sharing
 
-- **Files**: `internal/config/load.go`, `internal/config/load_test.go`
+- **Files**: `internal/git/git.go`, `internal/git/git_test.go`, `internal/config/config.go`, `internal/config/load.go`, `internal/config/git_info_test.go`, `internal/config/load_test.go`, `internal/agent/sandbox.go`
 - Linked git worktrees use the `.crush` directory from the main checkout
   by default when no `.crush` exists in the linked worktree itself.
+- Repository layout is detected once per config load and stored on `Config.Git`
+  (`GitInfo`: worktree root, main checkout, linked-worktree common dir). Consumers
+  read it from config rather than invoking git. All git invocations live in
+  `internal/git`; add new git queries there. The system prompt's branch, status,
+  and recent-commit summary also comes from `internal/git`.
+- Behavior of the environment-dependent values is recorded in
+  `internal/agent/testdata/markdiff/TestSandboxEnvironments.md` (regenerate with
+  `go test ./internal/agent -run TestSandboxEnvironments -markdiff.update`).
 
 ### Sidebar — Configurable Width
 
@@ -308,6 +316,9 @@ pulling a new upstream release, use this list to ensure nothing is lost.
   direct shell callers, and make every sandboxed bash call use the elevated
   `bash:execute` action. Per-command `sandbox_writable_paths` are combined with
   these defaults.
+  When Crush runs in a linked git worktree, the main checkout's git common
+  directory is also added to these defaults so git commands can write refs,
+  the index, and worktree metadata from inside the sandbox.
 - `hidden_paths`: absolute files/dirs, or paths beginning with `~/`, to hide
   from the sandbox. Each is resolved and masked by binding a placeholder over
   it (`--ro-bind <placeholder> <path>`):

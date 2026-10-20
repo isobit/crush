@@ -113,6 +113,13 @@ type ConfigStore struct {
 	// on the next wait.
 	authSignalMu sync.Mutex
 	authSignals  map[string]chan struct{}
+
+	// kagiKeyMu guards the cached Kagi API key. The cache is keyed by the
+	// raw config template, so changing the template re-resolves the key.
+	kagiKeyMu     sync.Mutex
+	kagiKeyCached bool
+	kagiKeyRaw    string
+	kagiKeyValue  string
 }
 
 // Config returns the pure-data config struct (read-only after load).
@@ -158,6 +165,64 @@ func (s *ConfigStore) Resolve(key string) (string, error) {
 		return "", fmt.Errorf("no variable resolver configured")
 	}
 	return r.ResolveValue(key)
+}
+
+// ResolveWebSearchKagiKey returns the Kagi API key with shell expansion
+// applied. The result is cached until the raw template changes or the
+// config reloads, so commands such as $(passage ...) do not run on every
+// search.
+func (s *ConfigStore) ResolveWebSearchKagiKey() (string, error) {
+	cfg := s.Config()
+	if cfg == nil {
+		return "", fmt.Errorf("config not loaded")
+	}
+	raw := cfg.Tools.WebSearch.KagiAPIKey
+	if raw == "" {
+		return "", fmt.Errorf("tools.web_search.kagi_api_key is not set")
+	}
+	// Fetch the resolver before taking kagiKeyMu: reloads take writeMu and then
+	// kagiKeyMu, so acquiring them in the opposite order could deadlock.
+	r := s.Resolver()
+	if r == nil {
+		return "", fmt.Errorf("no variable resolver configured")
+	}
+
+	s.kagiKeyMu.Lock()
+	defer s.kagiKeyMu.Unlock()
+	if s.kagiKeyCached && s.kagiKeyRaw == raw {
+		return s.kagiKeyValue, nil
+	}
+	resolved, err := resolveWebSearchKagiKey(cfg, r)
+	if err != nil {
+		return "", err
+	}
+	s.kagiKeyRaw = raw
+	s.kagiKeyValue = resolved
+	s.kagiKeyCached = true
+	return resolved, nil
+}
+
+// seedWebSearchKagiKey stores an already-resolved Kagi key so the first
+// search does not re-run the expansion that load just performed.
+func (s *ConfigStore) seedWebSearchKagiKey(raw, resolved string) {
+	if raw == "" || resolved == "" {
+		return
+	}
+	s.kagiKeyMu.Lock()
+	defer s.kagiKeyMu.Unlock()
+	s.kagiKeyRaw = raw
+	s.kagiKeyValue = resolved
+	s.kagiKeyCached = true
+}
+
+// invalidateWebSearchKagiKey drops the cached Kagi key so the next use
+// resolves it again.
+func (s *ConfigStore) invalidateWebSearchKagiKey() {
+	s.kagiKeyMu.Lock()
+	defer s.kagiKeyMu.Unlock()
+	s.kagiKeyCached = false
+	s.kagiKeyRaw = ""
+	s.kagiKeyValue = ""
 }
 
 // KnownProviders returns the list of known providers.
@@ -1087,6 +1152,8 @@ func (s *ConfigStore) reloadFromDiskLocked(ctx context.Context) error {
 
 	// Update store state BEFORE running model/agent setup (so they see new config)
 	s.setConfig(cfg)
+	// The resolver may have changed (e.g. new environment), so drop the cached Kagi key.
+	s.invalidateWebSearchKagiKey()
 	s.loadedPaths = loadedPaths
 	s.resolver = resolver
 	s.knownProviders = providers

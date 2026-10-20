@@ -376,12 +376,16 @@ pulling a new upstream release, use this list to ensure nothing is lost.
   `internal/agent/tools/web_search.go`,
   `internal/agent/tools/web_search_kagi.md.tpl`,
   `internal/config/config.go`, `internal/config/load.go`,
-  `internal/agent/coordinator.go`
+  `internal/config/store.go`, `internal/agent/coordinator.go`,
+  `internal/agent/agentic_fetch_tool.go`
 - `tools.web_search.provider` selects the backend: `"kagi"` or `"duckduckgo"`
   (default). When `"kagi"`, `kagi_api_key` is required.
-- `tools.web_search.kagi_api_key` is resolved via shell interpolation and
-  validated during config load (fails early if provider is kagi but key is
-  missing or resolves to empty).
+- `tools.web_search.kagi_api_key` is stored as a raw template and resolved
+  lazily via shell interpolation (`ConfigStore.ResolveWebSearchKagiKey`).
+  The result is cached per raw template and cleared on config reload, so
+  `$(passage ...)` style commands do not run on every search. Load validates
+  the key once and seeds the cache; a missing or empty key fails early when
+  provider is kagi.
 - `tools.web_search.enable_direct_use` (bool, default false) exposes
   `web_search` directly to the top-level coder agent in addition to
   sub-agents.

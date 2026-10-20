@@ -33,7 +33,7 @@ var kagiSearchDescriptionTpl = template.Must(
 // NewWebSearchTool creates a web search tool. The provider is selected based
 // on cfg.Provider: "kagi" uses the Kagi Search API, anything else uses
 // DuckDuckGo.
-func NewWebSearchTool(client *http.Client, cfg config.ToolWebSearch) fantasy.AgentTool {
+func NewWebSearchTool(client *http.Client, cfg config.ToolWebSearch, resolveKagiKey func() (string, error)) fantasy.AgentTool {
 	if client == nil {
 		transport := http.DefaultTransport.(*http.Transport).Clone()
 		transport.MaxIdleConns = 100
@@ -47,7 +47,7 @@ func NewWebSearchTool(client *http.Client, cfg config.ToolWebSearch) fantasy.Age
 	}
 
 	if cfg.Provider == "kagi" {
-		return newKagiSearchTool(cfg.KagiAPIKey)
+		return newKagiSearchTool(resolveKagiKey)
 	}
 	return newDuckDuckGoSearchTool(client)
 }
@@ -81,11 +81,10 @@ func newDuckDuckGoSearchTool(client *http.Client) fantasy.AgentTool {
 	)
 }
 
-func newKagiSearchTool(apiKey string) fantasy.AgentTool {
-	cfg := kagi.NewConfiguration()
-	cfg.AddDefaultHeader("Authorization", "Bearer "+apiKey)
-	kagiClient := kagi.NewAPIClient(cfg)
-
+// newKagiSearchTool builds the Kagi tool. The key is resolved on each call
+// rather than at construction, so config reloads and secret-manager lookups
+// are honored without rebuilding the tool.
+func newKagiSearchTool(resolveKagiKey func() (string, error)) fantasy.AgentTool {
 	return fantasy.NewParallelAgentTool(
 		WebSearchToolName,
 		renderToolDescription(kagiSearchDescriptionTpl),
@@ -102,7 +101,12 @@ func newKagiSearchTool(apiKey string) fantasy.AgentTool {
 				maxResults = 20
 			}
 
-			results, err := searchKagi(ctx, kagiClient, params.Query, maxResults)
+			apiKey, err := resolveKagiKey()
+			if err != nil {
+				slog.Error("Failed to resolve Kagi API key", "error", err)
+				return fantasy.NewTextErrorResponse("Failed to search: " + err.Error()), nil
+			}
+			results, err := searchKagi(ctx, newKagiClient(apiKey), params.Query, maxResults)
 			if err != nil {
 				slog.Error("Kagi search failed", "error", err)
 				return fantasy.NewTextErrorResponse("Failed to search: " + err.Error()), nil
@@ -112,4 +116,10 @@ func newKagiSearchTool(apiKey string) fantasy.AgentTool {
 			return fantasy.NewTextResponse(formatSearchResults(results)), nil
 		},
 	)
+}
+
+func newKagiClient(apiKey string) *kagi.APIClient {
+	cfg := kagi.NewConfiguration()
+	cfg.AddDefaultHeader("Authorization", "Bearer "+apiKey)
+	return kagi.NewAPIClient(cfg)
 }

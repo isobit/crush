@@ -181,19 +181,11 @@ func Load(workingDir, dataDir string, debug bool, opts ...LoadOption) (*ConfigSt
 		return nil, fmt.Errorf("failed to configure providers: %w", err)
 	}
 
-	// Resolve and validate Kagi API key.
-	if cfg.Tools.WebSearch.KagiAPIKey != "" {
-		resolved, err := valueResolver.ResolveValue(cfg.Tools.WebSearch.KagiAPIKey)
-		if err != nil {
-			return nil, fmt.Errorf("failed to resolve tools.web_search.kagi_api_key: %w", err)
-		}
-		if resolved == "" {
-			return nil, fmt.Errorf("tools.web_search.kagi_api_key is configured but resolves to an empty value")
-		}
-		cfg.Tools.WebSearch.KagiAPIKey = resolved
-	} else if cfg.Tools.WebSearch.Provider == "kagi" {
-		return nil, fmt.Errorf("tools.web_search.provider is \"kagi\" but kagi_api_key is not set")
+	kagiKey, err := resolveWebSearchKagiKey(cfg, valueResolver)
+	if err != nil {
+		return nil, err
 	}
+	store.seedWebSearchKagiKey(cfg.Tools.WebSearch.KagiAPIKey, kagiKey)
 
 	if !cfg.IsConfigured() {
 		slog.Warn("No providers configured")
@@ -238,6 +230,26 @@ func mustMarshalConfig(cfg *Config) []byte {
 		return []byte("{}")
 	}
 	return data
+}
+
+// resolveWebSearchKagiKey validates the Kagi API key at load time and returns
+// its resolved value. The config keeps the raw template so the key can be
+// re-resolved lazily (see ConfigStore.ResolveWebSearchKagiKey).
+func resolveWebSearchKagiKey(cfg *Config, resolver VariableResolver) (string, error) {
+	if cfg.Tools.WebSearch.KagiAPIKey == "" {
+		if cfg.Tools.WebSearch.Provider == "kagi" {
+			return "", fmt.Errorf("tools.web_search.provider is \"kagi\" but kagi_api_key is not set")
+		}
+		return "", nil
+	}
+	resolved, err := resolver.ResolveValue(cfg.Tools.WebSearch.KagiAPIKey)
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve tools.web_search.kagi_api_key: %w", err)
+	}
+	if resolved == "" {
+		return "", fmt.Errorf("tools.web_search.kagi_api_key is configured but resolves to an empty value")
+	}
+	return resolved, nil
 }
 
 func PushPopCrushEnv() func() {

@@ -1902,7 +1902,13 @@ func (a *sessionAgent) openrouterCost(metadata fantasy.ProviderMetadata) *float6
 	if !ok {
 		return nil
 	}
-	return &opts.Usage.Cost
+	// For BYOK requests OpenRouter reports $0 credit cost and bills the
+	// upstream provider directly, so fall back to the upstream cost.
+	cost := opts.Usage.Cost
+	if cost == 0 {
+		cost = opts.Usage.CostDetails.UpstreamInferenceCost
+	}
+	return &cost
 }
 
 // extractHyperCredits reads usage.remaining.hypercredits from OpenAI

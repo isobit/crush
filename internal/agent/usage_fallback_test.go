@@ -6,6 +6,7 @@ import (
 
 	"charm.land/catwalk/pkg/catwalk"
 	"charm.land/fantasy"
+	"charm.land/fantasy/providers/openrouter"
 	"github.com/charmbracelet/crush/internal/message"
 	"github.com/charmbracelet/crush/internal/session"
 	"github.com/stretchr/testify/require"
@@ -336,6 +337,34 @@ func TestUpdateSessionUsageAddsProviderCost(t *testing.T) {
 	require.Equal(t, int64(1000), currentSession.PromptTokens)
 	require.Equal(t, int64(2000), currentSession.CompletionTokens)
 	require.False(t, currentSession.EstimatedUsage)
+}
+
+func TestOpenRouterCostFallsBackToUpstreamCost(t *testing.T) {
+	t.Parallel()
+
+	agent := &sessionAgent{}
+
+	byok := fantasy.ProviderMetadata{
+		openrouter.Name: &openrouter.ProviderMetadata{
+			Usage: openrouter.UsageAccounting{
+				Cost:        0,
+				CostDetails: openrouter.CostDetails{UpstreamInferenceCost: 0.42},
+			},
+		},
+	}
+	require.InDelta(t, 0.42, *agent.openrouterCost(byok), 1e-9)
+
+	credits := fantasy.ProviderMetadata{
+		openrouter.Name: &openrouter.ProviderMetadata{
+			Usage: openrouter.UsageAccounting{
+				Cost:        0.1,
+				CostDetails: openrouter.CostDetails{UpstreamInferenceCost: 0.42},
+			},
+		},
+	}
+	require.InDelta(t, 0.1, *agent.openrouterCost(credits), 1e-9)
+
+	require.Nil(t, agent.openrouterCost(fantasy.ProviderMetadata{}))
 }
 
 func TestAddUsageTotalsTreatsCacheWritesAsUncachedInput(t *testing.T) {

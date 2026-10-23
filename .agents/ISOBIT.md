@@ -471,6 +471,13 @@ pulling a new upstream release, use this list to ensure nothing is lost.
   unfinished diagrams remain source code; streaming Markdown bypasses prefix
   caching when it contains a rendered diagram.
 
+### Glamour Code Span Entity Patch
+
+- **Files**: `third_party/glamour/` (vendored copy of `charm.land/glamour/v2` v2.0.1), `go.mod`, `go.sum`
+- Upstream glamour runs `html.UnescapeString` on code span text, so inline code such as `&reg` renders as a registered trademark sign. CommonMark says code spans are literal. The vendored copy removes that one call (`ansi/elements.go`, `KindCodeSpan`). Plain text and other elements are unchanged.
+- `go.mod` has `replace charm.land/glamour/v2 => ./third_party/glamour`. Remove both the replace and the vendored directory once upstream fixes this (checked as of v2.0.1: no fix on master and no related open issues or PRs).
+- When upgrading glamour, re-copy the module and reapply the one-line change.
+
 ---
 
 ## Notes

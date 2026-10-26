@@ -244,50 +244,66 @@ func commitFileChange(edit editContext, sessionID, filePath, oldContent, newCont
 	return nil
 }
 
-func loadExistingFile(edit editContext, filePath, sessionError string) (sessionID, oldContent string, isCrlf bool, resp fantasy.ToolResponse, err error) {
+// loadExistingFile reads a file for editing. A file modified after the
+// session's last read is not rejected here; it returns a non-empty staleReason
+// so callers can accept edits whose target still matches uniquely in the
+// current contents and report the staleness only if the edit fails.
+func loadExistingFile(edit editContext, filePath, sessionError string) (sessionID, oldContent string, isCrlf bool, staleReason string, resp fantasy.ToolResponse, err error) {
 	fileInfo, err := os.Stat(filePath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return "", "", false, fantasy.NewTextErrorResponse(fmt.Sprintf("file not found: %s", filePath)), nil
+			return "", "", false, "", fantasy.NewTextErrorResponse(fmt.Sprintf("file not found: %s", filePath)), nil
 		}
-		return "", "", false, fantasy.ToolResponse{}, fmt.Errorf("failed to access file: %w", err)
+		return "", "", false, "", fantasy.ToolResponse{}, fmt.Errorf("failed to access file: %w", err)
 	}
 
 	if fileInfo.IsDir() {
-		return "", "", false, fantasy.NewTextErrorResponse(fmt.Sprintf("path is a directory, not a file: %s", filePath)), nil
+		return "", "", false, "", fantasy.NewTextErrorResponse(fmt.Sprintf("path is a directory, not a file: %s", filePath)), nil
 	}
 
 	sessionID = GetSessionFromContext(edit.ctx)
 	if sessionID == "" {
-		return "", "", false, fantasy.ToolResponse{}, fmt.Errorf("%s", sessionError)
+		return "", "", false, "", fantasy.ToolResponse{}, fmt.Errorf("%s", sessionError)
 	}
 
 	lastRead := edit.filetracker.LastReadTime(edit.ctx, sessionID, filePath)
 	if lastRead.IsZero() {
-		return "", "", false, fantasy.NewTextErrorResponse("you must read the file before editing it. Use the View tool first"), nil
+		return "", "", false, "", fantasy.NewTextErrorResponse("you must read the file before editing it. Use the View tool first"), nil
 	}
 
 	modTime := fileInfo.ModTime().Truncate(time.Second)
 	if modTime.After(lastRead) {
-		return "", "", false, fantasy.NewTextErrorResponse(
-			fmt.Sprintf(
-				"file %s has been modified since it was last read (mod time: %s, last read: %s)",
-				filePath, modTime.Format(time.RFC3339), lastRead.Format(time.RFC3339),
-			),
-		), nil
+		staleReason = fmt.Sprintf(
+			"file %s has been modified since it was last read (mod time: %s, last read: %s)",
+			filePath, modTime.Format(time.RFC3339), lastRead.Format(time.RFC3339),
+		)
 	}
 
 	content, err := os.ReadFile(filePath)
 	if err != nil {
-		return "", "", false, fantasy.ToolResponse{}, fmt.Errorf("failed to read file: %w", err)
+		return "", "", false, "", fantasy.ToolResponse{}, fmt.Errorf("failed to read file: %w", err)
 	}
 
 	oldContent, isCrlf = fsext.ToUnixLineEndings(string(content))
-	return sessionID, oldContent, isCrlf, fantasy.ToolResponse{}, nil
+	return sessionID, oldContent, isCrlf, staleReason, fantasy.ToolResponse{}, nil
+}
+
+// staleEditError returns the error to report for an edit against a file that
+// changed since it was last read. Edits that still match exactly once in the
+// current contents pass through; replace_all edits are not allowed on a stale
+// file because the match set may have changed in ways the model never saw.
+func staleEditError(staleReason string, editErr error, replaceAll bool) error {
+	if staleReason == "" {
+		return editErr
+	}
+	if editErr != nil || replaceAll {
+		return fmt.Errorf("%s. Re-read it with View first", staleReason)
+	}
+	return nil
 }
 
 func deleteContent(edit editContext, filePath, oldString string, replaceAll bool, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
-	sessionID, oldContent, isCrlf, resp, err := loadExistingFile(edit, filePath, "session ID is required for deleting content")
+	sessionID, oldContent, isCrlf, staleReason, resp, err := loadExistingFile(edit, filePath, "session ID is required for deleting content")
 	if err != nil {
 		return fantasy.ToolResponse{}, err
 	}
@@ -296,7 +312,7 @@ func deleteContent(edit editContext, filePath, oldString string, replaceAll bool
 	}
 
 	newContent, err := findAndReplace(oldContent, oldString, "", replaceAll)
-	if err != nil {
+	if err := staleEditError(staleReason, err, replaceAll); err != nil {
 		return fantasy.NewTextErrorResponse(err.Error()), nil
 	}
 
@@ -357,7 +373,7 @@ func deleteContent(edit editContext, filePath, oldString string, replaceAll bool
 }
 
 func replaceContent(edit editContext, filePath, oldString, newString string, replaceAll bool, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
-	sessionID, oldContent, isCrlf, resp, err := loadExistingFile(edit, filePath, "session ID is required for editing a file")
+	sessionID, oldContent, isCrlf, staleReason, resp, err := loadExistingFile(edit, filePath, "session ID is required for editing a file")
 	if err != nil {
 		return fantasy.ToolResponse{}, err
 	}
@@ -366,7 +382,7 @@ func replaceContent(edit editContext, filePath, oldString, newString string, rep
 	}
 
 	result, err := findAndReplace(oldContent, oldString, newString, replaceAll)
-	if err != nil {
+	if err := staleEditError(staleReason, err, replaceAll); err != nil {
 		return fantasy.NewTextErrorResponse(err.Error()), nil
 	}
 	if result == oldContent {

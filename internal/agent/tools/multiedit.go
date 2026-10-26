@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"charm.land/fantasy"
@@ -247,7 +248,7 @@ func processMultiEditWithCreation(edit editContext, params MultiEditParams, call
 }
 
 func processMultiEditExistingFile(edit editContext, params MultiEditParams, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
-	sessionID, oldContent, isCrlf, resp, err := loadExistingFile(edit, params.FilePath, "session ID is required for editing a file")
+	sessionID, oldContent, isCrlf, staleReason, resp, err := loadExistingFile(edit, params.FilePath, "session ID is required for editing a file")
 	if err != nil {
 		return fantasy.ToolResponse{}, err
 	}
@@ -256,6 +257,11 @@ func processMultiEditExistingFile(edit editContext, params MultiEditParams, call
 	}
 
 	currentContent, failedEdits := applyEditsToContent(oldContent, params.Edits, 0)
+
+	// A stale file only accepts edits that all apply and none use replace_all.
+	if staleReason != "" && (len(failedEdits) > 0 || slices.ContainsFunc(params.Edits, func(e MultiEditOperation) bool { return e.ReplaceAll })) {
+		return fantasy.NewTextErrorResponse(staleReason + ". Re-read it with View first"), nil
+	}
 
 	// Check if content actually changed
 	if oldContent == currentContent {

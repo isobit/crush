@@ -85,3 +85,88 @@ func TestDeleteContentRejectsMultipleMatchesWithoutReplaceAll(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "alpha\nbeta\nalpha\n", string(content))
 }
+
+func staleEditContext(t *testing.T, dir string) editContext {
+	t.Helper()
+
+	// Last read an hour ago, so the file written below counts as modified since.
+	return editContext{
+		ctx:         context.WithValue(t.Context(), SessionIDContextKey, "session"),
+		permissions: &mockPermissionService{},
+		files:       &mockHistoryService{},
+		filetracker: &mockEditFileTracker{lastRead: time.Now().Add(-time.Hour)},
+		workingDir:  dir,
+	}
+}
+
+func TestReplaceContentStaleFileAcceptsUniqueMatch(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	filePath := filepath.Join(dir, "test.txt")
+	require.NoError(t, os.WriteFile(filePath, []byte("alpha\nbeta\ngamma\n"), 0o644))
+
+	edit := staleEditContext(t, dir)
+	resp, err := replaceContent(edit, filePath, "beta", "BETA", false, fantasy.ToolCall{ID: "call"})
+	require.NoError(t, err)
+	require.False(t, resp.IsError, resp.Content)
+
+	content, err := os.ReadFile(filePath)
+	require.NoError(t, err)
+	require.Equal(t, "alpha\nBETA\ngamma\n", string(content))
+}
+
+func TestReplaceContentStaleFileRejectsFailedMatch(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	filePath := filepath.Join(dir, "test.txt")
+	require.NoError(t, os.WriteFile(filePath, []byte("alpha\ngamma\n"), 0o644))
+
+	edit := staleEditContext(t, dir)
+	resp, err := replaceContent(edit, filePath, "beta", "BETA", false, fantasy.ToolCall{ID: "call"})
+	require.NoError(t, err)
+	require.True(t, resp.IsError)
+	require.Contains(t, resp.Content, "has been modified since it was last read")
+}
+
+func TestReplaceContentStaleFileRejectsReplaceAll(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	filePath := filepath.Join(dir, "test.txt")
+	require.NoError(t, os.WriteFile(filePath, []byte("beta\nbeta\n"), 0o644))
+
+	edit := staleEditContext(t, dir)
+	resp, err := replaceContent(edit, filePath, "beta", "BETA", true, fantasy.ToolCall{ID: "call"})
+	require.NoError(t, err)
+	require.True(t, resp.IsError)
+	require.Contains(t, resp.Content, "has been modified since it was last read")
+	content, err := os.ReadFile(filePath)
+	require.NoError(t, err)
+	require.Equal(t, "beta\nbeta\n", string(content))
+}
+
+func TestMultiEditStaleFileRejectsPartialFailure(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	filePath := filepath.Join(dir, "test.txt")
+	require.NoError(t, os.WriteFile(filePath, []byte("alpha\nbeta\n"), 0o644))
+
+	edit := staleEditContext(t, dir)
+	params := MultiEditParams{
+		FilePath: filePath,
+		Edits: []MultiEditOperation{
+			{OldString: "alpha", NewString: "ALPHA"},
+			{OldString: "missing", NewString: "X"},
+		},
+	}
+	resp, err := processMultiEditExistingFile(edit, params, fantasy.ToolCall{ID: "call"})
+	require.NoError(t, err)
+	require.True(t, resp.IsError)
+	require.Contains(t, resp.Content, "has been modified since it was last read")
+	content, err := os.ReadFile(filePath)
+	require.NoError(t, err)
+	require.Equal(t, "alpha\nbeta\n", string(content))
+}

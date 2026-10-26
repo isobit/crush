@@ -160,7 +160,7 @@ Critical: ALWAYS read the relevant context of files before editing them in this 
 When using edit tools:
 1. Read the relevant context first - note the EXACT indentation (spaces vs tabs, count)
 2. Copy the exact text including ALL whitespace, newlines, and indentation
-3. Include 3-5 lines of context before and after the target
+3. Use the shortest unique old_string; add surrounding lines only if it isn't unique
 4. Verify your old_string would appear exactly once in the file
 5. If uncertain about whitespace, include more surrounding context
 6. Verify edit succeeded
@@ -206,7 +206,7 @@ The Edit tool is extremely literal. "Close enough" will fail.
    - Every blank line
    - Opening/closing braces position
    - Comment formatting
-3. Include enough surrounding lines (3-5) to make it unique
+3. Use the shortest unique snippet; add surrounding lines only if it isn't unique
 4. Double-check indentation level matches
 
 **Common failures**:

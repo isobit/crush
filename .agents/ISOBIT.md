@@ -22,6 +22,7 @@ pulling a new upstream release, use this list to ensure nothing is lost.
 - Verification guidance favors focused checks after cohesive changes and defers expensive builds or broad suites until implementation is ready.
 - Delegation guidance explains the read-only `task` researcher, web-focused `agentic_fetch`, and selection of custom agents based on the profile descriptions and exposed tools/MCP access.
 - The prompt does not hardcode a ban on `curl`; the bash tool description lists the banned commands for the current sandbox state, so network tools like `curl` and `ssh` are not listed while sandboxing is active.
+- Edit anchor guidance asks for the shortest unique `old_string`, matching the shorter anchors Claude Code's Edit tool now uses.
 
 
 ### Model Switcher — Active Model Indicator
@@ -113,6 +114,15 @@ pulling a new upstream release, use this list to ensure nothing is lost.
 - Dedicated chat renderer in `internal/ui/chat/file.go`
   (`HashlineEditToolMessageItem`).
 - Diff view in the permission dialog (`internal/ui/dialog/permissions.go`).
+
+### Edit Tool Stale-File Fallback
+
+- **Files**: `internal/agent/tools/edit.go`, `internal/agent/tools/multiedit.go`
+- A file modified after the session last read it is no longer rejected up front.
+  The edit is applied if its `old_string` still matches exactly once in the current
+  contents, mirroring Claude Code's Edit behavior. `replace_all` and multiedit
+  batches with any failed operation are still rejected with the stale-file error.
+- The read-before-edit requirement is unchanged.
 
 ### Export and Sessions Commands
 

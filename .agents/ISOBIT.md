@@ -21,6 +21,7 @@ pulling a new upstream release, use this list to ensure nothing is lost.
 - The system prompt requires matching skills to be loaded once before the first task-performing tool call, and treats follow-up edits and tests as the same task.
 - Verification guidance favors focused checks after cohesive changes and defers expensive builds or broad suites until implementation is ready.
 - Delegation guidance explains the read-only `task` researcher, web-focused `agentic_fetch`, and selection of custom agents based on the profile descriptions and exposed tools/MCP access.
+- The prompt does not hardcode a ban on `curl`; the bash tool description lists the banned commands for the current sandbox state, so network tools like `curl` and `ssh` are not listed while sandboxing is active.
 
 
 ### Model Switcher — Active Model Indicator

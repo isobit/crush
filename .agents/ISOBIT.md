@@ -515,3 +515,7 @@ pulling a new upstream release, use this list to ensure nothing is lost.
   `ConfigFiles`, `SetOverrides`, and `Channels`.
 - Since v0.87.0, sidebar content uses upstream's scrollable 32-column layout
   while preserving isobit's labeled cwd and optional data-directory rows.
+- Fantasy v0.45.5 switched its OpenAI-compatible SDK options to
+  `github.com/charmbracelet/openai-go/option`. The `extra_body` handling in
+  `coordinator.go` must import that package, not `openai/openai-go/v3`.
+  The go directive also moved to 1.27.x, so builds need that toolchain.

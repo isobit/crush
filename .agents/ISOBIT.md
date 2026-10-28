@@ -76,6 +76,13 @@ pulling a new upstream release, use this list to ensure nothing is lost.
 - The sidebar shows them under the cost line as two lines,
   `X in, Y cache reads` and `W out`. Cache writes count as uncached input.
 
+### Agent — Blocked and Failed Responses
+
+- **Files**: `internal/agent/agent.go`, `internal/agent/coordinator.go`, `internal/log/stream.go`, `internal/log/stream_test.go`
+- A response stopped by the provider's content filter, or ended with a provider error, is saved as an error on the assistant message with a short explanation. Previously it was saved as a blank turn that was silently dropped from later prompts.
+- Any other abnormal step ending logs a warning with the raw finish reason and the size of the turn.
+- OpenRouter event streams are always inspected, so mid-stream upstream errors (`finish_reason: "error"`) are logged even when debug mode is off.
+
 ### Chat — Scroll Indicator
 
 - **Files**: `internal/ui/model/ui.go`

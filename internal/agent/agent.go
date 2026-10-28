@@ -1013,7 +1013,27 @@ func (a *sessionAgent) Run(ctx context.Context, call SessionAgentCall) (result *
 			for _, w := range stepResult.Warnings {
 				slog.Warn("Provider warning", "type", w.Type, "message", w.Message)
 			}
+			switch stepResult.FinishReason {
+			case fantasy.FinishReasonStop, fantasy.FinishReasonToolCalls:
+			default:
+				// Abnormal endings (error, content filter, unknown, or
+				// truncation) can leave the turn empty or with tool calls
+				// that were dropped. Log the shape of the turn so these
+				// can be told apart from a normal stop.
+				slog.Warn(
+					"Model step ended abnormally",
+					"finish_reason", stepResult.FinishReason,
+					"session_id", call.SessionID,
+					"provider", largeModel.ModelCfg.Provider,
+					"model", largeModel.ModelCfg.Model,
+					"text_len", len(stepResult.Content.Text()),
+					"reasoning_len", len(stepResult.Content.ReasoningText()),
+					"tool_calls", len(stepResult.Content.ToolCalls()),
+					"warnings", len(stepResult.Warnings),
+				)
+			}
 			finishReason := message.FinishReasonUnknown
+			var finishTitle, finishDetails string
 			switch stepResult.FinishReason {
 			case fantasy.FinishReasonLength:
 				finishReason = message.FinishReasonMaxTokens
@@ -1021,6 +1041,16 @@ func (a *sessionAgent) Run(ctx context.Context, call SessionAgentCall) (result *
 				finishReason = message.FinishReasonEndTurn
 			case fantasy.FinishReasonToolCalls:
 				finishReason = message.FinishReasonToolUse
+			case fantasy.FinishReasonContentFilter:
+				// The provider returns no output for filtered responses, so
+				// surface the reason instead of saving a blank turn.
+				finishReason = message.FinishReasonError
+				finishTitle = "Response blocked"
+				finishDetails = "The provider's content filter blocked this response. Try rephrasing, or start a new session if it keeps happening."
+			case fantasy.FinishReasonError:
+				finishReason = message.FinishReasonError
+				finishTitle = "Provider error"
+				finishDetails = "The provider ended the response with an error before producing output."
 			}
 			// If a tool result halted the turn (e.g. a hook halt or a
 			// permission denial), the step ends on FinishReasonToolCalls but
@@ -1034,7 +1064,7 @@ func (a *sessionAgent) Run(ctx context.Context, call SessionAgentCall) (result *
 					}
 				}
 			}
-			currentAssistant.AddFinish(finishReason, "", "")
+			currentAssistant.AddFinish(finishReason, finishTitle, finishDetails)
 			sessionLock.Lock()
 			defer sessionLock.Unlock()
 

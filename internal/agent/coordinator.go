@@ -950,10 +950,9 @@ func (c *coordinator) buildOpenaiProvider(baseURL, apiKey string, headers map[st
 func (c *coordinator) buildOpenrouterProvider(_, apiKey string, headers map[string]string) (fantasy.Provider, error) {
 	opts := []openrouter.Option{
 		openrouter.WithAPIKey(apiKey),
-	}
-	if c.cfg.Config().Options.Debug {
-		httpClient := log.NewHTTPClient()
-		opts = append(opts, openrouter.WithHTTPClient(httpClient))
+		// Always watch streams so mid-stream upstream errors are logged
+		// even when debug mode is off.
+		openrouter.WithHTTPClient(log.NewStreamWatchHTTPClient(c.cfg.Config().Options.Debug)),
 	}
 	if len(headers) > 0 {
 		opts = append(opts, openrouter.WithHeaders(headers))

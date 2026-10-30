@@ -2475,3 +2475,46 @@ func TestConfig_ValidateAgentsRejectsInvalidGlob(t *testing.T) {
 	}
 	require.Error(t, cfg.ValidateAgents())
 }
+
+func TestConfig_GlobalSkillsPathsReplacesDefaults(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
+	t.Setenv("CRUSH_SKILLS_DIR", "")
+
+	workDir := t.TempDir()
+	globalSkills := t.TempDir()
+	configPath := filepath.Join(workDir, "crush.json")
+	data := `{"options": {"global_skills_paths": ["` + globalSkills + `"]}}`
+	require.NoError(t, os.WriteFile(configPath, []byte(data), 0o600))
+
+	store, err := Load(workDir, filepath.Join(workDir, ".crush"), false, WithConfigFiles([]string{configPath}))
+	require.NoError(t, err)
+
+	paths := store.Config().Options.SkillsPaths
+	require.Contains(t, paths, globalSkills)
+	require.NotContains(t, paths, filepath.Join(home, ".claude", "skills"))
+	require.NotContains(t, paths, filepath.Join(home, ".config", "crush", "skills"))
+	for _, dir := range ProjectSkillsDir(workDir) {
+		require.Contains(t, paths, dir)
+	}
+}
+
+func TestConfig_GlobalSkillsDefaultsWhenUnset(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
+	t.Setenv("CRUSH_SKILLS_DIR", "")
+
+	workDir := t.TempDir()
+	configPath := filepath.Join(workDir, "crush.json")
+	require.NoError(t, os.WriteFile(configPath, []byte(`{}`), 0o600))
+
+	store, err := Load(workDir, filepath.Join(workDir, ".crush"), false, WithConfigFiles([]string{configPath}))
+	require.NoError(t, err)
+
+	paths := store.Config().Options.SkillsPaths
+	for _, dir := range GlobalSkillsDirs() {
+		require.Contains(t, paths, dir)
+	}
+}

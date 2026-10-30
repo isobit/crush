@@ -687,6 +687,17 @@ The global paths we looks for skills are:
   * `%LOCALAPPDATA%\crush\skills\` or `%USERPROFILE%\AppData\Local\crush\skills\`
 * Additional paths configured via `options.skills_paths`
 
+To replace the global paths above with your own list, set
+`options.global_skills_paths`. Project-local paths are still loaded.
+
+```jsonc
+{
+  "options": {
+    "global_skills_paths": ["~/.config/crush/skills"],
+  },
+}
+```
+
 On top of that, we _also_ load skills in your project from the following
 relative paths:
 

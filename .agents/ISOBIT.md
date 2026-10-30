@@ -388,6 +388,13 @@ pulling a new upstream release, use this list to ensure nothing is lost.
 - Tool, MCP, permission, disabled-tool, and disabled-skill lists use shared `path.Match`-style glob semantics; global disabled filters remain hard bounds.
 - The `agentic_fetch` sub-agent applies global `disabled_tools` to its own built-in tools (`web_fetch`, `web_search`, `glob`, `grep`, `sourcegraph`, `view`), so disabled tools cannot be reached through it (`internal/agent/agentic_fetch_tool.go`).
 - Prompt-only child profiles bypass runtime auto-approval shortcuts, including permissive mode and `--yolo`; inherited profiles retain the parent permission policy.
+
+### Configurable Global Skills Directories
+
+- **Files**: `internal/config/config.go`, `internal/config/load.go`, `internal/config/load_test.go`, `internal/skills/builtin/crush-config/SKILL.md`, `README.md`, `schema.json`
+- `options.global_skills_paths` replaces the built-in global skill directories (`~/.config/crush/skills`, `~/.config/agents/skills`, `~/.agents/skills`, `~/.claude/skills`) when set. Project-local skill directories are always included.
+- Unset keeps the default behavior, including the `CRUSH_SKILLS_DIR` override.
+
 ### Kagi Search Integration
 
 - **Files**: `internal/agent/tools/search_kagi.go`,

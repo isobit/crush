@@ -538,6 +538,16 @@
           "type": "array",
           "description": "Paths to directories containing Agent Skills (folders with SKILL.md files)"
         },
+        "global_skills_paths": {
+          "items": {
+            "type": "string",
+            "examples": [
+              "~/.config/crush/skills"
+            ]
+          },
+          "type": "array",
+          "description": "Global skill directories that replace the built-in defaults (~/.config/crush/skills, ~/.config/agents/skills, ~/.agents/skills, ~/.claude/skills). Project-local skill directories are always included."
+        },
         "tui": {
           "$ref": "#/$defs/TUIOptions",
           "description": "Terminal user interface options"

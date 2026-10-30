@@ -645,7 +645,11 @@ func (c *Config) setDefaults(workingDir, dataDir string) {
 	c.Options.ContextPaths = slices.Compact(c.Options.ContextPaths)
 
 	// Add the default skills directories if not already present.
-	for _, dir := range GlobalSkillsDirs() {
+	globalSkillsDirs := c.Options.GlobalSkillsPaths
+	if len(globalSkillsDirs) == 0 {
+		globalSkillsDirs = GlobalSkillsDirs()
+	}
+	for _, dir := range globalSkillsDirs {
 		if !slices.Contains(c.Options.SkillsPaths, dir) {
 			c.Options.SkillsPaths = append(c.Options.SkillsPaths, dir)
 		}

@@ -62,6 +62,20 @@ func hyperBuilder(model string) builderFunc {
 	}
 }
 
+// isolateUserConfig points HOME, XDG_* and the CRUSH_GLOBAL_* overrides away
+// from the host so the prompt never includes the developer's global config,
+// context files, or skills.
+func isolateUserConfig(t *testing.T) {
+	t.Helper()
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CACHE_HOME", filepath.Join(home, ".cache"))
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
+	t.Setenv("XDG_DATA_HOME", filepath.Join(home, ".local", "share"))
+	t.Setenv("CRUSH_GLOBAL_CONFIG", "")
+	t.Setenv("CRUSH_GLOBAL_DATA", "")
+}
+
 func testConfigFile(workingDir string) config.LoadOption {
 	return config.WithConfigFiles([]string{filepath.Join(workingDir, "crush.json")})
 }

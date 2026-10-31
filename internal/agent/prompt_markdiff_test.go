@@ -16,7 +16,8 @@ import (
 )
 
 func TestCoderPromptMarkdiff(t *testing.T) {
-	t.Parallel()
+	// Not parallel: isolateUserConfig modifies the process environment.
+	isolateUserConfig(t)
 
 	root := t.TempDir()
 	workingDir := filepath.Join(root, "workspace")

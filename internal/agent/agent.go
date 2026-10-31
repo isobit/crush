@@ -1222,7 +1222,20 @@ func (a *sessionAgent) Run(ctx context.Context, call SessionAgentCall) (result *
 					fmt.Sprintf("%q is not enabled in Copilot. Go to the following page to enable it. Then, wait 5 minutes before trying again. %s", largeModel.CatwalkCfg.Name, link),
 				)
 			} else {
-				currentAssistant.AddFinish(message.FinishReasonError, cmp.Or(stringext.Capitalize(providerErr.Title), defaultTitle), providerErr.Message)
+				// Gateways such as OpenRouter often return a generic message
+				// and put the real upstream error in the response body.
+				details := providerErr.Message
+				if upstream := upstreamProviderDetail(providerErr.ResponseBody); upstream != "" {
+					details = upstream
+				}
+				slog.Warn(
+					"Provider request failed",
+					"status_code", providerErr.StatusCode,
+					"title", providerErr.Title,
+					"message", providerErr.Message,
+					"response_body", truncateForLog(string(providerErr.ResponseBody), 2000),
+				)
+				currentAssistant.AddFinish(message.FinishReasonError, cmp.Or(stringext.Capitalize(providerErr.Title), defaultTitle), details)
 			}
 		} else if errors.As(err, &fantasyErr) {
 			currentAssistant.AddFinish(message.FinishReasonError, cmp.Or(stringext.Capitalize(fantasyErr.Title), defaultTitle), fantasyErr.Message)

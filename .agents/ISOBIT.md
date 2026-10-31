@@ -82,6 +82,7 @@ pulling a new upstream release, use this list to ensure nothing is lost.
 - A response stopped by the provider's content filter, or ended with a provider error, is saved as an error on the assistant message with a short explanation. Previously it was saved as a blank turn that was silently dropped from later prompts.
 - Any other abnormal step ending logs a warning with the raw finish reason and the size of the turn.
 - OpenRouter event streams are always inspected, so mid-stream upstream errors (`finish_reason: "error"`) are logged even when debug mode is off.
+- Provider request failures show the upstream reason from the gateway's error body (OpenRouter's `error.metadata.raw`) instead of only the generic "Provider returned error", and log the response body. Helper in `internal/agent/provider_error.go`.
 
 ### Chat — Scroll Indicator
 

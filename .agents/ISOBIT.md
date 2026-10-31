@@ -512,6 +512,7 @@ pulling a new upstream release, use this list to ensure nothing is lost.
 - Upstream glamour runs `html.UnescapeString` on code span text, so inline code such as `&reg` renders as a registered trademark sign. CommonMark says code spans are literal. The vendored copy removes that one call (`ansi/elements.go`, `KindCodeSpan`). Plain text and other elements are unchanged.
 - `go.mod` has `replace charm.land/glamour/v2 => ./third_party/glamour`. Remove both the replace and the vendored directory once upstream fixes this (checked as of v2.0.1: no fix on master and no related open issues or PRs).
 - When upgrading glamour, re-copy the module and reapply the one-line change.
+- The vendored copy omits the upstream gallery and example PNGs. They were Git LFS files whose contents were never stored in this repo, so they could not be pushed to a new remote. Only documentation referenced them.
 
 ---
 

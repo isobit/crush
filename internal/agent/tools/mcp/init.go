@@ -839,6 +839,11 @@ func createTransport(ctx context.Context, cfg *config.ConfigStore, name string, 
 				}
 			}
 
+			headers, err := m.ResolvedHeaders(resolver)
+			if err != nil {
+				return nil, nil, err
+			}
+
 			// Normalize trailing slash for PRM discovery compatibility.
 			normalizedURL := strings.TrimSuffix(url, "/")
 			oauthHandler, oauthErr := mcpoauth.NewHandler(name, normalizedURL, m.OAuthToken, preregistered, tokenSaver, mcpoauth.IsInteractive(ctx), m.OAuthCallbackPort)
@@ -846,8 +851,14 @@ func createTransport(ctx context.Context, cfg *config.ConfigStore, name string, 
 				return nil, nil, fmt.Errorf("failed to create OAuth handler for mcp %q: %w", name, oauthErr)
 			}
 			authURLs.Set(name, oauthHandler)
+
+			// The SDK injects the bearer token itself, so the configured
+			// headers are layered on the HTTP client's base transport.
 			return &mcp.StreamableClientTransport{
-				Endpoint:     url,
+				Endpoint: url,
+				HTTPClient: &http.Client{
+					Transport: &headerRoundTripper{headers: headers},
+				},
 				OAuthHandler: oauthHandler,
 			}, oauthHandler, nil
 		}

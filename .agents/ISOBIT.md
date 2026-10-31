@@ -479,6 +479,15 @@ pulling a new upstream release, use this list to ensure nothing is lost.
 - Fixes port exhaustion when running many concurrent Crush instances with
   OAuth MCP servers (the candidate range is only 40704-40713).
 
+### MCP OAuth Configured Headers
+
+- **Files**: `internal/agent/tools/mcp/init.go`
+- HTTP MCP servers with `oauth: true` send their configured `headers` on every
+  request, the same as servers without OAuth. Previously the OAuth transport
+  dropped them.
+- The SDK sets the bearer token itself, so a configured `Authorization` header
+  is overwritten by the OAuth token.
+
 ### Ephemeral Model Selection
 
 - **Files**: `internal/config/store.go`, `internal/proto/requests.go`, `internal/backend/config.go`, `internal/client/config.go`, `internal/server/config.go`, `internal/workspace/`, `internal/ui/dialog/models.go`, `internal/ui/model/ui.go`
